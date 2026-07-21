@@ -1,10 +1,11 @@
-<script lang="ts">
+<script lang="ts" generics="TProblemInfo">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { user } from '$lib/services/auth';
   import { isAdmin } from '$lib/services/auth';
   import { supabase } from '$lib/services/database';
   import { insertProblem } from '$lib/services/problem';
+  import type { Problem } from '$lib/services/problem';
   import type { Unsubscriber } from 'svelte/store';
 
   // Props
@@ -15,8 +16,11 @@
   export let urlsPlaceholder: string = 'Enter problem URLs';
   export let urlsDescription: string = `Enter ${platformName} problem URLs`;
   export let extractUrls: (text: string) => string[];
-  export let fetchProblemData: (problemInfo: any, handle?: string) => Promise<any>;
-  export let extractProblemInfo: (url: string) => any;
+  export let fetchProblemData: (
+    problemInfo: NonNullable<TProblemInfo>,
+    handle?: string
+  ) => Promise<{ success: boolean; message?: string; problem?: Omit<Problem, 'source'> }>;
+  export let extractProblemInfo: (url: string) => TProblemInfo;
   export let formatResultUrl: (url: string, name?: string) => string = (url, name) => name || url;
 
   // Form data
@@ -24,7 +28,6 @@
   let handle = '';
   let loading = false;
   let error: string | null = null;
-  let success = false;
   let isAdminUser = false;
   let checkingAdmin = true;
   let userUnsubscribe: Unsubscriber | null = null;
@@ -46,7 +49,6 @@
       const currentUser = data.session?.user || null;
 
       if (!currentUser) {
-        console.log('No user found on initial check, redirecting to home');
         goto('/');
         return;
       }
@@ -71,7 +73,6 @@
       userUnsubscribe = user.subscribe((value) => {
         if (value === null && currentUser !== null) {
           // User logged out after initial load
-          console.log('User logged out, redirecting to home');
           goto('/');
         }
       });
@@ -113,7 +114,6 @@
 
     loading = true;
     error = null;
-    success = false;
 
     // Initialize processing results
     processingResults = urls.map((url) => ({
@@ -189,11 +189,6 @@
         processingResults = [...processingResults];
       }
 
-      // Check if any problems were successfully added
-      const successCount = processingResults.filter((r) => r.status === 'success').length;
-      if (successCount > 0) {
-        success = true;
-      }
     } catch (err) {
       console.error(`Error processing problems:`, err);
       error = 'An unexpected error occurred while processing problems.';
@@ -273,7 +268,7 @@
         <div class="mt-8">
           <h2 class="mt-8 mb-4 text-[var(--color-heading)] text-2xl">Results</h2>
           <div class="flex flex-col gap-2">
-            {#each processingResults as result}
+            {#each processingResults as result (result.url)}
               <div
                 class="flex justify-between items-center p-3 bg-[var(--color-background)] rounded border-l-4 {result.status ===
                 'success'

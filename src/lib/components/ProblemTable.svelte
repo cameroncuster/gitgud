@@ -288,7 +288,7 @@ function getDifficultyTooltip(problem: Problem): string {
         </tr>
       </thead>
       <tbody>
-        {#each problems as problem}
+        {#each problems as problem (problem.url)}
           <tr
             class="relative border-b border-[var(--color-border)] transition-colors duration-200 last:border-b-0
             ${problem.id && userSolvedProblems.has(problem.id)

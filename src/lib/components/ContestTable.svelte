@@ -310,7 +310,7 @@ function getDifficultyColorClass(difficulty: number | undefined): string {
         </tr>
       </thead>
       <tbody>
-        {#each filteredContests as contest}
+        {#each filteredContests as contest (contest.url)}
           <tr
             class="relative border-b border-[var(--color-border)] transition-colors duration-200 last:border-b-0
             ${contest.id && userParticipation.has(contest.id)

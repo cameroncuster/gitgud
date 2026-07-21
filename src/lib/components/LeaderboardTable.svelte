@@ -65,7 +65,7 @@ function getRankTierName(rank: number): string {
         </tr>
       </thead>
       <tbody>
-        {#each leaderboardEntries as entry}
+        {#each leaderboardEntries as entry (entry.username)}
           <tr
             class="relative border-b border-[var(--color-border)] transition-colors duration-200 last:border-b-0 hover:bg-[var(--color-tertiary)]/30"
           >

@@ -242,10 +242,6 @@ async function handleLike(contestId: string, isLike: boolean) {
       isUndo = true;
     }
 
-    console.log(
-      `Updating contest ${contestId} feedback: isLike=${isLike}, isUndo=${isUndo}, currentFeedback=${currentFeedback}`
-    );
-
     // Call the service to update feedback
     const updatedContest = await updateContestFeedback(
       contestId,
@@ -255,10 +251,6 @@ async function handleLike(contestId: string, isLike: boolean) {
     );
 
     if (updatedContest) {
-      console.log(
-        `Updated contest: likes=${updatedContest.likes}, dislikes=${updatedContest.dislikes}`
-      );
-
       // Update the contest in the list
       const index = filteredContests.findIndex((c) => c.id === contestId);
       if (index !== -1) {

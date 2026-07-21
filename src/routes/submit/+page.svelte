@@ -32,7 +32,7 @@ onMount(() => {
       if (!isAdminUser) {
         error = 'Only admins can submit problems.';
       }
-    } catch (err) {
+    } catch {
       error = 'Failed to verify permissions.';
     } finally {
       checkingAdmin = false;
