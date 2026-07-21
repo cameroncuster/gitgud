@@ -1,5 +1,5 @@
 <script lang="ts">
-import { page } from '$app/stores'; // TODO: Update to newer API when refactoring
+import { page } from '$app/state';
 import { user } from '$lib/services/auth';
 import { signInWithGithub, signOut, isAdmin } from '$lib/services/auth';
 import { onMount } from 'svelte';
@@ -118,7 +118,7 @@ function toggleMobileMenu() {
 }
 
 // Close mobile menu when navigating to a new page
-$: if ($page) {
+$: if (page.url.pathname) {
   mobileMenuOpen = false;
 }
 </script>
@@ -171,7 +171,7 @@ $: if ($page) {
     <nav class="hidden items-center gap-6 lg:flex lg:gap-4">
       <ul class="m-0 flex list-none gap-2 p-0 lg:gap-3 xl:gap-4">
         <li
-          class="relative {$page.url.pathname === '/'
+          class="relative {page.url.pathname === '/'
             ? "after:absolute after:-bottom-2 after:left-0 after:h-0.5 after:w-full after:rounded-sm after:bg-[var(--color-accent)] after:content-['']"
             : ''}"
         >
@@ -182,7 +182,7 @@ $: if ($page) {
           >
         </li>
         <li
-          class="relative {$page.url.pathname === '/contests'
+          class="relative {page.url.pathname === '/contests'
             ? "after:absolute after:-bottom-2 after:left-0 after:h-0.5 after:w-full after:rounded-sm after:bg-[var(--color-accent)] after:content-['']"
             : ''}"
         >
@@ -193,7 +193,7 @@ $: if ($page) {
           >
         </li>
         <li
-          class="relative {$page.url.pathname === '/leaderboard'
+          class="relative {page.url.pathname === '/leaderboard'
             ? "after:absolute after:-bottom-2 after:left-0 after:h-0.5 after:w-full after:rounded-sm after:bg-[var(--color-accent)] after:content-['']"
             : ''}"
         >
@@ -204,7 +204,7 @@ $: if ($page) {
           >
         </li>
         <li
-          class="relative {$page.url.pathname === '/about'
+          class="relative {page.url.pathname === '/about'
             ? "after:absolute after:-bottom-2 after:left-0 after:h-0.5 after:w-full after:rounded-sm after:bg-[var(--color-accent)] after:content-['']"
             : ''}"
         >
@@ -216,7 +216,7 @@ $: if ($page) {
         </li>
         {#if $user && isUserAdmin}
           <li
-            class="relative {$page.url.pathname === '/submit'
+            class="relative {page.url.pathname === '/submit'
               ? "after:absolute after:-bottom-2 after:left-0 after:h-0.5 after:w-full after:rounded-sm after:bg-[var(--color-accent)] after:content-['']"
               : ''}"
           >
@@ -297,28 +297,28 @@ $: if ($page) {
           <li>
             <a
               href="/"
-              class="block py-2 text-base font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] {$page.url.pathname === '/' ? 'text-[var(--color-accent)]' : ''}"
+              class="block py-2 text-base font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] {page.url.pathname === '/' ? 'text-[var(--color-accent)]' : ''}"
               >Problems</a
             >
           </li>
           <li>
             <a
               href="/contests"
-              class="block py-2 text-base font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] {$page.url.pathname === '/contests' ? 'text-[var(--color-accent)]' : ''}"
+              class="block py-2 text-base font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] {page.url.pathname === '/contests' ? 'text-[var(--color-accent)]' : ''}"
               >Contests</a
             >
           </li>
           <li>
             <a
               href="/leaderboard"
-              class="block py-2 text-base font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] {$page.url.pathname === '/leaderboard' ? 'text-[var(--color-accent)]' : ''}"
+              class="block py-2 text-base font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] {page.url.pathname === '/leaderboard' ? 'text-[var(--color-accent)]' : ''}"
               >Leaderboard</a
             >
           </li>
           <li>
             <a
               href="/about"
-              class="block py-2 text-base font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] {$page.url.pathname === '/about' ? 'text-[var(--color-accent)]' : ''}"
+              class="block py-2 text-base font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] {page.url.pathname === '/about' ? 'text-[var(--color-accent)]' : ''}"
               >About</a
             >
           </li>
@@ -326,7 +326,7 @@ $: if ($page) {
             <li>
               <a
                 href="/submit"
-                class="block py-2 text-base font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] {$page.url.pathname === '/submit' ? 'text-[var(--color-accent)]' : ''}"
+                class="block py-2 text-base font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] {page.url.pathname === '/submit' ? 'text-[var(--color-accent)]' : ''}"
                 >Submit</a
               >
             </li>
