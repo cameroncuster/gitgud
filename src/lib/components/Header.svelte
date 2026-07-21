@@ -1,5 +1,6 @@
 <script lang="ts">
 import { page } from '$app/state';
+import { afterNavigate } from '$app/navigation';
 import { user } from '$lib/services/auth';
 import { signInWithGithub, signOut, isAdmin } from '$lib/services/auth';
 import { onMount } from 'svelte';
@@ -118,9 +119,9 @@ function toggleMobileMenu() {
 }
 
 // Close mobile menu when navigating to a new page
-$: if (page.url.pathname) {
+afterNavigate(() => {
   mobileMenuOpen = false;
-}
+});
 </script>
 
 <header
