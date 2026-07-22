@@ -67,7 +67,7 @@ onMount(() => {
       <div class="flex flex-col gap-6">
         <a
           href={resolve('/submit/codeforces')}
-          class="bg-background border-border text-text hover:border-primary flex items-center gap-6 rounded-lg border p-4 no-underline transition-all duration-200 hover:translate-y-[-2px] hover:shadow-md sm:p-6"
+          class="bg-background border-border text-text hover:border-primary flex items-center gap-6 rounded-lg border p-4 no-underline transition-colors duration-200 sm:p-6"
         >
           <img src={codeforcesLogo} alt="Codeforces" class="h-12 w-12 object-contain" />
           <div>
@@ -76,7 +76,7 @@ onMount(() => {
         </a>
         <a
           href={resolve('/submit/kattis')}
-          class="bg-background border-border text-text hover:border-primary flex items-center gap-6 rounded-lg border p-4 no-underline transition-all duration-200 hover:translate-y-[-2px] hover:shadow-md sm:p-6"
+          class="bg-background border-border text-text hover:border-primary flex items-center gap-6 rounded-lg border p-4 no-underline transition-colors duration-200 sm:p-6"
         >
           <img src={kattisLogo} alt="Kattis" class="h-12 w-12 object-contain" />
           <div>

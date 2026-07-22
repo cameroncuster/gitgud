@@ -271,7 +271,7 @@ async function processUrls() {
 </svelte:head>
 
 <div class="mx-auto box-border w-full max-w-4xl px-4 py-6">
-  <div class="rounded-lg bg-[var(--color-secondary)] p-8 shadow-md">
+  <div class="rounded-lg bg-[var(--color-secondary)] p-8">
     <h1
       class="m-0 mb-8 flex items-center justify-center gap-4 text-center text-4xl text-[var(--color-heading)]"
     >
@@ -303,7 +303,7 @@ async function processUrls() {
             bind:value={handle}
             placeholder="Enter your Codeforces handle (optional)"
             disabled={loading}
-            class="font-inherit box-border w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] p-3 text-base text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] placeholder:opacity-70 focus:border-[var(--color-primary)] focus:shadow-sm focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+            class="font-inherit box-border w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] p-3 text-base text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] placeholder:opacity-70 focus:border-[var(--color-primary)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
           />
         </div>
 
@@ -318,7 +318,7 @@ async function processUrls() {
             required
             disabled={loading}
             rows="12"
-            class="font-inherit box-border min-h-[150px] w-full resize-y rounded-md border border-[var(--color-border)] bg-[var(--color-background)] p-3 text-base text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] placeholder:opacity-70 focus:border-[var(--color-primary)] focus:shadow-sm focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+            class="font-inherit box-border min-h-[150px] w-full resize-y rounded-md border border-[var(--color-border)] bg-[var(--color-background)] p-3 text-base text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] placeholder:opacity-70 focus:border-[var(--color-primary)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
           ></textarea>
           <small class="mt-2 block text-sm text-[var(--color-text-muted)]">
             Enter Codeforces problem or contest URLs. URLs can be separated by spaces or newlines.

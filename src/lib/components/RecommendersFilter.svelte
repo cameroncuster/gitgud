@@ -27,7 +27,7 @@ export let width: string = 'w-full';
     </svg>
   </div>
   <select
-    class="focus:ring-opacity-20 w-full appearance-none rounded-md border py-1.5 pr-8 pl-9 text-sm shadow-sm transition-all duration-200 hover:border-[var(--color-accent-muted)] focus:border-[var(--color-accent)] focus:ring focus:ring-[var(--color-accent)] focus:outline-none {selectedAuthor ? 'border-[var(--color-accent)] bg-[color-mix(in_oklab,var(--color-accent)_10%,var(--color-tertiary))] text-[var(--color-accent)]' : 'border-[var(--color-border)] bg-[var(--color-tertiary)] text-[var(--color-text)]'}"
+    class="focus:ring-opacity-20 w-full appearance-none rounded-md border py-1.5 pr-8 pl-9 text-sm transition-colors duration-200 hover:border-[var(--color-accent-muted)] focus:border-[var(--color-accent)] focus:ring focus:ring-[var(--color-accent)] focus:outline-none {selectedAuthor ? 'border-[var(--color-accent)] bg-[color-mix(in_oklab,var(--color-accent)_10%,var(--color-tertiary))] text-[var(--color-accent)]' : 'border-[var(--color-border)] bg-[var(--color-tertiary)] text-[var(--color-text)]'}"
     on:change={(e) => {
       const select = e.target as HTMLSelectElement;
       onAuthorChange(select.value === 'all' ? null : select.value);

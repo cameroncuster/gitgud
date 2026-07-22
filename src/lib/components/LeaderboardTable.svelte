@@ -41,7 +41,7 @@ function getRankTierName(rank: number): string {
 
 <div class="mt-4 w-full">
   <div
-    class="table-wrapper rounded-md border-2 border-[var(--color-border)] bg-[var(--color-secondary)] shadow-[2px_2px_0_rgba(0,0,0,0.1)]"
+    class="table-wrapper rounded-md border-2 border-[var(--color-border)] bg-[var(--color-secondary)]"
   >
     <table
       class="w-full table-fixed border-collapse overflow-hidden bg-[var(--color-secondary)] font-mono text-sm"
@@ -74,7 +74,7 @@ function getRankTierName(rank: number): string {
               <!-- Rank with styling based on Codeforces tiers -->
               {#if entry.rank === 1}
                 <span
-                  class="inline-flex h-8 w-8 items-center justify-center rounded border-2 border-black font-bold text-white shadow-[1px_1px_0_rgba(0,0,0,0.1)]"
+                  class="inline-flex h-8 w-8 items-center justify-center rounded border-2 border-black font-bold text-white"
                   style="background-color: var(--color-{getRankColor(entry.rank)})"
                   title={getRankTierName(entry.rank)}
                 >
@@ -82,7 +82,7 @@ function getRankTierName(rank: number): string {
                 </span>
               {:else if entry.rank <= 9}
                 <span
-                  class="inline-flex h-8 w-8 items-center justify-center rounded font-bold text-white shadow-[1px_1px_0_rgba(0,0,0,0.1)]"
+                  class="inline-flex h-8 w-8 items-center justify-center rounded font-bold text-white"
                   style="background-color: var(--color-{getRankColor(entry.rank)})"
                   title={getRankTierName(entry.rank)}
                 >
@@ -90,7 +90,7 @@ function getRankTierName(rank: number): string {
                 </span>
               {:else}
                 <span
-                  class="inline-flex h-8 w-8 items-center justify-center rounded bg-[var(--color-newbie)] font-bold text-white shadow-[1px_1px_0_rgba(0,0,0,0.1)]"
+                  class="inline-flex h-8 w-8 items-center justify-center rounded bg-[var(--color-newbie)] font-bold text-white"
                   title="Newbie"
                 >
                   {entry.rank}
@@ -107,7 +107,7 @@ function getRankTierName(rank: number): string {
                   />
                 {:else}
                   <div
-                    class="flex h-8 w-8 items-center justify-center rounded bg-[var(--color-tertiary)] text-xs font-medium shadow-[1px_1px_0_rgba(0,0,0,0.1)] sm:h-10 sm:w-10 sm:text-sm"
+                    class="flex h-8 w-8 items-center justify-center rounded bg-[var(--color-tertiary)] text-xs font-medium sm:h-10 sm:w-10 sm:text-sm"
                   >
                     {entry.username.substring(0, 2).toUpperCase()}
                   </div>

@@ -126,7 +126,7 @@ afterNavigate(() => {
 </script>
 
 <header
-  class="sticky top-0 z-50 w-full border-b-2 border-[var(--color-border)] bg-[var(--color-secondary)] py-3 shadow-[2px_2px_0_rgba(0,0,0,0.1)]"
+  class="sticky top-0 z-50 w-full border-b border-[var(--color-border)] bg-[var(--color-secondary)] py-3"
 >
   <div class="mx-auto flex max-w-[1200px] items-center justify-between px-3 sm:px-4 md:px-5">
     <div class="flex items-center">
@@ -270,7 +270,7 @@ afterNavigate(() => {
               </svg>
             </a>
             <button
-              class="cursor-pointer rounded border-2 border-[var(--color-border)] bg-transparent px-3 py-1.5 text-sm font-bold text-[var(--color-text)] shadow-[1px_1px_0_rgba(0,0,0,0.1)] transition-all duration-200 hover:bg-[var(--color-tertiary)]"
+              class="cursor-pointer rounded border border-[var(--color-border)] bg-transparent px-3 py-1.5 text-sm font-bold text-[var(--color-text)] transition-colors hover:bg-[var(--color-tertiary)]"
               on:click={handleLogout}
             >
               Logout
@@ -278,7 +278,7 @@ afterNavigate(() => {
           </div>
         {:else}
           <button
-            class="cursor-pointer rounded border-2 border-[var(--color-accent)] bg-[var(--color-accent)] px-3 py-1.5 text-sm font-bold text-white shadow-[2px_2px_0_rgba(0,0,0,0.1)] transition-all duration-200 hover:shadow-[1px_1px_0_rgba(0,0,0,0.1)] hover:brightness-110"
+            class="cursor-pointer rounded border border-[var(--color-accent)] bg-[var(--color-accent)] px-3 py-1.5 text-sm font-bold text-white transition-colors hover:brightness-110"
             on:click={handleLogin}
             title="Login with GitHub"
           >
@@ -292,7 +292,7 @@ afterNavigate(() => {
   <!-- Mobile menu -->
   {#if mobileMenuOpen}
     <div
-      class="mt-3 border-t-2 border-[var(--color-border)] bg-[var(--color-secondary)] px-4 py-4 shadow-[2px_2px_0_rgba(0,0,0,0.1)] lg:hidden"
+      class="mt-3 border-t border-[var(--color-border)] bg-[var(--color-secondary)] px-4 py-4 lg:hidden"
     >
       <nav class="flex flex-col gap-4">
         <ul class="m-0 flex list-none flex-col gap-4 p-0">
@@ -373,14 +373,14 @@ afterNavigate(() => {
               </a>
             </div>
             <button
-              class="cursor-pointer rounded border-2 border-[var(--color-border)] bg-transparent px-3 py-1.5 text-sm font-bold text-[var(--color-text)] shadow-[1px_1px_0_rgba(0,0,0,0.1)] transition-all duration-200 hover:bg-[var(--color-tertiary)]"
+              class="cursor-pointer rounded border border-[var(--color-border)] bg-transparent px-3 py-1.5 text-sm font-bold text-[var(--color-text)] transition-colors hover:bg-[var(--color-tertiary)]"
               on:click={handleLogout}
             >
               Logout
             </button>
           {:else}
             <button
-              class="cursor-pointer rounded border-2 border-[var(--color-accent)] bg-[var(--color-accent)] px-3 py-1.5 text-sm font-bold text-white shadow-[2px_2px_0_rgba(0,0,0,0.1)] transition-all duration-200 hover:shadow-[1px_1px_0_rgba(0,0,0,0.1)] hover:brightness-110"
+              class="cursor-pointer rounded border border-[var(--color-accent)] bg-[var(--color-accent)] px-3 py-1.5 text-sm font-bold text-white transition-colors hover:brightness-110"
               on:click={handleLogin}
               title="Login with GitHub"
             >
@@ -432,8 +432,4 @@ li.relative a:hover {
   text-decoration: none;
 }
 
-/* Add pixel-style border to buttons on hover */
-button:hover {
-  transform: translateY(1px);
-}
 </style>

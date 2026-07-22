@@ -149,7 +149,7 @@ function getDifficultyColorClass(difficulty: number | undefined): string {
 
 <div class="mt-4 w-full">
   <div
-    class="table-wrapper rounded-md border-2 border-[var(--color-border)] bg-[var(--color-secondary)] shadow-[2px_2px_0_rgba(0,0,0,0.1)]"
+    class="table-wrapper rounded-md border-2 border-[var(--color-border)] bg-[var(--color-secondary)]"
   >
     <table
       class="w-full min-w-[900px] table-fixed border-collapse overflow-hidden bg-[var(--color-secondary)] font-mono text-sm"
@@ -321,7 +321,7 @@ function getDifficultyColorClass(difficulty: number | undefined): string {
               {#if contest.id}
                 {@const hasParticipated = userParticipation.has(contest.id)}
                 <button
-                  class={`flex h-8 w-8 cursor-pointer items-center justify-center rounded shadow-[1px_1px_0_rgba(0,0,0,0.1)] transition-all duration-300
+                  class={`flex h-8 w-8 cursor-pointer items-center justify-center rounded transition-colors duration-300
                     ${hasParticipated
                       ? 'bg-[rgb(34_197_94)] text-white'
                       : 'border-2 border-[var(--color-border)] bg-transparent text-[var(--color-text)] hover:border-[rgb(34_197_94)] hover:bg-[color-mix(in_oklab,rgb(34_197_94)_10%,transparent)] hover:text-[rgb(34_197_94)]'
@@ -399,7 +399,7 @@ function getDifficultyColorClass(difficulty: number | undefined): string {
 
                   <!-- Like button -->
                   <button
-                    class={`flex cursor-pointer items-center gap-1 rounded border-2 px-2 py-1 transition-all duration-200
+                    class={`flex cursor-pointer items-center gap-1 rounded border-2 px-2 py-1 transition-colors duration-200
                       ${hasLiked
                         ? 'border-[color-mix(in_oklab,rgb(34_197_94)_50%,transparent)] bg-[color-mix(in_oklab,rgb(34_197_94)_10%,transparent)] text-[rgb(34_197_94)]'
                         : 'border-[var(--color-border)] bg-transparent text-[var(--color-text)] hover:border-[color-mix(in_oklab,rgb(34_197_94)_50%,transparent)] hover:bg-[color-mix(in_oklab,rgb(34_197_94)_10%,transparent)] hover:text-[rgb(34_197_94)]'
@@ -433,7 +433,7 @@ function getDifficultyColorClass(difficulty: number | undefined): string {
 
                   <!-- Dislike button -->
                   <button
-                    class={`flex cursor-pointer items-center gap-1 rounded border-2 px-2 py-1 transition-all duration-200
+                    class={`flex cursor-pointer items-center gap-1 rounded border-2 px-2 py-1 transition-colors duration-200
                       ${hasDisliked
                         ? 'border-[color-mix(in_oklab,rgb(239_68_68)_50%,transparent)] bg-[color-mix(in_oklab,rgb(239_68_68)_10%,transparent)] text-[rgb(239_68_68)]'
                         : 'border-[var(--color-border)] bg-transparent text-[var(--color-text)] hover:border-[color-mix(in_oklab,rgb(239_68_68)_50%,transparent)] hover:bg-[color-mix(in_oklab,rgb(239_68_68)_10%,transparent)] hover:text-[rgb(239_68_68)]'
