@@ -20,6 +20,9 @@ import TopicSidebar from '$lib/components/TopicSidebar.svelte';
 export let pageTitle = 'Problems';
 export let targetUserId: string | null = null;
 export let defaultSolvedFilterState: 'all' | 'solved' | 'unsolved' = 'all';
+// Problems provided by a server-side load (e.g. the homepage). When present, the
+// initial list renders without a client-side round-trip after hydration.
+export let initialProblems: Problem[] | null = null;
 
 // State variables
 let problems: Problem[] = [];
@@ -361,15 +364,20 @@ function handleSourceFilter({ detail }: CustomEvent<{ source: 'codeforces' | 'ka
 
 // Function to load problems
 async function loadProblems() {
-  loading = true;
+  // Skip the loading spinner when the list is already seeded from a server-side
+  // load; the initial render is already showing data.
+  const alreadySeeded = problems.length > 0;
+  loading = !alreadySeeded;
   error = null;
 
   try {
-    // Fetch problems
-    const fetchedProblems = await fetchProblems();
+    if (!alreadySeeded) {
+      // Use problems from the server-side load when available; otherwise fetch them.
+      const fetchedProblems = initialProblems ?? (await fetchProblems());
 
-    // Sort by score only on initial load
-    problems = sortProblemsByScore(fetchedProblems);
+      // Sort by score only on initial load
+      problems = sortProblemsByScore(fetchedProblems);
+    }
 
     // If we're viewing a specific user's page
     if (targetUserId) {
@@ -393,7 +401,9 @@ async function loadProblems() {
     availableAuthors = [...new Set(problems.map((p) => p.addedBy))].sort();
 
     // Initialize filtered problems using our filter function
-    filterProblems();
+    if (!alreadySeeded) {
+      filterProblems();
+    }
 
     // Load user feedback and solved problems from database if authenticated
     if (isAuthenticated) {
@@ -406,6 +416,14 @@ async function loadProblems() {
   } finally {
     loading = false;
   }
+}
+
+// Seed the initial list from server-provided problems so the first render
+// (including SSR) shows data without waiting for a client-side fetch.
+if (initialProblems && problems.length === 0) {
+  problems = sortProblemsByScore(initialProblems);
+  availableAuthors = [...new Set(problems.map((p) => p.addedBy))].sort();
+  filterProblems();
 }
 
 // Initialize component
