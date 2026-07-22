@@ -60,6 +60,34 @@ export function getProblemSource(url: string): 'codeforces' | 'kattis' {
 }
 
 /**
+ * Columns selected when reading problems for display. Kept explicit so we only
+ * fetch what the UI needs instead of every row column.
+ */
+export const PROBLEM_COLUMNS =
+  'id, name, tags, difficulty, url, solved, date_added, added_by, added_by_url, likes, dislikes, type';
+
+/**
+ * Maps a database problem record to the app's Problem type
+ */
+function mapProblemRecord(record: ProblemRecord): Problem {
+  return {
+    id: record.id,
+    name: record.name,
+    tags: record.tags,
+    difficulty: record.difficulty,
+    url: record.url,
+    solved: record.solved || 0,
+    dateAdded: record.date_added,
+    addedBy: record.added_by,
+    addedByUrl: record.added_by_url,
+    likes: record.likes,
+    dislikes: record.dislikes,
+    source: getProblemSource(record.url),
+    type: record.type
+  };
+}
+
+/**
  * Check if a problem already exists in the database
  * @param url - Problem URL
  * @returns Object with success flag and optional message
@@ -167,7 +195,7 @@ export async function insertProblem(problem: Omit<Problem, 'source'>): Promise<{
  */
 export async function fetchProblems(): Promise<Problem[]> {
   try {
-    const { data, error } = await supabase.from('problems').select('*');
+    const { data, error } = await supabase.from('problems').select(PROBLEM_COLUMNS);
 
     if (error) {
       console.error('Error fetching problems:', error);
@@ -175,21 +203,7 @@ export async function fetchProblems(): Promise<Problem[]> {
     }
 
     // Transform database records to Problem type
-    return (data as ProblemRecord[]).map((record) => ({
-      id: record.id,
-      name: record.name,
-      tags: record.tags,
-      difficulty: record.difficulty,
-      url: record.url,
-      solved: record.solved || 0,
-      dateAdded: record.date_added,
-      addedBy: record.added_by,
-      addedByUrl: record.added_by_url,
-      likes: record.likes,
-      dislikes: record.dislikes,
-      source: getProblemSource(record.url),
-      type: record.type
-    }));
+    return (data as ProblemRecord[]).map(mapProblemRecord);
   } catch (err) {
     console.error('Failed to fetch problems:', err);
     return [];
