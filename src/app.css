@@ -2,15 +2,13 @@
 
 @layer theme {
   :root {
-    /* Fonts - native system stacks only (newspaper/editorial: a serif display
-       face for mastheads and headlines, a neutral sans for UI/body, and a
-       monospace for tabular data). No web fonts are loaded. */
+    /* Fonts - native system stacks only. Newspaper structure is carried by
+       layout (rules, hierarchy, rhythm), not by type: the neutral sans stays
+       the dominant UI/body face, and the hacker voice comes from monospace
+       used for labels/kickers/nav/table metadata. No web fonts are loaded. */
     --font-sans:
       ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif,
       'Apple Color Emoji', 'Segoe UI Emoji';
-    --font-serif:
-      'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, Cambria,
-      'Times New Roman', Times, serif;
     --font-mono:
       ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
 
@@ -138,13 +136,15 @@ p {
   color: var(--color-heading);
 }
 
-/* Headlines are the newspaper voice: serif, tight, near-black ink. */
+/* Headlines are the newspaper voice, but set in the native sans: hierarchy
+   comes from weight, size, tight tracking and near-black ink — not a display
+   serif. This keeps the pre-PR typography while reading like a front page. */
 h1,
 h2,
 h3 {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-weight: 700;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
   line-height: 1.15;
 }
 
@@ -174,14 +174,16 @@ h3 {
   border-bottom: 1px solid var(--color-border);
 }
 
-/* Small-caps kicker / dateline label above a headline. */
+/* Kicker / dateline label above a headline. This is where the hacker voice
+   lives: a compact monospace tag in the ink-blue accent, terminal-like but
+   restrained — no all-caps shouting, no fake prompt chrome. Pair in markup
+   with a leading "// " or "> " where a section wants the terminal note. */
 .kicker {
-  font-family: var(--font-sans);
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--color-accent);
 }
 
 pre {
@@ -306,15 +308,16 @@ img {
   background-color: var(--color-tertiary);
 }
 
-/* Newspaper column headers: uppercase, letter-spaced labels sitting on the
-   tint band the components already set. Targets real <thead> cells so the
-   utility-classed tables in ProblemTable/LeaderboardTable/ContestTable pick
-   this up without changing their layout. Data cells stay monospace. */
+/* Column headers as terminal-style metadata: compact monospace labels on the
+   tint band the components already set. Restrained — lowercase, light
+   tracking, muted ink — so dense tables stay legible and don't shout. Targets
+   real <thead> cells so the utility-classed tables in ProblemTable/
+   LeaderboardTable/ContestTable pick this up without changing their layout. */
 table thead th {
-  font-family: var(--font-sans);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  letter-spacing: 0.01em;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
 }
 
 .table td {

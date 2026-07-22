@@ -9,7 +9,7 @@
 
 <div class="editorial mx-auto max-w-3xl px-4 py-8">
   <header class="mb-8">
-    <p class="kicker mb-2">About · The Masthead</p>
+    <p class="kicker mb-2">// about</p>
     <h1 class="mb-3 text-left text-4xl text-[var(--color-heading)]">gitgud.cc</h1>
     <p class="lead text-lg text-[var(--color-text-muted)]">
       A curated front page of the highest-quality competitive programming problems on the internet.
@@ -274,23 +274,9 @@
   text-decoration: underline;
 }
 
-/* Editorial lead: the standfirst paragraph is set in the serif face, the way a
-   feature article opens under its headline. */
+/* Standfirst lead: native sans, slightly relaxed leading. The newspaper feel
+   comes from the kicker + headline + section rules, not a display serif. */
 .editorial .lead {
-  font-family: var(--font-serif);
   line-height: 1.5;
-}
-
-/* Drop cap on the opening paragraph of the article. Purely decorative and
-   hidden from assistive tech is unnecessary since it's the real first letter;
-   it simply enlarges the initial. */
-.editorial > section:first-of-type > p:first-of-type::first-letter {
-  font-family: var(--font-serif);
-  float: left;
-  font-size: 3.1rem;
-  line-height: 0.8;
-  font-weight: 700;
-  padding: 0.1rem 0.5rem 0 0;
-  color: var(--color-heading);
 }
 </style>

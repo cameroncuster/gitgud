@@ -50,9 +50,9 @@ footer {
   margin-top: auto;
 }
 
-/* Colophon set in the serif face, echoing a newspaper's masthead credit. */
+/* Colophon as a terminal-style credit line: compact monospace, muted ink. */
 .colophon {
-  font-family: var(--font-serif);
-  font-style: italic;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
 }
 </style>

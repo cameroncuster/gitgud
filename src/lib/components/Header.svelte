@@ -432,23 +432,25 @@ li.relative a:hover {
   text-decoration: none;
 }
 
-/* Editorial nameplate: the wordmark is set in the serif display face so it
-   reads like a masthead rather than UI chrome. */
+/* Nameplate stays in the native sans (the pre-PR wordmark), tightened so it
+   anchors the masthead by weight and tracking rather than a display serif. */
 .masthead-wordmark span {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
+  letter-spacing: -0.02em;
 }
 
-/* Newspaper department labels: uppercase, letter-spaced nav links. Scoped to
-   the desktop nav so the mobile menu keeps its larger tap targets. */
+/* Department nav in the hacker voice: compact monospace labels, mixed-case,
+   light tracking. Scoped to the desktop nav so the mobile menu keeps its
+   larger sans tap targets. No all-caps — legibility over cosplay. */
 .nav-editorial ul a {
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  letter-spacing: 0.01em;
+  font-size: 0.8rem;
 }
 
 @media (min-width: 1024px) {
   .nav-editorial ul a {
-    font-size: 0.78rem;
+    font-size: 0.85rem;
   }
 }
 </style>
