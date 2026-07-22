@@ -2,9 +2,9 @@
 -- Apply the full schema with psql from the sql/ directory:
 --   psql "$DATABASE_URL" -f sql/init.sql
 -- Each \ir include resolves relative to THIS file, so the command works from
--- any working directory. These are psql meta-commands: run them through psql
--- (or the Supabase CLI, `supabase db execute -f sql/init.sql`), NOT by pasting
--- into the Supabase dashboard SQL editor, which does not interpret \ir.
+-- any working directory. These are psql meta-commands: run them through psql,
+-- NOT by pasting into the Supabase dashboard SQL editor, which does not
+-- interpret \ir.
 -- Enable UUID extension if not already enabled
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- Common utility functions
