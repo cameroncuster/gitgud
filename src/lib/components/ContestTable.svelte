@@ -310,7 +310,7 @@ function getDifficultyColorClass(difficulty: number | undefined): string {
         </tr>
       </thead>
       <tbody>
-        {#each filteredContests as contest}
+        {#each filteredContests as contest (contest.url)}
           <tr
             class="relative border-b border-[var(--color-border)] transition-colors duration-200 last:border-b-0
             ${contest.id && userParticipation.has(contest.id)
@@ -360,7 +360,7 @@ function getDifficultyColorClass(difficulty: number | undefined): string {
               <a
                 href={contest.url}
                 target="_blank"
-                rel="noopener noreferrer"
+                rel="noopener noreferrer external"
                 class="text-[var(--color-text)] hover:text-[var(--color-accent)] hover:underline"
                 title={contest.name}
               >
@@ -385,7 +385,7 @@ function getDifficultyColorClass(difficulty: number | undefined): string {
               <a
                 href={contest.addedByUrl}
                 target="_blank"
-                rel="noopener noreferrer"
+                rel="noopener noreferrer external"
                 class="text-[var(--color-username)] hover:underline"
               >
                 @{contest.addedBy}

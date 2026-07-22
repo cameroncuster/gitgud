@@ -82,7 +82,7 @@ function applyTheme(themeId: string) {
 >
   <h3 class="mb-3 font-bold">Theme Switcher</h3>
   <div class="flex flex-wrap gap-2">
-    {#each themes as theme}
+    {#each themes as theme (theme.id)}
       <button
         class="rounded border-2 border-[var(--color-border)] px-3 py-2 text-sm font-bold shadow-[1px_1px_0_rgba(0,0,0,0.1)] transition-all duration-200 hover:bg-[var(--color-tertiary)] hover:shadow-none {currentTheme === theme.id ? 'bg-[var(--color-accent)] text-white' : 'bg-[var(--color-secondary)] text-[var(--color-text)]'}"
         on:click={() => applyTheme(theme.id)}

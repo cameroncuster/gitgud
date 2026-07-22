@@ -37,7 +37,7 @@ export let width: string = 'w-full';
   >
     <option value="all">All recommenders</option>
     <option value="all" disabled>──────────</option>
-    {#each authors as author}
+    {#each authors as author (author)}
       <option value={author} style="color: var(--color-username);">@{author}</option>
     {/each}
   </select>

@@ -129,7 +129,7 @@ onMount(() => {
         NEW
       </button>
 
-      {#each topics as topic}
+      {#each topics as topic (topic)}
         <button
           class={`w-full rounded-md px-3 py-2 text-left transition-all duration-200 ${
             selectedTopic === topic
@@ -175,7 +175,7 @@ onMount(() => {
         NEW
       </button>
 
-      {#each topics as topic}
+      {#each topics as topic (topic)}
         <button
           class={`w-full rounded-md px-3 py-2 text-left transition-all duration-200 ${
             selectedTopic === topic

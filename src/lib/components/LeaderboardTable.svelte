@@ -1,4 +1,5 @@
 <script lang="ts">
+import { resolve } from '$app/paths';
 import type { LeaderboardEntry } from '$lib/services/leaderboard';
 
 // Props
@@ -65,7 +66,7 @@ function getRankTierName(rank: number): string {
         </tr>
       </thead>
       <tbody>
-        {#each leaderboardEntries as entry}
+        {#each leaderboardEntries as entry (entry.username)}
           <tr
             class="relative border-b border-[var(--color-border)] transition-colors duration-200 last:border-b-0 hover:bg-[var(--color-tertiary)]/30"
           >
@@ -113,7 +114,7 @@ function getRankTierName(rank: number): string {
                 {/if}
                 <div class="flex items-center gap-2">
                   <a
-                    href={`/user/${entry.userId}`}
+                    href={resolve(`/user/${entry.userId}`)}
                     class="text-[var(--color-username)] hover:text-[color-mix(in_oklab,var(--color-username)_80%,white)] hover:underline"
                     title={"View @" + entry.username + "'s solved problems"}
                   >
@@ -122,7 +123,7 @@ function getRankTierName(rank: number): string {
                   <a
                     href={entry.githubUrl}
                     target="_blank"
-                    rel="noopener noreferrer"
+                    rel="noopener noreferrer external"
                     class="text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:underline"
                     title={"View @" + entry.username + "'s GitHub profile"}
                     aria-label={"View @" + entry.username + "'s GitHub profile"}

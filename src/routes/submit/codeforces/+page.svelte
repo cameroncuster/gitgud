@@ -1,6 +1,7 @@
 <script lang="ts">
 import { onMount } from 'svelte';
 import { goto } from '$app/navigation';
+import { resolve } from '$app/paths';
 import { user } from '$lib/services/auth';
 import { isAdmin } from '$lib/services/auth';
 import { supabase } from '$lib/services/database';
@@ -23,7 +24,6 @@ let problemUrls = '';
 let handle = '';
 let loading = false;
 let error: string | null = null;
-let success = false;
 let isAdminUser = false;
 let checkingAdmin = true;
 let userUnsubscribe: Unsubscriber | null = null;
@@ -46,8 +46,7 @@ onMount(() => {
     const currentUser = data.session?.user || null;
 
     if (!currentUser) {
-      console.log('No user found on initial check, redirecting to home');
-      goto('/');
+      goto(resolve('/'));
       return;
     }
 
@@ -71,8 +70,7 @@ onMount(() => {
     userUnsubscribe = user.subscribe((value) => {
       if (value === null && currentUser !== null) {
         // User logged out after initial load
-        console.log('User logged out, redirecting to home');
-        goto('/');
+        goto(resolve('/'));
       }
     });
   };
@@ -113,7 +111,6 @@ async function processUrls() {
 
   loading = true;
   error = null;
-  success = false;
 
   // Initialize processing results for all URLs
   const allUrls = [...problems, ...contests];
@@ -260,11 +257,6 @@ async function processUrls() {
       processingResults = [...processingResults];
     }
 
-    // Check if any items were successfully added
-    const successCount = processingResults.filter((r) => r.status === 'success').length;
-    if (successCount > 0) {
-      success = true;
-    }
   } catch (err) {
     console.error(`Error processing URLs:`, err);
     error = 'An unexpected error occurred while processing URLs.';
@@ -349,7 +341,7 @@ async function processUrls() {
         <div class="mt-8">
           <h2 class="mt-8 mb-4 text-2xl text-[var(--color-heading)]">Results</h2>
           <div class="flex flex-col gap-2">
-            {#each processingResults as result}
+            {#each processingResults as result (result.url)}
               <div
                 class="flex items-center justify-between rounded border-l-4 bg-[var(--color-background)] p-3 {result.status ===
                 'success'
@@ -362,7 +354,7 @@ async function processUrls() {
                   <a
                     href={result.url}
                     target="_blank"
-                    rel="noopener noreferrer"
+                    rel="noopener noreferrer external"
                     class="text-[var(--color-text)] no-underline hover:text-[var(--color-primary)] hover:underline"
                   >
                     {result.isContest
