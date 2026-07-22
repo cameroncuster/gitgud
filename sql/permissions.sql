@@ -2,11 +2,13 @@
 -- Run last, after every table and function in init.sql exists.
 --
 -- Row Level Security is the primary control on every table; these grants are a
--- fail-closed second layer that narrows the table-level privilege surface to
--- exactly what the app uses. Reads are public (anon + authenticated SELECT).
--- Writes are granted only where an RLS policy exists to scope them, so no grant
--- is broader than the policy that governs it. service_role keeps full access
--- because it is a server-side/admin credential and is never exposed to clients.
+-- fail-closed second layer that narrows the table- and function-level privilege
+-- surface to exactly what the app uses. Reads are public (anon + authenticated
+-- SELECT). Writes are granted only where an RLS policy exists to scope them, so
+-- no grant is broader than the policy that governs it. Function EXECUTE is
+-- stripped from PUBLIC and re-granted only to the roles that actually call each
+-- function. service_role keeps full access because it is a server-side/admin
+-- credential and is never exposed to clients.
 --
 -- Revoke-then-grant makes this idempotent and fail-closed: re-running it always
 -- lands on exactly this privilege set regardless of prior grants.
@@ -19,9 +21,6 @@ REVOKE ALL ON ALL TABLES IN SCHEMA public
 FROM anon,
   authenticated;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA public
-FROM anon,
-  authenticated;
-REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public
 FROM anon,
   authenticated;
 -- service_role is the trusted server-side credential: keep full access
@@ -61,7 +60,19 @@ GRANT INSERT,
 -- sufficient for the app's admin check.
 -- Sequences: the app never reads sequences directly (all PKs default to
 -- uuid_generate_v4()), so no sequence grants are needed for client roles.
--- Functions: grant EXECUTE only on the RPCs each role actually calls.
+-- Function EXECUTE: fail closed, then re-grant only what is actually called.
+-- CREATE FUNCTION grants EXECUTE to PUBLIC by default, and the uuid-ossp
+-- extension grants uuid_generate_v4 to PUBLIC too; strip both client roles AND
+-- PUBLIC so no function is callable unless named below.
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public
+FROM PUBLIC,
+  anon,
+  authenticated;
+-- Positive path: column defaults run as the INSERTing role, so authenticated
+-- needs EXECUTE on uuid_generate_v4() for every DEFAULT uuid_generate_v4() PK.
+-- (Verified in verify_permissions.sql: revoking this breaks authenticated
+-- INSERTs.) anon performs no INSERTs, so it does not need this.
+GRANT EXECUTE ON FUNCTION uuid_generate_v4() TO authenticated;
 -- anon-facing read RPCs (leaderboard + solved-problem lookup):
 GRANT EXECUTE ON FUNCTION get_leaderboard() TO anon,
   authenticated;
@@ -70,3 +81,8 @@ GRANT EXECUTE ON FUNCTION get_user_solved_problems(UUID) TO anon,
 -- authenticated-only feedback RPCs (SECURITY DEFINER; write behind checks):
 GRANT EXECUTE ON FUNCTION update_problem_feedback(UUID, UUID, BOOLEAN, BOOLEAN, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION update_contest_feedback(UUID, UUID, BOOLEAN, BOOLEAN, TEXT) TO authenticated;
+-- Internal functions get NO client EXECUTE and are intentionally omitted:
+--   * handle_new_user(), handle_new_user_preferences() run only as AFTER-INSERT
+--     triggers on auth.users (SECURITY DEFINER, executed as owner)
+--   * update_updated_at_column() runs only as a BEFORE-UPDATE trigger
+-- Triggers invoke these regardless of caller EXECUTE, so no grant is required.
