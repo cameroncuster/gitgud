@@ -8,6 +8,13 @@ import type { UserPreferences } from '$lib/services/user';
 import type { Unsubscriber } from 'svelte/store';
 import { supabase } from '$lib/services/database';
 import { applyTheme } from '$lib/services/theme';
+import { fetchProblems } from '$lib/services/problem';
+import {
+  fetchCodeforcesSolves,
+  matchSolvedToProblems,
+  importSolvedProblems
+} from '$lib/services/userSolves';
+import type { SolveMatchResult } from '$lib/services/userSolves';
 
 let preferences: UserPreferences = {
   hideFromLeaderboard: false,
@@ -19,6 +26,69 @@ let saving: boolean = false;
 let error: string | null = null;
 let success: string | null = null;
 let userUnsubscribe: Unsubscriber | null = null;
+
+// Codeforces solved-problem import state
+let cfHandle: string = '';
+let importPreviewing: boolean = false;
+let importing: boolean = false;
+let importError: string | null = null;
+let importSuccess: string | null = null;
+let importPreview: SolveMatchResult | null = null;
+
+// Preview the Codeforces solves that match problems tracked here. Read-only.
+async function previewCodeforcesImport(): Promise<void> {
+  if (!cfHandle.trim()) {
+    importError = 'Enter a Codeforces handle';
+    return;
+  }
+
+  importPreviewing = true;
+  importError = null;
+  importSuccess = null;
+  importPreview = null;
+
+  try {
+    const result = await fetchCodeforcesSolves(cfHandle);
+    if (!result.success || !result.solvedUrls) {
+      importError = result.message || 'Failed to fetch solves';
+      return;
+    }
+
+    const problems = await fetchProblems();
+    importPreview = matchSolvedToProblems(result.solvedUrls, problems);
+  } catch (err) {
+    console.error('previewCodeforcesImport: error', err);
+    importError = 'Failed to preview import';
+  } finally {
+    importPreviewing = false;
+  }
+}
+
+// Confirm the previewed import: idempotent upsert of matched problems.
+async function confirmCodeforcesImport(): Promise<void> {
+  if (!importPreview || importPreview.matched.length === 0) {
+    return;
+  }
+
+  importing = true;
+  importError = null;
+  importSuccess = null;
+
+  try {
+    const result = await importSolvedProblems(importPreview.matched.map((problem) => problem.id));
+    if (!result.success) {
+      importError = result.message || 'Import failed';
+      return;
+    }
+    importSuccess = `Imported ${result.imported} newly solved problem${result.imported === 1 ? '' : 's'}`;
+    importPreview = null;
+  } catch (err) {
+    console.error('confirmCodeforcesImport: error', err);
+    importError = 'Import failed';
+  } finally {
+    importing = false;
+  }
+}
 
 // Load user preferences
 async function loadPreferences(): Promise<void> {
@@ -358,5 +428,92 @@ onMount(() => {
         </div>
       </div>
     {/if}
+
+    <!-- Import Solved Problems Section -->
+    <div
+      class="mt-6 overflow-hidden rounded-none border-2 border-[var(--color-border)] shadow-[2px_2px_0_rgba(0,0,0,0.1)]"
+    >
+      <div class="border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-4">
+        <div class="flex items-center gap-2">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-5 w-5 text-[var(--color-text-muted)]"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <span class="font-bold text-[var(--color-heading)]">Import solved problems</span>
+        </div>
+      </div>
+
+      <div class="bg-[var(--color-secondary)] p-4">
+        <p class="mb-3 text-sm text-[var(--color-text-muted)]">
+          Import your solved problems from Codeforces. Only problems already tracked on gitgud are
+          matched; nothing is created and re-importing is safe.
+        </p>
+
+        <div class="flex flex-col gap-2 sm:flex-row">
+          <input
+            type="text"
+            bind:value={cfHandle}
+            placeholder="Codeforces handle"
+            autocomplete="off"
+            class="flex-1 rounded-none border-2 border-[var(--color-border)] bg-[var(--color-primary)] px-3 py-2 text-[var(--color-text)] focus:border-[var(--color-accent)] focus:outline-none"
+            disabled={importPreviewing || importing}
+          />
+          <button
+            type="button"
+            class="rounded-none border-2 border-[var(--color-border)] bg-[var(--color-tertiary)] px-4 py-2 font-medium text-[var(--color-heading)] hover:bg-[var(--color-accent)] hover:text-white disabled:opacity-50"
+            on:click={previewCodeforcesImport}
+            disabled={importPreviewing || importing}
+          >
+            {importPreviewing ? 'Loading…' : 'Preview'}
+          </button>
+        </div>
+
+        {#if importError}
+          <p class="mt-3 text-sm font-medium text-[var(--color-accent)]">{importError}</p>
+        {/if}
+        {#if importSuccess}
+          <p class="mt-3 text-sm font-medium text-[var(--color-primary)]">{importSuccess}</p>
+        {/if}
+
+        {#if importPreview}
+          <div class="mt-4 border-t-2 border-[var(--color-border)] pt-4">
+            <p class="text-sm text-[var(--color-text)]">
+              <span class="font-medium">{importPreview.matched.length}</span> solved problem{importPreview
+                .matched.length === 1
+                ? ''
+                : 's'} matched.
+              {#if importPreview.unmatchedCount > 0}
+                <span class="text-[var(--color-text-muted)]">
+                  {importPreview.unmatchedCount} solved problem{importPreview.unmatchedCount === 1
+                    ? ''
+                    : 's'} not tracked here.
+                </span>
+              {/if}
+            </p>
+
+            {#if importPreview.matched.length > 0}
+              <button
+                type="button"
+                class="mt-3 rounded-none border-2 border-[var(--color-border)] bg-[var(--color-accent)] px-4 py-2 font-medium text-white hover:opacity-90 disabled:opacity-50"
+                on:click={confirmCodeforcesImport}
+                disabled={importing}
+              >
+                {importing ? 'Importing…' : `Import ${importPreview.matched.length}`}
+              </button>
+            {/if}
+          </div>
+        {/if}
+      </div>
+    </div>
   {/if}
 </div>
