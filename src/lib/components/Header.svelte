@@ -1,6 +1,7 @@
 <script lang="ts">
 import { page } from '$app/state';
 import { afterNavigate } from '$app/navigation';
+import { resolve } from '$app/paths';
 import { user } from '$lib/services/auth';
 import { signInWithGithub, signOut, isAdmin } from '$lib/services/auth';
 import { onMount } from 'svelte';
@@ -130,7 +131,7 @@ afterNavigate(() => {
   <div class="mx-auto flex max-w-[1200px] items-center justify-between px-3 sm:px-4 md:px-5">
     <div class="flex items-center">
       <a
-        href="/"
+        href={resolve('/')}
         aria-label="Home"
         class="flex items-center gap-2 pr-2 text-xl font-bold text-[var(--color-heading)] no-underline lg:pr-4"
       >
@@ -177,7 +178,7 @@ afterNavigate(() => {
             : ''}"
         >
           <a
-            href="/"
+            href={resolve('/')}
             class="block py-2 text-sm font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] lg:text-base"
             >Problems</a
           >
@@ -188,7 +189,7 @@ afterNavigate(() => {
             : ''}"
         >
           <a
-            href="/contests"
+            href={resolve('/contests')}
             class="block py-2 text-sm font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] lg:text-base"
             >Contests</a
           >
@@ -199,7 +200,7 @@ afterNavigate(() => {
             : ''}"
         >
           <a
-            href="/leaderboard"
+            href={resolve('/leaderboard')}
             class="block py-2 text-sm font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] lg:text-base"
             >Leaderboard</a
           >
@@ -210,7 +211,7 @@ afterNavigate(() => {
             : ''}"
         >
           <a
-            href="/about"
+            href={resolve('/about')}
             class="block py-2 text-sm font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] lg:text-base"
             >About</a
           >
@@ -222,7 +223,7 @@ afterNavigate(() => {
               : ''}"
           >
             <a
-              href="/submit"
+              href={resolve('/submit')}
               class="block py-2 text-sm font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] lg:text-base"
               >Submit</a
             >
@@ -240,13 +241,13 @@ afterNavigate(() => {
             <a
               href={githubUrl}
               target="_blank"
-              rel="noopener noreferrer"
+              rel="noopener noreferrer external"
               class="text-sm font-medium text-[var(--color-username)] transition-colors duration-200 hover:text-[color-mix(in_oklab,var(--color-username)_80%,white)]"
             >
               @{username}
             </a>
             <a
-              href="/settings"
+              href={resolve('/settings')}
               class="flex items-center justify-center rounded-full p-1.5 text-[var(--color-text)] transition-colors hover:bg-[var(--color-tertiary)] hover:text-[var(--color-accent)]"
               title="Settings"
               aria-label="Settings"
@@ -297,28 +298,28 @@ afterNavigate(() => {
         <ul class="m-0 flex list-none flex-col gap-4 p-0">
           <li>
             <a
-              href="/"
+              href={resolve('/')}
               class="block py-2 text-base font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] {page.url.pathname === '/' ? 'text-[var(--color-accent)]' : ''}"
               >Problems</a
             >
           </li>
           <li>
             <a
-              href="/contests"
+              href={resolve('/contests')}
               class="block py-2 text-base font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] {page.url.pathname === '/contests' ? 'text-[var(--color-accent)]' : ''}"
               >Contests</a
             >
           </li>
           <li>
             <a
-              href="/leaderboard"
+              href={resolve('/leaderboard')}
               class="block py-2 text-base font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] {page.url.pathname === '/leaderboard' ? 'text-[var(--color-accent)]' : ''}"
               >Leaderboard</a
             >
           </li>
           <li>
             <a
-              href="/about"
+              href={resolve('/about')}
               class="block py-2 text-base font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] {page.url.pathname === '/about' ? 'text-[var(--color-accent)]' : ''}"
               >About</a
             >
@@ -326,7 +327,7 @@ afterNavigate(() => {
           {#if $user && isUserAdmin}
             <li>
               <a
-                href="/submit"
+                href={resolve('/submit')}
                 class="block py-2 text-base font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] {page.url.pathname === '/submit' ? 'text-[var(--color-accent)]' : ''}"
                 >Submit</a
               >
@@ -342,13 +343,13 @@ afterNavigate(() => {
               <a
                 href={githubUrl}
                 target="_blank"
-                rel="noopener noreferrer"
+                rel="noopener noreferrer external"
                 class="text-sm font-medium text-[var(--color-username)] transition-colors duration-200 hover:text-[color-mix(in_oklab,var(--color-username)_80%,white)]"
               >
                 @{username}
               </a>
               <a
-                href="/settings"
+                href={resolve('/settings')}
                 class="flex items-center justify-center rounded-full p-1.5 text-[var(--color-text)] transition-colors hover:bg-[var(--color-tertiary)] hover:text-[var(--color-accent)]"
                 title="Settings"
                 aria-label="Settings"

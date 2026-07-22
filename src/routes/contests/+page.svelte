@@ -10,11 +10,12 @@ import {
 } from '$lib/services/contest';
 import type { Contest } from '$lib/services/contest';
 import { user } from '$lib/services/auth';
+import { SvelteSet } from 'svelte/reactivity';
 
 // State
 let contests: Contest[] = [];
 let filteredContests: Contest[] = [];
-let userParticipation: Set<string> = new Set();
+let userParticipation: SvelteSet<string> = new SvelteSet();
 let userFeedback: Record<string, 'like' | 'dislike' | null> = {};
 let loading = true;
 let error: string | null = null;
@@ -120,7 +121,7 @@ async function loadContests() {
 
     // Load user participation data and feedback if authenticated
     if (isAuthenticated) {
-      userParticipation = await fetchUserParticipation();
+      userParticipation = new SvelteSet(await fetchUserParticipation());
       userFeedback = await fetchUserFeedback();
     }
   } catch (e) {
@@ -219,7 +220,7 @@ async function handleToggleParticipation(contestId: string, hasParticipated: boo
       } else {
         userParticipation.delete(contestId);
       }
-      userParticipation = new Set(userParticipation); // Trigger reactivity
+      userParticipation = new SvelteSet(userParticipation); // Trigger reactivity
     }
   } catch (err) {
     console.error('Error toggling participation:', err);
@@ -242,10 +243,6 @@ async function handleLike(contestId: string, isLike: boolean) {
       isUndo = true;
     }
 
-    console.log(
-      `Updating contest ${contestId} feedback: isLike=${isLike}, isUndo=${isUndo}, currentFeedback=${currentFeedback}`
-    );
-
     // Call the service to update feedback
     const updatedContest = await updateContestFeedback(
       contestId,
@@ -255,10 +252,6 @@ async function handleLike(contestId: string, isLike: boolean) {
     );
 
     if (updatedContest) {
-      console.log(
-        `Updated contest: likes=${updatedContest.likes}, dislikes=${updatedContest.dislikes}`
-      );
-
       // Update the contest in the list
       const index = filteredContests.findIndex((c) => c.id === contestId);
       if (index !== -1) {
@@ -288,13 +281,13 @@ onMount(() => {
     // Reload user participation and feedback when auth state changes
     if (isAuthenticated) {
       fetchUserParticipation().then((participation) => {
-        userParticipation = participation;
+        userParticipation = new SvelteSet(participation);
       });
       fetchUserFeedback().then((feedback) => {
         userFeedback = feedback;
       });
     } else {
-      userParticipation = new Set();
+      userParticipation = new SvelteSet();
       userFeedback = {};
     }
   });

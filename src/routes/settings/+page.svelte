@@ -1,6 +1,7 @@
 <script lang="ts">
 import { onMount } from 'svelte';
 import { goto } from '$app/navigation';
+import { resolve } from '$app/paths';
 import { user } from '$lib/services/auth';
 import { fetchUserPreferences, updateUserPreferences } from '$lib/services/user';
 import type { UserPreferences } from '$lib/services/user';
@@ -25,16 +26,13 @@ async function loadPreferences(): Promise<void> {
   error = null;
 
   try {
-    console.log('loadPreferences: Fetching user preferences');
     const userPrefs = await fetchUserPreferences();
     if (userPrefs) {
-      console.log('loadPreferences: User preferences loaded', userPrefs);
       preferences = userPrefs;
 
       // Apply theme immediately
       applyTheme(preferences.theme);
     } else {
-      console.log('loadPreferences: No preferences returned, using defaults');
       // If no preferences were returned, try to create them
       const result = await updateUserPreferences({
         hideFromLeaderboard: false,
@@ -42,14 +40,11 @@ async function loadPreferences(): Promise<void> {
       });
 
       if (result) {
-        console.log('loadPreferences: Default preferences created');
         // Set the default preferences in the UI
         preferences = {
           hideFromLeaderboard: false,
           theme: 'light'
         };
-      } else {
-        console.log('loadPreferences: Failed to create default preferences');
       }
     }
   } catch (err) {
@@ -67,10 +62,8 @@ async function savePreferences(): Promise<void> {
   success = null;
 
   try {
-    console.log('savePreferences: Saving preferences', preferences);
     const result = await updateUserPreferences(preferences);
     if (result) {
-      console.log('savePreferences: Preferences saved successfully');
       success = 'Saved';
       setTimeout(() => {
         success = null;
@@ -124,7 +117,7 @@ onMount(() => {
       const { data } = await supabase.auth.getSession();
       if (!data.session) {
         // No session, redirect to home
-        goto('/');
+        goto(resolve('/'));
         return false;
       }
       return true;
@@ -143,14 +136,11 @@ onMount(() => {
 
     // Set a timeout to ensure user state is fully initialized
     loadingTimeout = setTimeout(async () => {
-      console.log('Loading preferences after delay');
-
       // Try to directly check the toggle state from the database
       try {
         const { data } = await supabase.auth.getSession();
         if (data.session?.user) {
           const userId = data.session.user.id;
-          console.log('Directly checking preferences for user', userId);
 
           const { data: prefData, error } = await supabase
             .from('user_preferences')
@@ -159,7 +149,6 @@ onMount(() => {
             .single();
 
           if (prefData && !error) {
-            console.log('Direct preference check result:', prefData);
             preferences = {
               hideFromLeaderboard: prefData.hide_from_leaderboard,
               theme: prefData.theme || 'light'
@@ -169,8 +158,6 @@ onMount(() => {
             applyTheme(preferences.theme);
             loading = false;
             return;
-          } else {
-            console.log('No direct preferences found, falling back to normal load');
           }
         }
       } catch (err) {
@@ -192,19 +179,17 @@ onMount(() => {
 
   // Also set up a subscription to handle auth state changes
   userUnsubscribe = user.subscribe(async (value) => {
-    console.log('User state changed:', value ? 'logged in' : 'logged out');
-
     // If we haven't checked auth yet, do it now
     if (!authChecked && value === null) {
       // Double-check with the API directly
       const isAuthenticated = await checkSession();
       if (!isAuthenticated) {
-        goto('/');
+        goto(resolve('/'));
         return;
       }
     } else if (value === null) {
       // User logged out, redirect to home
-      goto('/');
+      goto(resolve('/'));
       return;
     } else if (!authChecked || value) {
       // User is authenticated and we haven't loaded preferences yet

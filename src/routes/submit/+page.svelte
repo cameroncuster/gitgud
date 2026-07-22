@@ -1,6 +1,7 @@
 <script lang="ts">
 import { onMount } from 'svelte';
 import { goto } from '$app/navigation';
+import { resolve } from '$app/paths';
 import { user } from '$lib/services/auth';
 import { isAdmin } from '$lib/services/auth';
 import { supabase } from '$lib/services/database';
@@ -22,7 +23,7 @@ onMount(() => {
     const currentUser = data.session?.user || null;
 
     if (!currentUser) {
-      goto('/');
+      goto(resolve('/'));
       return;
     }
 
@@ -32,7 +33,7 @@ onMount(() => {
       if (!isAdminUser) {
         error = 'Only admins can submit problems.';
       }
-    } catch (err) {
+    } catch {
       error = 'Failed to verify permissions.';
     } finally {
       checkingAdmin = false;
@@ -40,7 +41,7 @@ onMount(() => {
 
     userUnsubscribe = user.subscribe((value) => {
       if (value === null && currentUser !== null) {
-        goto('/');
+        goto(resolve('/'));
       }
     });
   };
@@ -65,7 +66,7 @@ onMount(() => {
     {:else if isAdminUser}
       <div class="flex flex-col gap-6">
         <a
-          href="/submit/codeforces"
+          href={resolve('/submit/codeforces')}
           class="bg-background border-border text-text hover:border-primary flex items-center gap-6 rounded-lg border p-4 no-underline transition-all duration-200 hover:translate-y-[-2px] hover:shadow-md sm:p-6"
         >
           <img src={codeforcesLogo} alt="Codeforces" class="h-12 w-12 object-contain" />
@@ -74,7 +75,7 @@ onMount(() => {
           </div>
         </a>
         <a
-          href="/submit/kattis"
+          href={resolve('/submit/kattis')}
           class="bg-background border-border text-text hover:border-primary flex items-center gap-6 rounded-lg border p-4 no-underline transition-all duration-200 hover:translate-y-[-2px] hover:shadow-md sm:p-6"
         >
           <img src={kattisLogo} alt="Kattis" class="h-12 w-12 object-contain" />

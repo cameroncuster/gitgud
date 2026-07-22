@@ -22,7 +22,7 @@ export function applyTheme(theme: string): void {
   currentTheme.set(theme);
 
   // Apply the selected theme
-  let themeColors = '';
+  let themeColors: string;
 
   switch (theme) {
     case 'dark':

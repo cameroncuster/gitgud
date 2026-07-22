@@ -23,7 +23,7 @@ let difficultySortDirection: 'asc' | 'desc' | null = null;
 let solvedFilterState: 'all' | 'solved' | 'unsolved' = 'all';
 let authorFilterValue: string | null = null;
 let sourceFilterValue: 'all' | 'codeforces' | 'kattis' = 'all';
-let uniqueAuthors: string[] = [];
+let uniqueAuthors: string[];
 
 // Subscribe to auth state
 user.subscribe((value) => {
@@ -288,7 +288,7 @@ function getDifficultyTooltip(problem: Problem): string {
         </tr>
       </thead>
       <tbody>
-        {#each problems as problem}
+        {#each problems as problem (problem.url)}
           <tr
             class="relative border-b border-[var(--color-border)] transition-colors duration-200 last:border-b-0
             ${problem.id && userSolvedProblems.has(problem.id)
@@ -343,7 +343,7 @@ function getDifficultyTooltip(problem: Problem): string {
               <a
                 href={problem.url}
                 target="_blank"
-                rel="noopener noreferrer"
+                rel="noopener noreferrer external"
                 class="font-bold text-[var(--color-text)] hover:text-[var(--color-accent)] hover:underline"
                 title={problem.name}
               >
@@ -386,7 +386,7 @@ function getDifficultyTooltip(problem: Problem): string {
               <a
                 href={problem.addedByUrl}
                 target="_blank"
-                rel="noopener noreferrer"
+                rel="noopener noreferrer external"
                 class="text-[var(--color-username)] hover:text-[color-mix(in_oklab,var(--color-username)_80%,white)] hover:underline"
                 title={"@" + problem.addedBy}
               >
