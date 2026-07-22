@@ -38,10 +38,13 @@ jobs:
             ${{ runner.os }}-pnpm-store-
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Check code formatting
         run: pnpm run lint
+
+      - name: Lint
+        run: pnpm run lint:es
 
       - name: Sync SvelteKit
         run: pnpm exec svelte-kit sync
@@ -51,6 +54,12 @@ jobs:
 
       - name: Run svelte-check
         run: pnpm run check
+        env:
+          PUBLIC_SUPABASE_URL: http://localhost
+          PUBLIC_SUPABASE_ANON_KEY: placeholder
+
+      - name: Build
+        run: pnpm run build
         env:
           PUBLIC_SUPABASE_URL: http://localhost
           PUBLIC_SUPABASE_ANON_KEY: placeholder
