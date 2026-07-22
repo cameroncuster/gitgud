@@ -3,12 +3,12 @@
 </script>
 
 <footer
-  class="relative z-20 mt-auto border-t border-[color-mix(in_oklab,black_10%,transparent)] bg-[var(--color-secondary)] py-6"
+  class="relative z-20 mt-auto border-t-2 border-[var(--color-border)] bg-[var(--color-secondary)] py-6"
 >
   <div class="mx-auto max-w-7xl px-6 sm:px-3 md:px-4">
     <div class="flex items-center justify-between">
-      <div class="text-sm text-[var(--color-text)]">
-        © {new Date().getFullYear()} gitgud
+      <div class="colophon text-sm text-[var(--color-text-muted)]">
+        © {new Date().getFullYear()} gitgud — curated competitive programming
       </div>
       <div class="flex gap-6">
         <a
@@ -48,5 +48,11 @@ footer {
   right: 0;
   width: 100%;
   margin-top: auto;
+}
+
+/* Colophon set in the serif face, echoing a newspaper's masthead credit. */
+.colophon {
+  font-family: var(--font-serif);
+  font-style: italic;
 }
 </style>

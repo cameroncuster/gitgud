@@ -126,17 +126,17 @@ afterNavigate(() => {
 </script>
 
 <header
-  class="sticky top-0 z-50 w-full border-b border-[var(--color-border)] bg-[var(--color-secondary)] py-3"
+  class="masthead-rule sticky top-0 z-50 w-full bg-[var(--color-secondary)] py-3"
 >
   <div class="mx-auto flex max-w-[1200px] items-center justify-between px-3 sm:px-4 md:px-5">
     <div class="flex items-center">
       <a
         href={resolve('/')}
         aria-label="Home"
-        class="flex items-center gap-2 pr-2 text-xl font-bold text-[var(--color-heading)] no-underline lg:pr-4"
+        class="masthead-wordmark flex items-center gap-2 pr-2 text-2xl font-bold text-[var(--color-heading)] no-underline lg:pr-4"
       >
         <img src="/favicon.png" alt="gitgud Logo" class="h-12 w-12 object-contain" />
-        <span class="flex font-bold tracking-wide">
+        <span class="flex font-bold tracking-tight">
           <span class="text-[var(--color-accent)]">gitgud</span><span
             class="hidden text-[var(--color-heading)] sm:inline">.cc</span
           >
@@ -170,7 +170,7 @@ afterNavigate(() => {
     </button>
 
     <!-- Desktop navigation -->
-    <nav class="hidden items-center gap-6 lg:flex lg:gap-4">
+    <nav class="nav-editorial hidden items-center gap-6 lg:flex lg:gap-4">
       <ul class="m-0 flex list-none gap-2 p-0 lg:gap-3 xl:gap-4">
         <li
           class="relative {page.url.pathname === '/'
@@ -432,4 +432,23 @@ li.relative a:hover {
   text-decoration: none;
 }
 
+/* Editorial nameplate: the wordmark is set in the serif display face so it
+   reads like a masthead rather than UI chrome. */
+.masthead-wordmark span {
+  font-family: var(--font-serif);
+}
+
+/* Newspaper department labels: uppercase, letter-spaced nav links. Scoped to
+   the desktop nav so the mobile menu keeps its larger tap targets. */
+.nav-editorial ul a {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.72rem;
+}
+
+@media (min-width: 1024px) {
+  .nav-editorial ul a {
+    font-size: 0.78rem;
+  }
+}
 </style>

@@ -2,10 +2,15 @@
 
 @layer theme {
   :root {
-    /* Fonts - native system stacks (e-ink foundation prefers system fonts) */
+    /* Fonts - native system stacks only (newspaper/editorial: a serif display
+       face for mastheads and headlines, a neutral sans for UI/body, and a
+       monospace for tabular data). No web fonts are loaded. */
     --font-sans:
       ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif,
       'Apple Color Emoji', 'Segoe UI Emoji';
+    --font-serif:
+      'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, Cambria,
+      'Times New Roman', Times, serif;
     --font-mono:
       ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
 
@@ -128,13 +133,24 @@ body {
 
 h1,
 h2,
+h3,
 p {
-  font-weight: normal;
   color: var(--color-heading);
 }
 
+/* Headlines are the newspaper voice: serif, tight, near-black ink. */
+h1,
+h2,
+h3 {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+
 p {
-  line-height: 1.5;
+  line-height: 1.6;
+  font-weight: normal;
 }
 
 h1 {
@@ -143,7 +159,29 @@ h1 {
 }
 
 h2 {
-  font-size: 1.25rem;
+  font-size: 1.375rem;
+}
+
+h3 {
+  font-size: 1.125rem;
+}
+
+/* Editorial section rule: a hairline under a heading that opens a section,
+   the way a newspaper separates departments. Opt-in via .section-rule so
+   dense/table headings are unaffected. */
+.section-rule {
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* Small-caps kicker / dateline label above a headline. */
+.kicker {
+  font-family: var(--font-sans);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
 }
 
 pre {
@@ -172,6 +210,26 @@ a {
 a:hover {
   color: var(--color-heading);
   text-decoration: underline;
+}
+
+/* Visible keyboard focus for all interactive elements. Uses the ink-blue
+   accent so it reads on both paper and dark ground; contrast verified AA.
+   Pointer clicks stay clean because we only target :focus-visible. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 1px;
+}
+
+/* Masthead double-rule: the thick/thin band a newspaper prints under its
+   nameplate. Applied to the header via .masthead-rule. */
+.masthead-rule {
+  border-bottom: 3px solid var(--color-heading);
+  box-shadow: 0 2px 0 0 var(--color-border);
 }
 
 /* Primary/accent links - use for important actions or main navigation */
@@ -228,7 +286,7 @@ img {
 /* Component styles */
 .card {
   background-color: var(--color-secondary);
-  border-radius: 0.25rem;
+  border-radius: 0.125rem;
   border: 1px solid var(--color-border);
   padding: 1.5rem;
   margin-bottom: 1rem;
@@ -246,6 +304,17 @@ img {
   border-bottom: 1px solid var(--color-border);
   color: var(--color-heading);
   background-color: var(--color-tertiary);
+}
+
+/* Newspaper column headers: uppercase, letter-spaced labels sitting on the
+   tint band the components already set. Targets real <thead> cells so the
+   utility-classed tables in ProblemTable/LeaderboardTable/ContestTable pick
+   this up without changing their layout. Data cells stay monospace. */
+table thead th {
+  font-family: var(--font-sans);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.72rem;
 }
 
 .table td {
@@ -287,6 +356,7 @@ img {
 @media (min-width: 720px) {
   h1 {
     font-size: 3rem;
+    letter-spacing: -0.02em;
   }
 }
 

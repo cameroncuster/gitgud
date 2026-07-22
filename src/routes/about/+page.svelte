@@ -7,9 +7,15 @@
   <meta name="description" content="About this app" />
 </svelte:head>
 
-<div class="mx-auto max-w-3xl px-4 py-8">
+<div class="editorial mx-auto max-w-3xl px-4 py-8">
+  <header class="mb-8">
+    <p class="kicker mb-2">About · The Masthead</p>
+    <h1 class="mb-3 text-left text-4xl text-[var(--color-heading)]">gitgud.cc</h1>
+    <p class="lead text-lg text-[var(--color-text-muted)]">
+      A curated front page of the highest-quality competitive programming problems on the internet.
+    </p>
+  </header>
   <section class="mb-10">
-    <h2 class="mb-4 text-2xl text-[var(--color-accent)]">gitgud.cc</h2>
     <p class="mb-4 leading-relaxed">
       gitgud is a collection of hand-picked problems. If you are new to competitive programming you
       can learn the fundamentals at some of these sites:
@@ -67,7 +73,7 @@
   </section>
 
   <section class="mb-10">
-    <h2 class="text-accent mb-4 text-2xl">On Practicing</h2>
+    <h2 class="section-rule mb-4 text-2xl text-[var(--color-heading)]">On Practicing</h2>
     <ul class="mb-4 ml-6">
       <li class="mb-2 leading-relaxed">
         <a href="https://codeforces.com/blog/entry/98806" target="_blank" rel="noopener noreferrer">
@@ -97,7 +103,7 @@
   </section>
 
   <section class="mb-10">
-    <h2 class="text-accent mb-4 text-2xl">Algorithm Libraries</h2>
+    <h2 class="section-rule mb-4 text-2xl text-[var(--color-heading)]">Algorithm Libraries</h2>
 
     <h3 class="text-accent mb-4 text-xl">gitgud's Library of Choice</h3>
     <ul class="mb-4 ml-6">
@@ -245,7 +251,7 @@
   </section>
 
   <section class="mb-10">
-    <h2 class="mb-4 text-2xl text-[var(--color-accent)]">Contribute</h2>
+    <h2 class="section-rule mb-4 text-2xl text-[var(--color-heading)]">Contribute</h2>
     <p class="mb-4 leading-relaxed">
       gitgud is an open-source project, and we welcome contributions from the community. If you'd
       like to help improve gitgud, please check out our <a
@@ -266,5 +272,25 @@
 :global(.max-w-3xl a:hover) {
   color: color-mix(in oklab, var(--color-accent) 80%, white);
   text-decoration: underline;
+}
+
+/* Editorial lead: the standfirst paragraph is set in the serif face, the way a
+   feature article opens under its headline. */
+.editorial .lead {
+  font-family: var(--font-serif);
+  line-height: 1.5;
+}
+
+/* Drop cap on the opening paragraph of the article. Purely decorative and
+   hidden from assistive tech is unnecessary since it's the real first letter;
+   it simply enlarges the initial. */
+.editorial > section:first-of-type > p:first-of-type::first-letter {
+  font-family: var(--font-serif);
+  float: left;
+  font-size: 3.1rem;
+  line-height: 0.8;
+  font-weight: 700;
+  padding: 0.1rem 0.5rem 0 0;
+  color: var(--color-heading);
 }
 </style>
