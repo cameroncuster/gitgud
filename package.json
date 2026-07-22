@@ -8,6 +8,7 @@
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-check --tsconfig ./tsconfig.json --watch",
     "lint": "prettier --check .",
+    "lint:es": "eslint .",
     "format": "prettier --write ."
   },
   "devDependencies": {
@@ -40,10 +41,5 @@
     "@fontsource/fira-mono": "^4.5.0",
     "@supabase/supabase-js": "^2.49.1",
     "supabase": "^2.15.8"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild"
-    ]
   }
 }
