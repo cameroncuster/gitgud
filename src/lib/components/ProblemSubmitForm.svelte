@@ -200,7 +200,7 @@
 </script>
 
 <div class="max-w-4xl mx-auto px-4 py-6 w-full box-border">
-  <div class="bg-[var(--color-secondary)] rounded-lg p-8 shadow-md">
+  <div class="bg-[var(--color-secondary)] rounded-lg p-8">
     <h1
       class="m-0 mb-8 text-[var(--color-heading)] text-4xl text-center flex items-center justify-center gap-4"
     >
@@ -234,7 +234,7 @@
             bind:value={handle}
             placeholder={handlePlaceholder}
             disabled={loading}
-            class="w-full p-3 border border-[var(--color-border)] rounded-md bg-[var(--color-background)] text-[var(--color-text)] text-base box-border font-inherit placeholder:text-[var(--color-text-muted)] placeholder:opacity-70 disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:border-[var(--color-primary)] focus:shadow-sm"
+            class="w-full p-3 border border-[var(--color-border)] rounded-md bg-[var(--color-background)] text-[var(--color-text)] text-base box-border font-inherit placeholder:text-[var(--color-text-muted)] placeholder:opacity-70 disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:border-[var(--color-primary)]"
           />
         </div>
 
@@ -249,7 +249,7 @@
             required
             disabled={loading}
             rows="8"
-            class="w-full p-3 border border-[var(--color-border)] rounded-md bg-[var(--color-background)] text-[var(--color-text)] text-base box-border font-inherit resize-y min-h-[150px] placeholder:text-[var(--color-text-muted)] placeholder:opacity-70 disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:border-[var(--color-primary)] focus:shadow-sm"
+            class="w-full p-3 border border-[var(--color-border)] rounded-md bg-[var(--color-background)] text-[var(--color-text)] text-base box-border font-inherit resize-y min-h-[150px] placeholder:text-[var(--color-text-muted)] placeholder:opacity-70 disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:border-[var(--color-primary)]"
           ></textarea>
           <small class="block mt-2 text-[var(--color-text-muted)] text-sm">{urlsDescription}</small>
         </div>

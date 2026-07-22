@@ -1,12 +1,13 @@
-@import '@fontsource/fira-mono';
-
 @import 'tailwindcss';
 
 @layer theme {
   :root {
-    /* Fonts */
-    --font-sans: 'Courier New', Courier, monospace;
-    --font-mono: 'Fira Mono', monospace;
+    /* Fonts - native system stacks (e-ink foundation prefers system fonts) */
+    --font-sans:
+      ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif,
+      'Apple Color Emoji', 'Segoe UI Emoji';
+    --font-mono:
+      ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
 
     /* Codeforces rating colors */
     --color-legendary-grandmaster: oklch(0.65 0.27 29.23);
@@ -22,12 +23,6 @@
 
     /* Spacing */
     --spacing: 0.25rem;
-
-    /* Shadows */
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 
     /* Border radius */
     --rounded-sm: 0.125rem;
@@ -46,48 +41,52 @@
    in Tailwind v4's layer order. Light is the default :root; the dark override
    wins by specificity (html[data-theme='dark'] > :root). */
 :root {
+  /* Paper (light) — e-ink: near-white paper, near-black ink, one restrained
+     ink-blue accent. Contrast verified WCAG AA (text/heading on paper). */
   --color-white: oklch(1 0 0);
   --color-black: oklch(0 0 0);
-  --color-primary: oklch(0.9 0.03 240); /* Light blue background */
-  --color-secondary: oklch(0.95 0.02 240); /* Lighter blue for cards */
-  --color-tertiary: oklch(0.85 0.04 240); /* Slightly darker blue for headers */
-  --color-accent: oklch(0.7 0.2 350); /* Pink accent */
-  --color-heading: oklch(0.2 0 0 / 0.9); /* Dark text for headings */
-  --color-text: oklch(0.2 0 0 / 0.8); /* Dark text for body */
-  --color-text-muted: oklch(0.2 0 0 / 0.5); /* Muted dark text */
-  --color-background: oklch(0.9 0.03 240 / 0.7); /* Transparent blue background */
-  --color-border: oklch(0.75 0.05 240); /* Border color */
-  --color-link: oklch(0.7 0.2 350); /* Pink links */
-  --color-link-subtle: oklch(0.75 0.15 350); /* Subtle pink links */
-  --color-link-nav: oklch(0.2 0 0 / 0.9); /* Dark nav links */
-  --color-username: oklch(0.6 0.25 30); /* Orange for usernames */
+  --color-primary: oklch(0.98 0 0); /* Paper background */
+  --color-secondary: oklch(1 0 0); /* Cards / raised paper */
+  --color-tertiary: oklch(0.95 0 0); /* Header / zebra rows */
+  --color-accent: oklch(0.45 0.09 250); /* Ink-blue accent */
+  --color-heading: oklch(0.15 0 0); /* Near-black headings */
+  --color-text: oklch(0.25 0 0); /* Ink body text */
+  --color-text-muted: oklch(0.45 0 0); /* Muted ink */
+  --color-background: oklch(0.98 0 0); /* Inputs / surfaces */
+  --color-border: oklch(0.8 0 0); /* Hairline rule */
+  --color-link: oklch(0.45 0.09 250); /* Ink-blue links */
+  --color-link-subtle: oklch(0.5 0.07 250); /* Subtle ink-blue */
+  --color-link-nav: oklch(0.15 0 0); /* Near-black nav links */
+  --color-username: oklch(0.45 0.09 250); /* Ink-blue usernames */
   --color-solved-row: color-mix(
     in oklab,
-    rgb(34 197 94) 15%,
+    oklch(0.45 0.09 250) 8%,
     transparent
-  ); /* Light green for solved rows */
+  ); /* Faint ink wash for solved rows */
 }
 
-/* Dark theme palette. Selected via html[data-theme='dark'], set before first
-   paint by the inline script in app.html and at runtime by theme.ts. */
+/* Dark Ink theme. Selected via html[data-theme='dark'], set before first
+   paint by the inline script in app.html and at runtime by theme.ts.
+   Contrast verified WCAG AA (text/heading on the dark ground). */
 html[data-theme='dark'] {
-  --color-primary: oklch(0.2 0.05 240); /* Dark blue background */
-  --color-secondary: oklch(0.25 0.04 240); /* Slightly lighter blue for cards */
-  --color-tertiary: oklch(0.15 0.06 240); /* Darker blue for headers */
-  --color-accent: oklch(0.8 0.25 350); /* Brighter pink accent for dark theme */
-  --color-heading: oklch(0.9 0 0 / 0.9); /* Light text for headings */
-  --color-text: oklch(0.9 0 0 / 0.8); /* Light text for body */
-  --color-text-muted: oklch(0.9 0 0 / 0.5); /* Muted light text */
-  --color-background: oklch(0.2 0.05 240 / 0.7); /* Transparent dark blue background */
-  --color-border: oklch(0.3 0.08 240); /* Border color */
-  --color-link: oklch(0.85 0.25 350); /* Brighter pink links for better visibility */
-  --color-link-subtle: oklch(0.8 0.2 350); /* Brighter subtle pink links */
-  --color-link-nav: oklch(0.9 0 0 / 0.9); /* Light nav links */
+  --color-primary: oklch(0.18 0 0); /* Dark ground */
+  --color-secondary: oklch(0.22 0 0); /* Cards */
+  --color-tertiary: oklch(0.26 0 0); /* Header / zebra rows */
+  --color-accent: oklch(0.75 0.09 250); /* Lifted ink-blue accent */
+  --color-heading: oklch(0.97 0 0); /* Near-white headings */
+  --color-text: oklch(0.9 0 0); /* Light ink body text */
+  --color-text-muted: oklch(0.65 0 0); /* Muted light ink */
+  --color-background: oklch(0.18 0 0); /* Inputs / surfaces */
+  --color-border: oklch(0.35 0 0); /* Hairline rule */
+  --color-link: oklch(0.78 0.09 250); /* Lifted ink-blue links */
+  --color-link-subtle: oklch(0.72 0.07 250); /* Subtle lifted ink-blue */
+  --color-link-nav: oklch(0.97 0 0); /* Near-white nav links */
+  --color-username: oklch(0.78 0.09 250); /* Lifted ink-blue usernames */
   --color-solved-row: color-mix(
     in oklab,
-    rgb(34 197 94) 25%,
+    oklch(0.78 0.09 250) 12%,
     transparent
-  ); /* Dark green for solved rows */
+  ); /* Faint ink wash for solved rows */
 }
 
 /* Base styles */
@@ -101,11 +100,18 @@ body {
   color: var(--color-text);
   overscroll-behavior: none;
   font-family: var(--font-sans);
-  background-image: linear-gradient(
-    to bottom,
-    var(--color-primary),
-    color-mix(in oklab, var(--color-primary) 90%, var(--color-tertiary))
-  );
+}
+
+/* Respect users who prefer reduced motion: drop any remaining transitions and
+   animations rather than forcing them. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
 
 #app {
@@ -143,9 +149,9 @@ h2 {
 pre {
   font-size: 1rem;
   font-family: var(--font-mono);
-  background-color: color-mix(in oklab, black 30%, transparent);
+  background-color: var(--color-tertiary);
+  border: 1px solid var(--color-border);
   border-radius: 0.25rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   padding: 0.5rem;
   overflow-x: auto;
   color: var(--color-heading);
@@ -225,7 +231,6 @@ img {
   border-radius: 0.25rem;
   border: 1px solid var(--color-border);
   padding: 1.5rem;
-  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.1);
   margin-bottom: 1rem;
 }
 

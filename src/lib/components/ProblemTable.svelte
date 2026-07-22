@@ -128,7 +128,7 @@ function getDifficultyTooltip(problem: Problem): string {
 
 <div class="mt-4 w-full">
   <div
-    class="table-wrapper rounded-md border-2 border-[var(--color-border)] bg-[var(--color-secondary)] shadow-[2px_2px_0_rgba(0,0,0,0.1)]"
+    class="table-wrapper rounded-md border-2 border-[var(--color-border)] bg-[var(--color-secondary)]"
   >
     <table
       class="w-full min-w-[900px] table-fixed border-collapse overflow-hidden bg-[var(--color-secondary)] font-mono text-sm"
@@ -299,7 +299,7 @@ function getDifficultyTooltip(problem: Problem): string {
               {#if problem.id}
                 {@const isSolved = userSolvedProblems.has(problem.id)}
                 <button
-                  class={`flex h-8 w-8 cursor-pointer items-center justify-center rounded shadow-[1px_1px_0_rgba(0,0,0,0.1)] transition-all duration-300
+                  class={`flex h-8 w-8 cursor-pointer items-center justify-center rounded transition-colors duration-300
                     ${isSolved
                       ? 'bg-[rgb(34_197_94)] text-white'
                       : 'border-2 border-[var(--color-border)] bg-transparent text-[var(--color-text)] hover:border-[rgb(34_197_94)] hover:bg-[color-mix(in_oklab,rgb(34_197_94)_10%,transparent)] hover:text-[rgb(34_197_94)]'
@@ -359,7 +359,7 @@ function getDifficultyTooltip(problem: Problem): string {
               >
                 {problem.difficulty}
                 <span
-                  class="invisible absolute bottom-full left-1/2 z-50 -translate-x-1/2 transform rounded-md border border-[var(--color-border)] bg-[var(--color-secondary)] text-left text-xs leading-relaxed font-normal whitespace-pre-line text-[var(--color-text)] opacity-0 shadow-md transition-opacity duration-300 group-hover:visible group-hover:opacity-100 {problem.source === 'codeforces'
+                  class="invisible absolute bottom-full left-1/2 z-50 -translate-x-1/2 transform rounded-md border border-[var(--color-border)] bg-[var(--color-secondary)] text-left text-xs leading-relaxed font-normal whitespace-pre-line text-[var(--color-text)] opacity-0 transition-opacity duration-300 group-hover:visible group-hover:opacity-100 {problem.source === 'codeforces'
                     ? 'w-auto max-w-fit min-w-0 p-1.5 px-3 text-center whitespace-nowrap'
                     : 'w-[280px] p-2.5'} mb-0.3"
                 >
@@ -401,7 +401,7 @@ function getDifficultyTooltip(problem: Problem): string {
 
                   <!-- Like button -->
                   <button
-                    class={`flex cursor-pointer items-center gap-1 rounded border-2 px-2 py-1 shadow-[1px_1px_0_rgba(0,0,0,0.1)] transition-all duration-200
+                    class={`flex cursor-pointer items-center gap-1 rounded border-2 px-2 py-1 transition-colors duration-200
                       ${hasLiked
                         ? 'border-[color-mix(in_oklab,rgb(34_197_94)_50%,transparent)] bg-[color-mix(in_oklab,rgb(34_197_94)_10%,transparent)] text-[rgb(34_197_94)]'
                         : 'border-[var(--color-border)] bg-transparent text-[var(--color-text)] hover:border-[color-mix(in_oklab,rgb(34_197_94)_50%,transparent)] hover:bg-[color-mix(in_oklab,rgb(34_197_94)_10%,transparent)] hover:text-[rgb(34_197_94)]'
@@ -435,7 +435,7 @@ function getDifficultyTooltip(problem: Problem): string {
 
                   <!-- Dislike button -->
                   <button
-                    class={`flex cursor-pointer items-center gap-1 rounded border-2 px-2 py-1 shadow-[1px_1px_0_rgba(0,0,0,0.1)] transition-all duration-200
+                    class={`flex cursor-pointer items-center gap-1 rounded border-2 px-2 py-1 transition-colors duration-200
                       ${hasDisliked
                         ? 'border-[color-mix(in_oklab,rgb(239_68_68)_50%,transparent)] bg-[color-mix(in_oklab,rgb(239_68_68)_10%,transparent)] text-[rgb(239_68_68)]'
                         : 'border-[var(--color-border)] bg-transparent text-[var(--color-text)] hover:border-[color-mix(in_oklab,rgb(239_68_68)_50%,transparent)] hover:bg-[color-mix(in_oklab,rgb(239_68_68)_10%,transparent)] hover:text-[rgb(239_68_68)]'

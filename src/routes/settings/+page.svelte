@@ -248,7 +248,7 @@ onMount(() => {
     </div>
 
     <div
-      class="overflow-hidden rounded-none border-2 border-[var(--color-border)] shadow-[2px_2px_0_rgba(0,0,0,0.1)]"
+      class="overflow-hidden rounded-none border-2 border-[var(--color-border)]"
     >
       <div class="border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-4">
         <div class="flex items-center gap-2">
@@ -305,7 +305,7 @@ onMount(() => {
     <!-- Theme Settings Section -->
     {#if !loading}
       <div
-        class="mt-6 overflow-hidden rounded-none border-2 border-[var(--color-border)] shadow-[2px_2px_0_rgba(0,0,0,0.1)]"
+        class="mt-6 overflow-hidden rounded-none border-2 border-[var(--color-border)]"
       >
         <div class="border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-4">
           <div class="flex items-center gap-2">
