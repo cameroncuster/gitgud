@@ -5,6 +5,9 @@ import type { Session, User } from '@supabase/supabase-js';
 // Create a store for the user
 export const user = writable<User | null>(null);
 export const session = writable<Session | null>(null);
+// True once the initial session has been resolved. Consumers can use this to
+// avoid rendering a signed-in/signed-out state before auth is known.
+export const authInitialized = writable(false);
 
 // Initialize the auth state
 export async function initAuth() {
@@ -12,6 +15,7 @@ export async function initAuth() {
   const { data } = await supabase.auth.getSession();
   session.set(data.session);
   user.set(data.session?.user || null);
+  authInitialized.set(true);
 
   // Listen for auth changes
   const { data: authListener } = supabase.auth.onAuthStateChange((event, newSession) => {
