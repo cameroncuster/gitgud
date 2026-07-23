@@ -27,7 +27,7 @@ pyparsing==3.2.1
 python-dotenv==1.0.1
 requests==2.32.3
 rsa==4.9
-soupsieve==2.6
+soupsieve==2.8.4
 tqdm==4.67.1
 typing_extensions==4.12.2
 uritemplate==4.1.1
