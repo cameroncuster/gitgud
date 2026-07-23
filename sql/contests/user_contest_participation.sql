@@ -11,20 +11,21 @@ CREATE TABLE IF NOT EXISTS user_contest_participation (
 ALTER TABLE user_contest_participation ENABLE ROW LEVEL SECURITY;
 
 -- Users can read all contest participation data
+DROP POLICY IF EXISTS "Anyone can read contest participation" ON user_contest_participation;
 CREATE POLICY "Anyone can read contest participation" ON user_contest_participation FOR
 SELECT USING (true);
 
 -- Users can only register themselves for contests
+DROP POLICY IF EXISTS "Users can register for contests" ON user_contest_participation;
 CREATE POLICY "Users can register for contests" ON user_contest_participation FOR
 INSERT WITH CHECK (auth.uid() = user_id);
 
 -- Users can only update their own participation data
+DROP POLICY IF EXISTS "Users can update their own participation" ON user_contest_participation;
 CREATE POLICY "Users can update their own participation" ON user_contest_participation FOR
 UPDATE USING (auth.uid() = user_id);
 
 -- Users can only delete their own participation data
+DROP POLICY IF EXISTS "Users can delete their own participation" ON user_contest_participation;
 CREATE POLICY "Users can delete their own participation" ON user_contest_participation FOR 
 DELETE USING (auth.uid() = user_id);
-
--- Grant access to authenticated users
-GRANT ALL ON user_contest_participation TO authenticated;

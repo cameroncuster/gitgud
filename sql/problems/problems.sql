@@ -18,10 +18,12 @@ CREATE TABLE IF NOT EXISTS problems (
 ALTER TABLE problems ENABLE ROW LEVEL SECURITY;
 
 -- Allow anyone to read problems
+DROP POLICY IF EXISTS "Anyone can read problems" ON problems;
 CREATE POLICY "Anyone can read problems" ON problems FOR
 SELECT USING (true);
 
 -- Only admins can insert problems
+DROP POLICY IF EXISTS "Only admins can insert problems" ON problems;
 CREATE POLICY "Only admins can insert problems" ON problems FOR
 INSERT WITH CHECK (
     EXISTS (
@@ -33,6 +35,7 @@ INSERT WITH CHECK (
   );
 
 -- Only admins can update problems
+DROP POLICY IF EXISTS "Only admins can update problems" ON problems;
 CREATE POLICY "Only admins can update problems" ON problems FOR
 UPDATE USING (
     EXISTS (
