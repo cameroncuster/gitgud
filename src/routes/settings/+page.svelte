@@ -105,107 +105,50 @@ function toggleTheme(): void {
   savePreferences();
 }
 
-// Initialize auth state and load preferences
+// Initialize auth state and load preferences. This gates on the resolved
+// session rather than an arbitrary delay: we wait for getSession() to settle,
+// redirect anonymous visitors home, and load preferences for a real session.
+// A user-store subscription then redirects home on sign-out. No fixed timeout.
 onMount(() => {
-  // Create a flag to track if we've already checked auth
-  let authChecked = false;
-  let loadingTimeout: ReturnType<typeof setTimeout> | null = null;
-
-  // First, directly check the session
-  const checkSession = async () => {
+  const initAuth = async () => {
+    let currentUser;
     try {
       const { data } = await supabase.auth.getSession();
-      if (!data.session) {
-        // No session, redirect to home
-        goto(resolve('/'));
-        return false;
-      }
-      return true;
+      currentUser = data.session?.user ?? null;
     } catch (err) {
       console.error('Error checking session:', err);
-      return false;
-    }
-  };
-
-  // Function to load preferences with a delay
-  const loadPreferencesWithDelay = () => {
-    // Clear any existing timeout
-    if (loadingTimeout) {
-      clearTimeout(loadingTimeout);
+      currentUser = null;
     }
 
-    // Set a timeout to ensure user state is fully initialized
-    loadingTimeout = setTimeout(async () => {
-      // Try to directly check the toggle state from the database
-      try {
-        const { data } = await supabase.auth.getSession();
-        if (data.session?.user) {
-          const userId = data.session.user.id;
-
-          const { data: prefData, error } = await supabase
-            .from('user_preferences')
-            .select('hide_from_leaderboard, theme')
-            .eq('user_id', userId)
-            .single();
-
-          if (prefData && !error) {
-            preferences = {
-              hideFromLeaderboard: prefData.hide_from_leaderboard,
-              theme: prefData.theme || 'light'
-            };
-
-            // Apply the theme immediately
-            applyTheme(preferences.theme);
-            loading = false;
-            return;
-          }
-        }
-      } catch (err) {
-        console.error('Error in direct preference check:', err);
-      }
-
-      // Fall back to normal loading if direct check fails
-      loadPreferences();
-    }, 500); // 500ms delay
-  };
-
-  // Check session and load preferences if authenticated
-  checkSession().then((isAuthenticated) => {
-    if (isAuthenticated) {
-      authChecked = true;
-      loadPreferencesWithDelay();
-    }
-  });
-
-  // Also set up a subscription to handle auth state changes
-  userUnsubscribe = user.subscribe(async (value) => {
-    // If we haven't checked auth yet, do it now
-    if (!authChecked && value === null) {
-      // Double-check with the API directly
-      const isAuthenticated = await checkSession();
-      if (!isAuthenticated) {
-        goto(resolve('/'));
-        return;
-      }
-    } else if (value === null) {
-      // User logged out, redirect to home
+    if (!currentUser) {
+      // No session — redirect home, leaving the loading state in place.
       goto(resolve('/'));
       return;
-    } else if (!authChecked || value) {
-      // User is authenticated and we haven't loaded preferences yet
-      // OR user state just changed to logged in
-      authChecked = true;
-      loadPreferencesWithDelay();
     }
-  });
 
-  // Cleanup function
+    // Session resolved: load preferences (fetchUserPreferences resolves the
+    // user from the store or session and creates defaults if none exist).
+    await loadPreferences();
+
+    // Redirect home if the user later signs out. The store may not have
+    // populated yet when this fires immediately, so ignore that initial null
+    // (the session check above already confirmed we're authenticated) and only
+    // act on a real sign-out transition.
+    let seenUser = false;
+    userUnsubscribe = user.subscribe((value) => {
+      if (value) {
+        seenUser = true;
+      } else if (seenUser) {
+        goto(resolve('/'));
+      }
+    });
+  };
+
+  initAuth();
+
   return () => {
     if (userUnsubscribe) {
       userUnsubscribe();
-    }
-    if (loadingTimeout) {
-      clearTimeout(loadingTimeout);
     }
   };
 });
@@ -238,12 +181,12 @@ onMount(() => {
       </div>
     </div>
   {:else}
-    <div class="mb-4 flex h-6 justify-end">
+    <div class="mb-4 flex h-6 justify-end" role="status" aria-live="polite">
       {#if success}
-        <div class="text-sm font-medium text-[var(--color-primary)]">{success}</div>
+        <div class="text-sm font-medium text-[var(--color-success)]">{success}</div>
       {/if}
       {#if error}
-        <div class="text-sm font-medium text-[var(--color-accent)]">{error}</div>
+        <div class="text-sm font-medium text-[var(--color-error)]">{error}</div>
       {/if}
     </div>
 
@@ -285,7 +228,7 @@ onMount(() => {
               type="button"
               role="switch"
               aria-checked={preferences.hideFromLeaderboard}
-              class="relative inline-flex h-6 w-11 cursor-pointer items-center rounded focus:ring-2 focus:ring-[var(--color-primary)] focus:ring-offset-2 focus:outline-none"
+              class="relative inline-flex h-6 w-11 cursor-pointer items-center rounded focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:outline-none"
               on:click={toggleHideFromLeaderboard}
               disabled={saving}
             >
@@ -341,7 +284,7 @@ onMount(() => {
                 type="button"
                 role="switch"
                 aria-checked={preferences.theme === 'dark'}
-                class="relative inline-flex h-6 w-11 cursor-pointer items-center rounded focus:ring-2 focus:ring-[var(--color-primary)] focus:ring-offset-2 focus:outline-none"
+                class="relative inline-flex h-6 w-11 cursor-pointer items-center rounded focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:outline-none"
                 on:click={toggleTheme}
                 disabled={saving}
               >
