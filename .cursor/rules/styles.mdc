@@ -1,6 +1,0 @@
----
-description: Styling the project
-globs: *.css
-alwaysApply: false
----
-use tailwind css v4
