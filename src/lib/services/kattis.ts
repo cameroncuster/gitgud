@@ -3,6 +3,9 @@
  */
 import type { Problem } from './problem';
 import { checkProblemExists } from './problem';
+import { parseKattisProblemId, buildCanonicalKattisProblemUrl } from './kattisUrl';
+
+export { KATTIS_HOST, parseKattisProblemId, buildCanonicalKattisProblemUrl } from './kattisUrl';
 
 /**
  * Extract problem information from a Kattis URL
@@ -13,35 +16,14 @@ export function extractKattisProblemInfo(url: string): {
   problemId: string;
   url: string;
 } | null {
-  // First normalize the URL by trimming
-  const normalizedUrl = url.trim();
-
-  // Handle bare problem ID (just the name)
-  if (/^[a-z0-9]+$/.test(normalizedUrl)) {
-    const problemId = normalizedUrl;
-    return {
-      problemId,
-      url: `https://open.kattis.com/problems/${problemId}`
-    };
-  }
-
-  // Remove http/https/www if present
-  const cleanUrl = normalizedUrl.replace(/^(https?:\/\/)?(www\.)?/, '');
-
-  // Handle full URL format
-  const kattisPattern = /(?:open\.)?kattis\.com\/problems\/([a-z0-9]+)/;
-  const match = cleanUrl.match(kattisPattern);
-
-  if (!match) {
+  const problemId = parseKattisProblemId(url);
+  if (!problemId) {
     return null;
   }
 
-  const problemId = match[1];
-  const normalizedFinalUrl = `https://open.kattis.com/problems/${problemId}`;
-
   return {
     problemId,
-    url: normalizedFinalUrl
+    url: buildCanonicalKattisProblemUrl(problemId)
   };
 }
 
