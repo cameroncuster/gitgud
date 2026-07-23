@@ -129,6 +129,108 @@ jobs:
         uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:
-          name: playwright-report
+          name: playwright-report-node24
+          path: playwright-report/
+          retention-days: 7
+
+  # Non-blocking Node 26 compatibility probe. Runs in parallel with the required
+  # Node 24 job. A failure here is informational only — it cannot block merges,
+  # cancel the Node 24 job, or affect branch protection status. Artifact names
+  # are suffixed with the Node version to avoid upload collisions.
+  node26-compat:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.1
+          run_install: false
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - uses: actions/cache@v4
+        name: Setup pnpm cache
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-node26-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-node26-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check code formatting
+        run: pnpm run lint
+
+      - name: Lint
+        run: pnpm run lint:es
+
+      - name: Sync SvelteKit
+        run: pnpm exec svelte-kit sync
+        env:
+          PUBLIC_SUPABASE_URL: http://localhost
+          PUBLIC_SUPABASE_ANON_KEY: placeholder
+
+      - name: Run svelte-check
+        run: pnpm run check
+        env:
+          PUBLIC_SUPABASE_URL: http://localhost
+          PUBLIC_SUPABASE_ANON_KEY: placeholder
+
+      - name: Run unit tests
+        run: pnpm run test
+        env:
+          PUBLIC_SUPABASE_URL: http://localhost
+          PUBLIC_SUPABASE_ANON_KEY: placeholder
+
+      - name: Build
+        run: pnpm run build
+        env:
+          PUBLIC_SUPABASE_URL: http://localhost
+          PUBLIC_SUPABASE_ANON_KEY: placeholder
+
+      - name: Get Playwright version
+        shell: bash
+        run: |
+          echo "PLAYWRIGHT_VERSION=$(pnpm exec playwright --version | sed 's/^Version //')" >> "$GITHUB_ENV"
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-node26-${{ env.PLAYWRIGHT_VERSION }}
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+
+      - name: Install Playwright system deps
+        run: pnpm exec playwright install-deps chromium
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+
+      - name: Run Playwright mocked suite
+        run: pnpm run test:e2e
+        env:
+          PUBLIC_SUPABASE_URL: http://localhost
+          PUBLIC_SUPABASE_ANON_KEY: placeholder
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report-node26
           path: playwright-report/
           retention-days: 7
