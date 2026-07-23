@@ -19,27 +19,22 @@ test.beforeEach(async () => {
 // rows) on every list surface when the backend returns 500. It documents the
 // actual behavior rather than asserting an error UI that does not exist.
 
-async function assertDegradesSafely(page: Page) {
+async function assertDegradesSafely(page: Page, emptyState: RegExp) {
   await waitForShell(page);
-  // The page must render (shell up) and must not crash to a blank/error screen.
   await expect(page.locator('body')).toBeVisible();
-  // No rows loaded because every read failed.
-  await expect(page.locator('table tbody tr')).toHaveCount(0);
-  // The spinner resolved (the failure path completes, not hangs).
+  await expect(page.getByText(emptyState)).toBeVisible();
   await expect(page.getByText(/Loading (problems|contests|leaderboard)/i)).toHaveCount(0);
 }
 
 test('problems backend failure degrades to a safe shell', async ({ page }) => {
   await page.goto('/');
-  await assertDegradesSafely(page);
-  // The page shell (title) is intact despite the failed read.
+  await assertDegradesSafely(page, /No problems match the current filters/i);
   await expect(page).toHaveTitle(/Problems/i);
 });
 
 test('contests backend failure degrades to a safe shell', async ({ page }) => {
   await page.goto('/contests');
-  await assertDegradesSafely(page);
-  // The page shell (title + header) is intact despite the failed read.
+  await assertDegradesSafely(page, /No contests match the current filters/i);
   await expect(page).toHaveTitle(/Contests/i);
 });
 

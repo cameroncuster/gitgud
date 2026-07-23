@@ -29,8 +29,7 @@ test('empty problems: table shell renders with zero rows', async ({ page }) => {
   await expect(page.getByRole('columnheader', { name: /Problem/i })).toBeVisible();
   await expect(page.getByRole('columnheader', { name: /Difficulty/i })).toBeVisible();
 
-  // Zero data rows.
-  await expect(page.locator('table tbody tr')).toHaveCount(0);
+  await expect(page.getByText(/No problems match the current filters/i)).toBeVisible();
 });
 
 test('empty contests: table shell renders with zero rows', async ({ page }) => {
@@ -38,7 +37,7 @@ test('empty contests: table shell renders with zero rows', async ({ page }) => {
   await assertResolved(page);
 
   await expect(page.getByRole('columnheader', { name: 'Contest', exact: true })).toBeVisible();
-  await expect(page.locator('table tbody tr')).toHaveCount(0);
+  await expect(page.getByText(/No contests match the current filters/i)).toBeVisible();
 });
 
 test('empty leaderboard: table shell renders with zero rows', async ({ page }) => {

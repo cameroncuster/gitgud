@@ -54,6 +54,67 @@ test.describe('content shells render', () => {
   });
 });
 
+test.describe('accessible sortable/filterable table headers', () => {
+  // The Difficulty column header is a real, keyboard-operable control: a button
+  // inside a th that carries aria-sort. These assertions run on the empty shell
+  // (no data needed) and would fail against the old mouse-only `th on:click`.
+  test('home Difficulty header is a button and exposes sort state via aria-sort', async ({
+    page
+  }) => {
+    await page.goto('/');
+    const difficultyHeader = page.getByRole('columnheader', { name: /Difficulty/i });
+    await expect(difficultyHeader).toBeVisible();
+    // Not yet sorted.
+    await expect(difficultyHeader).toHaveAttribute('aria-sort', 'none');
+
+    const sortButton = difficultyHeader.getByRole('button', { name: /Difficulty/i });
+    await expect(sortButton).toBeVisible();
+
+    // Activate via the keyboard (Enter) — the whole point of the semantic
+    // control — and confirm the sort state advances to ascending.
+    await sortButton.focus();
+    await page.keyboard.press('Enter');
+    await expect(difficultyHeader).toHaveAttribute('aria-sort', 'ascending');
+
+    // Space advances again (ascending -> descending).
+    await page.keyboard.press('Space');
+    await expect(difficultyHeader).toHaveAttribute('aria-sort', 'descending');
+  });
+
+  // Runtime guard for the row-class interpolation bug: a `${...}` left inside a
+  // plain class="..." attribute is emitted as literal text into the DOM. The
+  // table shells must never contain a stray `${` in their rendered markup.
+  test('rendered tables contain no un-evaluated ${ class interpolation', async ({ page }) => {
+    for (const path of ['/', '/contests']) {
+      await page.goto(path);
+      // Wait on the same readiness signal the other table tests use — the
+      // Difficulty header — so the async ProblemDisplay/contest fetch has
+      // resolved and the table is rendered before we snapshot its markup.
+      await expect(page.getByRole('columnheader', { name: /Difficulty/i })).toBeVisible();
+      const html = await page
+        .locator('table')
+        .first()
+        .evaluate((el) => el.outerHTML);
+      expect(html).not.toContain('${');
+    }
+  });
+
+  test('home solved-status filter header is a button with an accessible name', async ({ page }) => {
+    await page.goto('/');
+    // The filter control announces its purpose and current state via aria-label.
+    const filterButton = page.getByRole('button', { name: /Filter by solved status/i });
+    await expect(filterButton).toBeVisible();
+    await expect(filterButton).toHaveAccessibleName(/showing all/i);
+
+    // Keyboard activation cycles the filter and updates the accessible name.
+    await filterButton.focus();
+    await page.keyboard.press('Enter');
+    await expect(
+      page.getByRole('button', { name: /Filter by solved status/i })
+    ).toHaveAccessibleName(/showing solved/i);
+  });
+});
+
 test.describe('desktop navigation', () => {
   // The desktop nav is hidden below the lg breakpoint, so this behavior is
   // meaningful only on the desktop project.
