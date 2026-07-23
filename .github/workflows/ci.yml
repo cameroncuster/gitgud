@@ -58,6 +58,9 @@ jobs:
           PUBLIC_SUPABASE_URL: http://localhost
           PUBLIC_SUPABASE_ANON_KEY: placeholder
 
+      - name: Run unit tests
+        run: pnpm run test
+
       - name: Build
         run: pnpm run build
         env:
