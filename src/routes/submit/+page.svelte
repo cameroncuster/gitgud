@@ -227,9 +227,7 @@
 </svelte:head>
 
 <div class="mx-auto box-border w-full max-w-3xl px-4 py-6 pb-28 sm:pb-6">
-  <h1 class="m-0 mb-1 text-center text-2xl font-semibold text-[var(--color-heading)] sm:text-3xl">
-    Submit Problems
-  </h1>
+  <h1 class="sr-only">Submit Problems</h1>
 
   {#if checkingAdmin}
     <div class="py-8 text-center text-[var(--color-info)]" role="status" aria-live="polite">
