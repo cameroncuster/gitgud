@@ -38,7 +38,7 @@
       </li>
     </ul>
 
-    <h3 class="text-accent mb-4 text-xl">Beyond the Fundamentals</h3>
+    <h3 class="text-[var(--color-accent)] mb-4 text-xl">Beyond the Fundamentals</h3>
     <p class="mb-4 leading-relaxed">
       But what about once you've learned the fundamentals? How should you practice then? Experts
       like Umnik recommend working through an archive of problems (as described in this
@@ -54,7 +54,7 @@
       own lists of recommendations.
     </p>
 
-    <h3 class="text-accent mb-4 text-xl">Canon Problems</h3>
+    <h3 class="text-[var(--color-accent)] mb-4 text-xl">Canon Problems</h3>
     <p class="mb-4 leading-relaxed">
       Inspired by "Canon Events" from <i>Across the Spiderverse</i>, Canon Problems are the problems
       that after solving, fundamentally changed the way you approach competitive programming
@@ -67,7 +67,7 @@
   </section>
 
   <section class="mb-10">
-    <h2 class="text-accent mb-4 text-2xl">On Practicing</h2>
+    <h2 class="text-[var(--color-accent)] mb-4 text-2xl">On Practicing</h2>
     <ul class="mb-4 ml-6">
       <li class="mb-2 leading-relaxed">
         <a href="https://codeforces.com/blog/entry/98806" target="_blank" rel="noopener noreferrer">
@@ -97,9 +97,9 @@
   </section>
 
   <section class="mb-10">
-    <h2 class="text-accent mb-4 text-2xl">Algorithm Libraries</h2>
+    <h2 class="text-[var(--color-accent)] mb-4 text-2xl">Algorithm Libraries</h2>
 
-    <h3 class="text-accent mb-4 text-xl">gitgud's Library of Choice</h3>
+    <h3 class="text-[var(--color-accent)] mb-4 text-xl">gitgud's Library of Choice</h3>
     <ul class="mb-4 ml-6">
       <li class="mb-2 leading-relaxed">
         <a
@@ -145,7 +145,7 @@
       </li>
     </ul>
 
-    <h3 class="text-accent mb-4 text-xl">Optimized for Online Contests</h3>
+    <h3 class="text-[var(--color-accent)] mb-4 text-xl">Optimized for Online Contests</h3>
     <ul class="mb-4 ml-6">
       <li class="mb-2 leading-relaxed">
         <a
@@ -156,7 +156,7 @@
       </li>
     </ul>
 
-    <h3 class="text-accent mb-4 text-xl">Extensive Libraries</h3>
+    <h3 class="text-[var(--color-accent)] mb-4 text-xl">Extensive Libraries</h3>
     <ul class="mb-4 ml-6">
       <li class="mb-2 leading-relaxed">
         <a
@@ -181,7 +181,7 @@
       </li>
     </ul>
 
-    <h3 class="text-accent mb-4 text-xl">Clean Implementations</h3>
+    <h3 class="text-[var(--color-accent)] mb-4 text-xl">Clean Implementations</h3>
     <ul class="mb-4 ml-6">
       <li class="mb-2 leading-relaxed">
         <a
@@ -199,7 +199,7 @@
       </li>
     </ul>
 
-    <h3 class="text-accent mb-4 text-xl">Top Competitive Programmers' Libraries</h3>
+    <h3 class="text-[var(--color-accent)] mb-4 text-xl">Top Competitive Programmers' Libraries</h3>
     <ul class="mb-4 ml-6">
       <li class="mb-2 leading-relaxed">
         <a href="https://github.com/ecnerwala/cp-book" target="_blank" rel="noopener noreferrer"
@@ -232,7 +232,7 @@
       </li>
     </ul>
 
-    <h3 class="text-accent mb-4 text-xl">Python</h3>
+    <h3 class="text-[var(--color-accent)] mb-4 text-xl">Python</h3>
     <ul class="mb-4 ml-6">
       <li class="mb-2 leading-relaxed">
         <a

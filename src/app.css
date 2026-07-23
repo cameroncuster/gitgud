@@ -51,6 +51,7 @@
   --color-secondary: oklch(1 0 0); /* Cards / raised paper */
   --color-tertiary: oklch(0.95 0 0); /* Header / zebra rows */
   --color-accent: oklch(0.45 0.09 250); /* Ink-blue accent */
+  --color-accent-muted: oklch(0.6 0.07 250); /* Softer ink-blue for hover/rest borders */
   --color-on-accent: oklch(1 0 0); /* Foreground on the accent ground (AA on accent) */
   --color-info: oklch(0.45 0.15 250); /* Loading / pending status text (AA on paper) */
   --color-success: oklch(0.48 0.14 150); /* Success status text (AA on paper) */
@@ -93,6 +94,7 @@ html[data-theme='dark'] {
   --color-secondary: oklch(0.22 0 0); /* Cards */
   --color-tertiary: oklch(0.26 0 0); /* Header / zebra rows */
   --color-accent: oklch(0.75 0.09 250); /* Lifted ink-blue accent */
+  --color-accent-muted: oklch(0.55 0.07 250); /* Softer lifted ink-blue for hover/rest borders */
   --color-on-accent: oklch(0.18 0 0); /* Foreground on the lifted accent ground (AA on accent) */
   --color-info: oklch(0.72 0.12 250); /* Loading / pending status text (AA on dark ground) */
   --color-success: oklch(0.75 0.16 150); /* Success status text (AA on dark ground) */
