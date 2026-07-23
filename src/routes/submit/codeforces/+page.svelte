@@ -1,10 +1,6 @@
 <script lang="ts">
-import { onMount } from 'svelte';
-import { goto } from '$app/navigation';
-import { resolve } from '$app/paths';
-import { user } from '$lib/services/auth';
-import { isAdmin } from '$lib/services/auth';
-import { supabase } from '$lib/services/database';
+import ProblemSubmitForm from '$lib/components/ProblemSubmitForm.svelte';
+import type { ProcessOutcome, SubmitItem } from '$lib/components/submitForm';
 import { insertProblem } from '$lib/services/problem';
 import {
   extractCodeforcesProblemInfo,
@@ -19,268 +15,120 @@ import {
   fetchCodeforcesContestData,
   insertContest
 } from '$lib/services/contest';
-import type { Unsubscriber } from 'svelte/store';
 
-// Form data
-let problemUrls = '';
-let handle = '';
-let loading = false;
-let error: string | null = null;
-let isAdminUser = false;
-let checkingAdmin = true;
-let userUnsubscribe: Unsubscriber | null = null;
+// Codeforces accepts both problem and contest URLs in one submission. The
+// shared form drives a flat list of URLs, so extraction returns problems first
+// (in input order) then contests, and processing dispatches on which set a URL
+// belongs to. `contestUrlSet` is rebuilt on each extraction so processUrl can
+// classify a URL without re-parsing.
+let contestUrlSet = new Set<string>();
 
-// Processing status
-let processingResults: {
-  url: string;
-  status: 'pending' | 'success' | 'error';
-  message?: string;
-  name?: string;
-  details?: string;
-  isContest?: boolean;
-}[] = [];
+// Non-gym problems are resolved against the Codeforces problemset catalog in a
+// single batch so the catalog is fetched at most once per submission. The batch
+// is resolved lazily on the first non-gym problem processed and memoized for
+// the rest of the run; a new extraction resets it.
+let resolvedProblems: Map<string, { problem?: ResolvedProblem; error?: string }> | null = null;
+let batchRefs: { contestId: string; index: string }[] = [];
 
-// Initialize auth state
-onMount(() => {
-  const initAuth = async () => {
-    // Get current auth state directly first
-    const { data } = await supabase.auth.getSession();
-    const currentUser = data.session?.user || null;
+function extractUrls(text: string): string[] {
+  const { problemUrls, contestUrls } = extractCodeforcesUrls(text);
+  contestUrlSet = new Set(contestUrls);
 
-    if (!currentUser) {
-      goto(resolve('/'));
-      return;
-    }
+  // Reset the per-run batch resolution and precompute the non-gym refs to
+  // resolve on first use.
+  resolvedProblems = null;
+  batchRefs = problemUrls
+    .filter((url) => !url.includes('/gym/'))
+    .map((url) => extractCodeforcesProblemInfo(url))
+    .filter((info): info is NonNullable<typeof info> => info !== null)
+    .map((info) => ({ contestId: info.contestId, index: info.index }));
 
-    // If we have a user, check admin status
-    checkingAdmin = true;
+  return [...problemUrls, ...contestUrls];
+}
 
-    try {
-      isAdminUser = await isAdmin(currentUser.id);
+async function ensureResolved(): Promise<
+  Map<string, { problem?: ResolvedProblem; error?: string }>
+> {
+  if (resolvedProblems) {
+    return resolvedProblems;
+  }
+  resolvedProblems =
+    batchRefs.length > 0
+      ? await resolveCodeforcesProblems(batchRefs)
+      : new Map<string, { problem?: ResolvedProblem; error?: string }>();
+  return resolvedProblems;
+}
 
-      if (!isAdminUser) {
-        error = `You do not have permission to submit problems. Only admins can submit problems.`;
-      }
-    } catch (err) {
-      console.error('Error checking admin status:', err);
-      error = 'Failed to verify your permissions. Please try again later.';
-    } finally {
-      checkingAdmin = false;
-    }
+async function processContest(url: string): Promise<ProcessOutcome> {
+  const contestInfo = extractCodeforcesContestInfo(url);
+  if (!contestInfo) {
+    return { success: false, kind: 'contest', message: 'Invalid contest URL format' };
+  }
 
-    // Now set up the subscription for future changes
-    userUnsubscribe = user.subscribe((value) => {
-      if (value === null && currentUser !== null) {
-        // User logged out after initial load
-        goto(resolve('/'));
-      }
-    });
+  const result = await fetchCodeforcesContestData(contestInfo);
+  if (!result.success || !result.contest) {
+    return {
+      success: false,
+      kind: 'contest',
+      message: result.message || 'Failed to fetch contest data'
+    };
+  }
+
+  const insertResult = await insertContest(result.contest);
+  if (!insertResult.success) {
+    return { success: false, kind: 'contest', message: insertResult.message };
+  }
+
+  return {
+    success: true,
+    kind: 'contest',
+    name: result.contest.name,
+    message: 'Contest added',
+    details: insertResult.id ? `ID: ${insertResult.id}` : undefined
   };
+}
 
-  initAuth();
+async function processProblem(url: string, handle: string): Promise<ProcessOutcome> {
+  const problemInfo = extractCodeforcesProblemInfo(url);
+  if (!problemInfo) {
+    return { success: false, kind: 'problem', message: 'Invalid problem URL format' };
+  }
 
-  return () => {
-    if (userUnsubscribe) {
-      userUnsubscribe();
-    }
+  const resolved = url.includes('/gym/')
+    ? undefined
+    : (await ensureResolved()).get(`${problemInfo.contestId}:${problemInfo.index}`);
+  const result = await fetchCodeforcesProblemData(problemInfo, handle, resolved);
+  if (!result.success || !result.problem) {
+    return {
+      success: false,
+      kind: 'problem',
+      message: result.message || 'Failed to fetch problem data'
+    };
+  }
+
+  const insertResult = await insertProblem(result.problem);
+  if (!insertResult.success) {
+    return { success: false, kind: 'problem', message: insertResult.message };
+  }
+
+  return {
+    success: true,
+    kind: 'problem',
+    name: result.problem.name,
+    message: 'Problem added',
+    details: insertResult.id ? `ID: ${insertResult.id}` : undefined
   };
-});
+}
 
-// Function to process all URLs
-async function processUrls() {
-  if (!$user) {
-    error = 'You must be logged in to submit problems or contests.';
-    return;
+async function processUrl(url: string, handle: string): Promise<ProcessOutcome> {
+  return contestUrlSet.has(url) ? processContest(url) : processProblem(url, handle);
+}
+
+function formatItemLabel(item: SubmitItem): string {
+  if (item.kind === 'contest') {
+    return item.name || item.url;
   }
-
-  if (!isAdminUser) {
-    error = 'You do not have permission to submit problems or contests. Only admins can submit.';
-    return;
-  }
-
-  // Validate handle if provided
-  if (handle && !handle.match(/^[a-zA-Z0-9._-]{2,24}$/)) {
-    error = `Invalid Codeforces handle format.`;
-    return;
-  }
-
-  const { problemUrls: problems, contestUrls: contests } = extractCodeforcesUrls(problemUrls);
-
-  if (problems.length === 0 && contests.length === 0) {
-    error = `No valid Codeforces URLs found. Please enter at least one valid problem or contest URL.`;
-    return;
-  }
-
-  loading = true;
-  error = null;
-
-  // Initialize processing results for all URLs
-  const allUrls = [...problems, ...contests];
-  processingResults = allUrls.map((url) => ({
-    url,
-    status: 'pending',
-    isContest: contests.includes(url)
-  }));
-
-  try {
-    // Resolve all non-gym problems in a single batch so the Codeforces
-    // problemset catalog is fetched at most once per submission.
-    const nonGymRefs = problems
-      .filter((url) => !url.includes('/gym/'))
-      .map((url) => extractCodeforcesProblemInfo(url))
-      .filter((info): info is NonNullable<typeof info> => info !== null)
-      .map((info) => ({ contestId: info.contestId, index: info.index }));
-
-    let resolvedProblems = new Map<string, { problem?: ResolvedProblem; error?: string }>();
-    if (nonGymRefs.length > 0) {
-      resolvedProblems = await resolveCodeforcesProblems(nonGymRefs);
-    }
-
-    // Process each URL
-    for (let i = 0; i < allUrls.length; i++) {
-      const url = allUrls[i];
-      const isContest = contests.includes(url);
-
-      if (isContest) {
-        // Process contest URL
-        const contestInfo = extractCodeforcesContestInfo(url);
-
-        if (!contestInfo) {
-          processingResults[i] = {
-            url,
-            status: 'error',
-            message: 'Invalid contest URL format',
-            isContest: true
-          };
-          continue;
-        }
-
-        // Update status to show we're processing this URL
-        processingResults[i] = {
-          ...processingResults[i],
-          message: 'Fetching contest data...'
-        };
-
-        // Force UI update
-        processingResults = [...processingResults];
-
-        // Fetch contest data
-        const result = await fetchCodeforcesContestData(contestInfo, handle);
-
-        if (!result.success || !result.contest) {
-          processingResults[i] = {
-            url,
-            status: 'error',
-            message: result.message || 'Failed to fetch contest data',
-            isContest: true
-          };
-          continue;
-        }
-
-        // Try to insert the contest
-        try {
-          const insertResult = await insertContest(result.contest);
-
-          if (!insertResult.success) {
-            processingResults[i] = {
-              url,
-              status: 'error',
-              message: insertResult.message,
-              isContest: true
-            };
-          } else {
-            processingResults[i] = {
-              url,
-              status: 'success',
-              name: result.contest.name,
-              message: 'Contest added successfully',
-              details: insertResult.id ? `ID: ${insertResult.id}` : undefined,
-              isContest: true
-            };
-          }
-        } catch (err) {
-          processingResults[i] = {
-            url,
-            status: 'error',
-            message: err instanceof Error ? err.message : 'Failed to insert contest',
-            isContest: true
-          };
-        }
-      } else {
-        // Process problem URL
-        const problemInfo = extractCodeforcesProblemInfo(url);
-
-        if (!problemInfo) {
-          processingResults[i] = {
-            url,
-            status: 'error',
-            message: 'Invalid problem URL format'
-          };
-          continue;
-        }
-
-        // Update status to show we're processing this URL
-        processingResults[i] = {
-          ...processingResults[i],
-          message: 'Fetching problem data...'
-        };
-
-        // Force UI update
-        processingResults = [...processingResults];
-
-        // Fetch problem data, reusing batch-resolved metadata for non-gym problems
-        const resolved = url.includes('/gym/')
-          ? undefined
-          : resolvedProblems.get(`${problemInfo.contestId}:${problemInfo.index}`);
-        const result = await fetchCodeforcesProblemData(problemInfo, handle, resolved);
-
-        if (!result.success || !result.problem) {
-          processingResults[i] = {
-            url,
-            status: 'error',
-            message: result.message || 'Failed to fetch problem data'
-          };
-          continue;
-        }
-
-        // Try to insert the problem
-        try {
-          const insertResult = await insertProblem(result.problem);
-
-          if (!insertResult.success) {
-            processingResults[i] = {
-              url,
-              status: 'error',
-              message: insertResult.message
-            };
-          } else {
-            processingResults[i] = {
-              url,
-              status: 'success',
-              name: result.problem.name,
-              message: 'Problem added successfully',
-              details: insertResult.id ? `ID: ${insertResult.id}` : undefined
-            };
-          }
-        } catch (err) {
-          processingResults[i] = {
-            url,
-            status: 'error',
-            message: err instanceof Error ? err.message : 'Failed to insert problem'
-          };
-        }
-      }
-
-      // Force UI update
-      processingResults = [...processingResults];
-    }
-
-  } catch (err) {
-    console.error(`Error processing URLs:`, err);
-    error = 'An unexpected error occurred while processing URLs.';
-  } finally {
-    loading = false;
-  }
+  return formatCodeforcesUrl(item.url, item.name);
 }
 </script>
 
@@ -288,117 +136,15 @@ async function processUrls() {
   <title>Submit | Codeforces</title>
 </svelte:head>
 
-<div class="mx-auto box-border w-full max-w-4xl px-4 py-6">
-  <div class="rounded-lg bg-[var(--color-secondary)] p-8">
-    <h1
-      class="m-0 mb-8 flex items-center justify-center gap-4 text-center text-4xl text-[var(--color-heading)]"
-    >
-      <img
-        src="/images/codeforces.png"
-        alt="Codeforces icon"
-        class="inline-block h-14 w-14 align-middle"
-        width="56"
-        height="56"
-      />
-      Submit Codeforces Problems & Contests
-    </h1>
-
-    {#if checkingAdmin}
-      <div class="mb-6 py-4 text-center text-[var(--color-info)]">Checking permissions...</div>
-    {:else if error && !processingResults.length}
-      <div class="mb-6 py-4 text-center text-[var(--color-error)]">{error}</div>
-    {/if}
-
-    {#if isAdminUser && !checkingAdmin}
-      <form on:submit|preventDefault={processUrls}>
-        <div class="mb-6">
-          <label for="handle" class="mb-2 block font-semibold text-[var(--color-heading)]"
-            >Codeforces Handle</label
-          >
-          <input
-            type="text"
-            id="handle"
-            bind:value={handle}
-            placeholder="Enter your Codeforces handle (optional)"
-            disabled={loading}
-            class="font-inherit box-border w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] p-3 text-base text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] placeholder:opacity-70 focus:border-[var(--color-accent)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
-          />
-        </div>
-
-        <div class="mb-6">
-          <label for="problemUrls" class="mb-2 block font-semibold text-[var(--color-heading)]">
-            Problem or Contest URLs <span class="text-[var(--color-error)]">*</span>
-          </label>
-          <textarea
-            id="problemUrls"
-            bind:value={problemUrls}
-            placeholder="https://codeforces.com/contest/1234/problem/A https://codeforces.com/problemset/problem/1234/A https://codeforces.com/gym/104427/problem/A https://codeforces.com/contest/1234 https://codeforces.com/gym/104427"
-            required
-            disabled={loading}
-            rows="12"
-            class="font-inherit box-border min-h-[150px] w-full resize-y rounded-md border border-[var(--color-border)] bg-[var(--color-background)] p-3 text-base text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] placeholder:opacity-70 focus:border-[var(--color-accent)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
-          ></textarea>
-          <small class="mt-2 block text-sm text-[var(--color-text-muted)]">
-            Enter Codeforces problem or contest URLs. URLs can be separated by spaces or newlines.
-            You can mix problem and contest URLs in the same submission.
-          </small>
-        </div>
-
-        <div>
-          <button
-            type="submit"
-            class="w-full cursor-pointer rounded-md border-none bg-[var(--color-accent)] px-3 py-3 text-base font-semibold text-[var(--color-on-accent)] transition-colors duration-200 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={loading}
-          >
-            {loading ? 'Processing...' : 'Submit'}
-          </button>
-        </div>
-      </form>
-
-      {#if processingResults.length > 0}
-        <div class="mt-8">
-          <h2 class="mt-8 mb-4 text-2xl text-[var(--color-heading)]">Results</h2>
-          <div class="flex flex-col gap-2">
-            {#each processingResults as result (result.url)}
-              <div
-                class="flex items-center justify-between rounded border-l-4 bg-[var(--color-background)] p-3 {result.status ===
-                'success'
-                  ? 'border-l-[var(--color-success)]'
-                  : result.status === 'error'
-                    ? 'border-l-[var(--color-error)]'
-                    : 'border-l-[var(--color-border)]'}"
-              >
-                <div class="font-medium break-all">
-                  <a
-                    href={result.url}
-                    target="_blank"
-                    rel="noopener noreferrer external"
-                    class="text-[var(--color-text)] no-underline hover:text-[var(--color-accent)] hover:underline"
-                  >
-                    {result.isContest
-                      ? (result.name ? `${result.name}` : result.url)
-                      : formatCodeforcesUrl(result.url, result.name)}
-                  </a>
-                  {#if result.isContest}
-                    <span class="ml-2 rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-800"
-                      >Contest</span
-                    >
-                  {/if}
-                </div>
-                <div class="ml-4 whitespace-nowrap">
-                  {#if result.status === 'pending'}
-                    <span class="text-[var(--color-info)]">Pending</span>
-                  {:else if result.status === 'success'}
-                    <span class="text-[var(--color-success)]">✓ {result.message}</span>
-                  {:else}
-                    <span class="text-[var(--color-error)]">✗ {result.message}</span>
-                  {/if}
-                </div>
-              </div>
-            {/each}
-          </div>
-        </div>
-      {/if}
-    {/if}
-  </div>
-</div>
+<ProblemSubmitForm
+  title="Submit Codeforces Problems & Contests"
+  platformName="Codeforces"
+  platformIcon="/images/codeforces.png"
+  handlePlaceholder="Enter your Codeforces handle (optional)"
+  urlsPlaceholder="https://codeforces.com/contest/1234/problem/A&#10;https://codeforces.com/problemset/problem/1234/A&#10;https://codeforces.com/gym/104427/problem/A&#10;https://codeforces.com/contest/1234"
+  urlsDescription="Enter Codeforces problem or contest URLs. You can mix problems and contests in one submission — separate entries with spaces or new lines."
+  intro="Add Codeforces problems and contests to the catalog. Paste one or more URLs and submit — each is fetched, de-duplicated, and recorded."
+  {extractUrls}
+  {processUrl}
+  {formatItemLabel}
+/>
