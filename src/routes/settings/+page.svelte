@@ -160,6 +160,7 @@ onMount(() => {
 </svelte:head>
 
 <div class="mx-auto w-full max-w-[1200px] px-4 py-6">
+  <h1 class="mb-6 text-2xl font-semibold text-[var(--color-heading)]">Settings</h1>
   {#if loading}
     <div class="flex h-[calc(100vh-4rem)] items-center justify-center py-2 text-center">
       <div>

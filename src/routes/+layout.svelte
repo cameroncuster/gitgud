@@ -47,10 +47,21 @@ onMount(() => {
 </script>
 
 <div class="flex min-h-screen flex-col overflow-hidden">
+  <!-- Skip link: visually hidden until focused, lets keyboard users jump past
+       the header straight to the page content. -->
+  <a
+    href="#main-content"
+    class="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded focus:border-2 focus:border-[var(--color-border)] focus:bg-[var(--color-secondary)] focus:px-3 focus:py-2 focus:text-[var(--color-text)]"
+  >
+    Skip to main content
+  </a>
+
   <Header />
 
   <main
-    class="relative mx-auto box-border flex w-full flex-1 flex-col overflow-x-hidden px-2 sm:px-3 md:px-4"
+    id="main-content"
+    tabindex="-1"
+    class="relative mx-auto box-border flex w-full flex-1 flex-col overflow-x-hidden px-2 outline-none sm:px-3 md:px-4"
   >
     <slot />
   </main>

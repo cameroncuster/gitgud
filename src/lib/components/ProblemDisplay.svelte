@@ -471,10 +471,10 @@ onMount(() => {
 
 <svelte:head>
   <title>{targetUser ? `${targetUser.username}'s Solved Problems` : pageTitle}</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
 </svelte:head>
 
 <div class="mx-auto w-full max-w-[1200px] px-0">
+  <h1 class="sr-only">{targetUser ? `${targetUser.username}'s Solved Problems` : pageTitle}</h1>
   {#if loading}
     <div class="flex h-[calc(100vh-4rem)] items-center justify-center py-2 text-center">
       <div>

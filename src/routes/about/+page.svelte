@@ -9,7 +9,7 @@
 
 <div class="mx-auto max-w-3xl px-4 py-8">
   <section class="mb-10">
-    <h2 class="mb-4 text-2xl text-[var(--color-accent)]">gitgud.cc</h2>
+    <h1 class="mb-4 text-2xl text-[var(--color-accent)]">gitgud.cc</h1>
     <p class="mb-4 leading-relaxed">
       gitgud is a collection of hand-picked problems. If you are new to competitive programming you
       can learn the fundamentals at some of these sites:
@@ -38,7 +38,7 @@
       </li>
     </ul>
 
-    <h3 class="text-[var(--color-accent)] mb-4 text-xl">Beyond the Fundamentals</h3>
+    <h2 class="text-[var(--color-accent)] mb-4 text-xl">Beyond the Fundamentals</h2>
     <p class="mb-4 leading-relaxed">
       But what about once you've learned the fundamentals? How should you practice then? Experts
       like Umnik recommend working through an archive of problems (as described in this
@@ -54,7 +54,7 @@
       own lists of recommendations.
     </p>
 
-    <h3 class="text-[var(--color-accent)] mb-4 text-xl">Canon Problems</h3>
+    <h2 class="text-[var(--color-accent)] mb-4 text-xl">Canon Problems</h2>
     <p class="mb-4 leading-relaxed">
       Inspired by "Canon Events" from <i>Across the Spiderverse</i>, Canon Problems are the problems
       that after solving, fundamentally changed the way you approach competitive programming

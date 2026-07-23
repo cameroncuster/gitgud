@@ -191,6 +191,145 @@ test.describe('anonymous guards', () => {
   });
 });
 
+test.describe('viewport allows pinch zoom', () => {
+  // The viewport meta must not disable user scaling: no maximum-scale and no
+  // user-scalable=no, on every route, on desktop and mobile.
+  const routes = ['/', '/contests', '/leaderboard', '/about'];
+  for (const path of routes) {
+    test(`viewport on ${path} does not block zoom`, async ({ page }) => {
+      await page.goto(path);
+      const content = await page.locator('meta[name="viewport"]').first().getAttribute('content');
+      expect(content, `viewport meta on ${path}`).toBeTruthy();
+      expect(content!).not.toMatch(/maximum-scale/i);
+      expect(content!).not.toMatch(/user-scalable\s*=\s*no/i);
+      // A single viewport meta avoids a restrictive one overriding the base.
+      await expect(page.locator('meta[name="viewport"]')).toHaveCount(1);
+    });
+  }
+});
+
+test.describe('route heading hierarchy', () => {
+  // Every anonymously reachable route must expose exactly one meaningful h1
+  // (visible or sr-only) and the heading levels must not skip (no h1 -> h3).
+  // Guarded routes (e.g. /submit) redirect anonymous visitors, so their headings
+  // are covered where they render, not here.
+  const routes = [
+    { path: '/', h1: /Problems/i },
+    { path: '/contests', h1: /Contests/i },
+    { path: '/leaderboard', h1: /Leaderboard/i },
+    { path: '/about', h1: /gitgud/i }
+  ];
+  for (const route of routes) {
+    test(`${route.path} has exactly one meaningful h1`, async ({ page }) => {
+      await page.goto(route.path);
+      await waitForShell(page);
+      const h1s = page.locator('h1');
+      await expect(h1s).toHaveCount(1);
+      await expect(h1s.first()).toHaveText(route.h1);
+
+      // Heading levels must not skip from h1 straight to h3+.
+      const levels = await page.$$eval('h1, h2, h3, h4, h5, h6', (els) =>
+        els.map((el) => Number(el.tagName.substring(1)))
+      );
+      let previous = 0;
+      for (const level of levels) {
+        if (previous !== 0) {
+          expect(level, `heading jump on ${route.path}`).toBeLessThanOrEqual(previous + 1);
+        }
+        previous = level;
+      }
+      // The first heading on the page is the h1.
+      expect(levels[0], `first heading on ${route.path}`).toBe(1);
+    });
+  }
+});
+
+test.describe('mobile menu state, Escape, and focus', () => {
+  // These behaviors only exist below the lg breakpoint where the hamburger
+  // menu renders.
+  test.skip(
+    ({ viewport }) => !!viewport && viewport.width >= 1024,
+    'mobile menu only present below lg breakpoint'
+  );
+
+  test('toggle button exposes aria-expanded and aria-controls', async ({ page }) => {
+    await page.goto('/');
+    await waitForShell(page);
+    const toggle = page.getByRole('button', { name: 'Open menu' });
+    await expect(toggle).toHaveAttribute('aria-controls', 'mobile-menu');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+
+    await toggle.click();
+    // The accessible name flips to Close menu while open.
+    const closeToggle = page.getByRole('button', { name: 'Close menu' });
+    await expect(closeToggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('#mobile-menu')).toBeVisible();
+  });
+
+  test('Escape closes the menu and returns focus to the toggle', async ({ page }) => {
+    await page.goto('/');
+    await waitForShell(page);
+    const toggle = page.getByRole('button', { name: 'Open menu' });
+    await toggle.click();
+    await expect(page.locator('#mobile-menu')).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#mobile-menu')).toHaveCount(0);
+    // Focus returns to the toggle button so keyboard users are not stranded.
+    await expect(page.getByRole('button', { name: 'Open menu' })).toBeFocused();
+  });
+});
+
+test.describe('skip link', () => {
+  // A keyboard-visible skip link must let users bypass the header and land on
+  // a stable main-content target.
+  test('is hidden until focused, then reveals and targets main-content', async ({ page }) => {
+    await page.goto('/');
+    await waitForShell(page);
+
+    const skip = page.getByRole('link', { name: 'Skip to main content' });
+    // Present in the DOM and pointed at the stable target id.
+    await expect(skip).toHaveAttribute('href', '#main-content');
+
+    const main = page.locator('main#main-content');
+    await expect(main).toHaveCount(1);
+    // The target id is nonempty.
+    const id = await main.getAttribute('id');
+    expect(id).toBeTruthy();
+
+    // Visually hidden until focused: the first Tab from the top of the page
+    // lands on the skip link and reveals it (not-sr-only removes the clip).
+    await page.keyboard.press('Tab');
+    await expect(skip).toBeFocused();
+    await expect(skip).toBeVisible();
+  });
+
+  test('activating it moves focus to main content', async ({ page }) => {
+    await page.goto('/');
+    await waitForShell(page);
+
+    const skip = page.getByRole('link', { name: 'Skip to main content' });
+    await page.keyboard.press('Tab');
+    await expect(skip).toBeFocused();
+    await page.keyboard.press('Enter');
+
+    // The fragment navigation moves focus to the focusable main region so the
+    // next Tab continues from the content, not the header.
+    const main = page.locator('main#main-content');
+    await expect(main).toBeFocused();
+    expect(page.url()).toContain('#main-content');
+  });
+});
+
+test.describe('unknown route (404)', () => {
+  test('renders a meaningful title and heading', async ({ page }) => {
+    const response = await page.goto('/this-route-does-not-exist');
+    expect(response?.status()).toBe(404);
+    await expect(page).toHaveTitle(/404/);
+    await expect(page.getByRole('heading', { level: 1 })).toContainText(/404/);
+  });
+});
+
 test.describe('theme startup', () => {
   test('defaults to the light (Paper) theme with no stored preference', async ({ page }) => {
     await page.goto('/');
