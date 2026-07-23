@@ -126,7 +126,7 @@ function getDifficultyTooltip(problem: Problem): string {
 }
 </script>
 
-<div class="mt-4 w-full">
+<div class="scroll-affordance mt-4 w-full">
   <div
     class="table-wrapper rounded-md border-2 border-[var(--color-border)] bg-[var(--color-secondary)]"
   >
@@ -507,6 +507,48 @@ td:last-child {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   width: 100%;
+}
+
+/* Below the desktop breakpoint the table is wider than the viewport and scrolls
+   horizontally. Make that scroll discoverable: a right-edge ink fade signals
+   there is more to the right, and a thin always-visible scrollbar confirms it.
+   Desktop (>=900px, where the table fits) is unaffected. */
+@media (max-width: 899px) {
+  .scroll-affordance {
+    position: relative;
+  }
+
+  .scroll-affordance::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    bottom: 2px;
+    width: 2rem;
+    border-top-right-radius: 0.375rem;
+    border-bottom-right-radius: 0.375rem;
+    background: linear-gradient(
+      to right,
+      transparent,
+      color-mix(in oklab, var(--color-secondary) 85%, transparent)
+    );
+    pointer-events: none;
+    z-index: 20;
+  }
+
+  .table-wrapper {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border) transparent;
+  }
+
+  .table-wrapper::-webkit-scrollbar {
+    height: 6px;
+  }
+
+  .table-wrapper::-webkit-scrollbar-thumb {
+    background-color: var(--color-border);
+    border-radius: 9999px;
+  }
 }
 
 /* Basic styling for elements */
