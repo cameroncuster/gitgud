@@ -9,15 +9,23 @@ import {
   updateContestFeedback
 } from '$lib/services/contest';
 import type { Contest } from '$lib/services/contest';
+import type { PageData } from './$types';
 import { user } from '$lib/services/auth';
 import { SvelteSet } from 'svelte/reactivity';
+
+// Contests provided by the server-side load so the initial render (including
+// SSR) ships with data instead of waiting for a client-side fetch.
+export let data: PageData;
 
 // State
 let contests: Contest[] = [];
 let filteredContests: Contest[] = [];
 let userParticipation: SvelteSet<string> = new SvelteSet();
 let userFeedback: Record<string, 'like' | 'dislike' | null> = {};
-let loading = true;
+// Starts false so a server-seeded list renders rows on the initial (SSR) render
+// instead of a spinner. The unseeded fallback path in loadContests sets it true
+// on mount before fetching.
+let loading = false;
 let error: string | null = null;
 let isAuthenticated = false;
 let availableAuthors: string[] = [];
@@ -106,24 +114,28 @@ function updateFilters(): void {
 
 // Function to load contests
 async function loadContests() {
-  loading = true;
+  // Skip the loading spinner and public fetch when the list is already seeded
+  // from the server-side load; the initial render is already showing data.
+  const alreadySeeded = contests.length > 0;
+  loading = !alreadySeeded;
   error = null;
 
   try {
-    // Fetch contests
-    contests = await fetchContests();
+    if (!alreadySeeded) {
+      // Fetch contests
+      contests = await fetchContests();
 
-    // Apply default sorting by likes (most likes first)
-    filteredContests = sortContestsByLikes([...contests], 'desc');
+      // Apply default sorting by likes (most likes first)
+      filteredContests = sortContestsByLikes([...contests], 'desc');
 
-    // Initialize available authors with all authors
-    updateAvailableAuthors();
-
-    // Load user participation data and feedback if authenticated
-    if (isAuthenticated) {
-      userParticipation = new SvelteSet(await fetchUserParticipation());
-      userFeedback = await fetchUserFeedback();
+      // Initialize available authors with all authors
+      updateAvailableAuthors();
     }
+
+    // Participation and feedback for the authenticated user are loaded by the
+    // auth subscription in onMount, which fires immediately with the current
+    // user and again on every auth change. Fetching here as well would issue a
+    // duplicate request on load, so it is intentionally omitted.
   } catch (e) {
     console.error('Error loading contests:', e);
     error = 'Failed to load contests. Please try again later.';
@@ -270,6 +282,14 @@ async function handleLike(contestId: string, isLike: boolean) {
   } catch (err) {
     console.error('Error updating contest feedback:', err);
   }
+}
+
+// Seed the initial list from the server-provided contests so the first render
+// (including SSR) shows data without waiting for a client-side fetch.
+if (data?.contests && contests.length === 0) {
+  contests = data.contests;
+  filteredContests = sortContestsByLikes([...contests], 'desc');
+  updateAvailableAuthors();
 }
 
 // Load contests on mount

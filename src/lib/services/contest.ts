@@ -56,12 +56,38 @@ export type UserContestFeedback = {
 };
 
 /**
+ * Columns selected when reading contests for display. Kept explicit so we only
+ * fetch what the UI needs instead of every row column.
+ */
+export const CONTEST_COLUMNS =
+  'id, name, url, duration_seconds, difficulty, date_added, added_by, added_by_url, likes, dislikes, type';
+
+/**
+ * Maps a database contest record to the app's Contest type
+ */
+function mapContestRecord(record: ContestRecord): Contest {
+  return {
+    id: record.id,
+    name: record.name,
+    url: record.url,
+    durationSeconds: record.duration_seconds,
+    difficulty: record.difficulty,
+    dateAdded: record.date_added,
+    addedBy: record.added_by,
+    addedByUrl: record.added_by_url,
+    likes: record.likes || 0,
+    dislikes: record.dislikes || 0,
+    type: record.type
+  };
+}
+
+/**
  * Fetches contests from the database
  * @returns Array of contests
  */
 export async function fetchContests(): Promise<Contest[]> {
   try {
-    const { data, error } = await supabase.from('contests').select('*');
+    const { data, error } = await supabase.from('contests').select(CONTEST_COLUMNS);
 
     if (error) {
       console.error('Error fetching contests:', error);
@@ -69,19 +95,7 @@ export async function fetchContests(): Promise<Contest[]> {
     }
 
     // Transform database records to Contest type
-    return (data as ContestRecord[]).map((record) => ({
-      id: record.id,
-      name: record.name,
-      url: record.url,
-      durationSeconds: record.duration_seconds,
-      difficulty: record.difficulty,
-      dateAdded: record.date_added,
-      addedBy: record.added_by,
-      addedByUrl: record.added_by_url,
-      likes: record.likes || 0,
-      dislikes: record.dislikes || 0,
-      type: record.type
-    }));
+    return (data as ContestRecord[]).map(mapContestRecord);
   } catch (err) {
     console.error('Failed to fetch contests:', err);
     return [];
