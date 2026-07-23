@@ -9,6 +9,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   fetchProblemsetCatalog,
+  problemsetApiUrl,
+  PROBLEMSET_API_URL,
   resolveFromCatalog,
   validateProblemRef,
   parseProblemUrl,
@@ -128,6 +130,35 @@ test('fetchProblemsetCatalog surfaces an actionable error on FAILED upstream res
 
 test('fetchProblemsetCatalog surfaces HTTP errors', async () => {
   await assert.rejects(() => fetchProblemsetCatalog(mockFetch({}, false, 503)), /HTTP 503/);
+});
+
+test('problemsetApiUrl defaults to the real endpoint and honors an override base', () => {
+  // No override: the canonical Codeforces endpoint (production behavior).
+  assert.equal(problemsetApiUrl(), PROBLEMSET_API_URL);
+  assert.equal(problemsetApiUrl(undefined), PROBLEMSET_API_URL);
+  // Override base (e.g. an E2E stub host); a trailing slash is normalized.
+  assert.equal(
+    problemsetApiUrl('http://127.0.0.1:54321/api'),
+    'http://127.0.0.1:54321/api/problemset.problems'
+  );
+  assert.equal(
+    problemsetApiUrl('http://127.0.0.1:54321/api/'),
+    'http://127.0.0.1:54321/api/problemset.problems'
+  );
+});
+
+test('fetchProblemsetCatalog fetches the URL it is given (override seam)', async () => {
+  let requested = '';
+  const spyFetch: FetchLike = async (url: string) => {
+    requested = url;
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ status: 'OK', result: { problems: [] } })
+    };
+  };
+  await fetchProblemsetCatalog(spyFetch, problemsetApiUrl('http://mock.test/api'));
+  assert.equal(requested, 'http://mock.test/api/problemset.problems');
 });
 
 test('end-to-end: fetch catalog then resolve repro problems', async () => {

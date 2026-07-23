@@ -1,5 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
-import { MOCK_PORT, MOCK_URL } from './e2e/support/constants.ts';
+import { MOCK_PORT, MOCK_URL, MOCK_SUPABASE_URL } from './e2e/support/constants.ts';
 
 // Two-layer Playwright setup.
 //
@@ -63,8 +63,14 @@ const mockPreviewWebServer = {
   reuseExistingServer: !process.env.CI,
   timeout: 180_000,
   env: {
-    PUBLIC_SUPABASE_URL: MOCK_URL,
-    PUBLIC_SUPABASE_ANON_KEY: 'mock-anon-key'
+    // Baked into the build at build time. The stable-first-label host yields a
+    // deterministic Supabase storage key the auth-seeding init script targets.
+    PUBLIC_SUPABASE_URL: MOCK_SUPABASE_URL,
+    PUBLIC_SUPABASE_ANON_KEY: 'mock-anon-key',
+    // Redirect the server-side provider fetches (problemset / Kattis page) to
+    // the mock so no live provider is ever contacted during E2E.
+    PUBLIC_CODEFORCES_API_BASE: `${MOCK_SUPABASE_URL}/api`,
+    PUBLIC_KATTIS_BASE: MOCK_SUPABASE_URL
   }
 };
 
@@ -112,6 +118,9 @@ const liveProjects = [
 
 export default defineConfig({
   testDir: 'e2e',
+  // Ensures the mock host resolves to loopback for the Node SSR/recheck process
+  // (browsers resolve *.localhost natively; Node does not). See global-setup.ts.
+  globalSetup: './e2e/support/global-setup.ts',
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   // The mocked scenarios share one mock server whose scenario is switched per

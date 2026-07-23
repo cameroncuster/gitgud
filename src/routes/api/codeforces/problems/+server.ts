@@ -1,8 +1,10 @@
 import { json } from '@sveltejs/kit';
 import { createClient } from '@supabase/supabase-js';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
+import { env as publicEnv } from '$env/dynamic/public';
 import {
   fetchProblemsetCatalog,
+  problemsetApiUrl,
   resolveFromCatalog,
   type CodeforcesProblemsetProblem,
   type ProblemRef
@@ -21,7 +23,10 @@ async function getCatalog(): Promise<CodeforcesProblemsetProblem[]> {
   if (cachedCatalog && now - cachedAt < CATALOG_TTL_MS) {
     return cachedCatalog;
   }
-  const catalog = await fetchProblemsetCatalog(fetch);
+  const catalog = await fetchProblemsetCatalog(
+    fetch,
+    problemsetApiUrl(publicEnv.PUBLIC_CODEFORCES_API_BASE)
+  );
   cachedCatalog = catalog;
   cachedAt = now;
   return catalog;

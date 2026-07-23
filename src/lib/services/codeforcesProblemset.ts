@@ -36,6 +36,16 @@ export interface ProblemRef {
 export const PROBLEMSET_API_URL = 'https://codeforces.com/api/problemset.problems';
 
 /**
+ * Resolve the problemset API URL. Defaults to the real Codeforces endpoint; an
+ * optional base override (e.g. an E2E stub host) redirects the upstream fetch
+ * without changing any behavior when unset.
+ */
+export function problemsetApiUrl(apiBase?: string): string {
+  if (!apiBase) return PROBLEMSET_API_URL;
+  return `${apiBase.replace(/\/$/, '')}/problemset.problems`;
+}
+
+/**
  * Extract problem information from a Codeforces URL. Pure (regex-only) so it can
  * be shared by the client service and unit tests.
  * @param problemUrl - Codeforces problem URL
@@ -122,11 +132,12 @@ interface ProblemsetResponse {
  * caller can surface it to the user.
  */
 export async function fetchProblemsetCatalog(
-  fetchFn: FetchLike
+  fetchFn: FetchLike,
+  apiUrl: string = PROBLEMSET_API_URL
 ): Promise<CodeforcesProblemsetProblem[]> {
   let response;
   try {
-    response = await fetchFn(PROBLEMSET_API_URL);
+    response = await fetchFn(apiUrl);
   } catch (err) {
     throw new Error(
       `Could not reach Codeforces (${err instanceof Error ? err.message : 'network error'})`,
