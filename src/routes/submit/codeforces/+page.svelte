@@ -10,8 +10,10 @@ import {
   extractCodeforcesProblemInfo,
   fetchCodeforcesProblemData,
   formatCodeforcesUrl,
-  extractCodeforcesUrls
+  extractCodeforcesUrls,
+  resolveCodeforcesProblems
 } from '$lib/services/codeforces';
+import type { ResolvedProblem } from '$lib/services/codeforcesProblemset';
 import {
   extractCodeforcesContestInfo,
   fetchCodeforcesContestData,
@@ -121,6 +123,19 @@ async function processUrls() {
   }));
 
   try {
+    // Resolve all non-gym problems in a single batch so the Codeforces
+    // problemset catalog is fetched at most once per submission.
+    const nonGymRefs = problems
+      .filter((url) => !url.includes('/gym/'))
+      .map((url) => extractCodeforcesProblemInfo(url))
+      .filter((info): info is NonNullable<typeof info> => info !== null)
+      .map((info) => ({ contestId: info.contestId, index: info.index }));
+
+    let resolvedProblems = new Map<string, { problem?: ResolvedProblem; error?: string }>();
+    if (nonGymRefs.length > 0) {
+      resolvedProblems = await resolveCodeforcesProblems(nonGymRefs);
+    }
+
     // Process each URL
     for (let i = 0; i < allUrls.length; i++) {
       const url = allUrls[i];
@@ -213,8 +228,11 @@ async function processUrls() {
         // Force UI update
         processingResults = [...processingResults];
 
-        // Fetch problem data
-        const result = await fetchCodeforcesProblemData(problemInfo, handle);
+        // Fetch problem data, reusing batch-resolved metadata for non-gym problems
+        const resolved = url.includes('/gym/')
+          ? undefined
+          : resolvedProblems.get(`${problemInfo.contestId}:${problemInfo.index}`);
+        const result = await fetchCodeforcesProblemData(problemInfo, handle, resolved);
 
         if (!result.success || !result.problem) {
           processingResults[i] = {
