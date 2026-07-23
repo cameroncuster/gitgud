@@ -1,175 +1,159 @@
-# gitgud - Programming Problems Hub
+<p align="center">
+  <a href="https://www.gitgud.cc">
+    <img src="static/favicon.png" width="144" height="144" alt="gitgud ninja mark">
+  </a>
+</p>
 
-gitgud is a modern web application that provides a curated collection of programming problems from various competitive programming platforms. It helps users improve their coding skills, prepare for technical interviews, and master algorithmic thinking.
+<h1 align="center">gitgud</h1>
 
-## Features
+<p align="center">
+  Community-curated competitive programming problems and contests.
+  <br>
+  <a href="https://www.gitgud.cc"><strong>Visit gitgud.cc</strong></a>
+  ·
+  <a href="VISION.md">Vision</a>
+  ·
+  <a href="LICENSE">MIT License</a>
+</p>
 
-- **Dark Theme**: Modern dark theme with clean UI
-- **Problem Listing**: Browse problems from Codeforces (with more platforms coming soon)
-- **Advanced Filtering**: Filter problems by difficulty, tags, or search by name
-- **Responsive Design**: Works on desktop and mobile devices
+<p align="center">
+  <a href="https://github.com/cameroncuster/gitgud/actions/workflows/ci.yml"><img src="https://github.com/cameroncuster/gitgud/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/cameroncuster/gitgud" alt="MIT license"></a>
+  <a href="https://www.gitgud.cc"><img src="https://img.shields.io/badge/site-gitgud.cc-355d7a" alt="Live site"></a>
+</p>
 
-## Tech Stack
+## What is gitgud?
 
-- **Frontend**: SvelteKit, TypeScript
-- **Styling**: CSS with custom variables for theming
-- **Database**: Supabase (PostgreSQL)
+gitgud helps competitive programmers discover problems worth solving. The catalog combines community recommendations with source, difficulty, topic, and feedback signals so practice can be intentional rather than random.
 
-## Getting Started
+The live application currently includes:
+
+- Curated problems from [Codeforces](https://codeforces.com/) and [Kattis](https://open.kattis.com/)
+- Recommended contests, with source, duration, difficulty, and participation tracking
+- Topic, source, author, solved-status, and difficulty controls
+- Community likes and dislikes for problems and contests
+- GitHub authentication, solved-problem tracking, profiles, settings, and a leaderboard
+- Responsive Paper and Dark Ink themes
+
+Read [VISION.md](VISION.md) for the longer-term product direction.
+
+## Technology
+
+- [SvelteKit](https://svelte.dev/docs/kit) and TypeScript
+- [Tailwind CSS](https://tailwindcss.com/)
+- [Supabase](https://supabase.com/) / PostgreSQL with Row Level Security
+- [Vercel](https://vercel.com/) for the production deployment
+- [Playwright](https://playwright.dev/) and Node's test runner
+
+## Local development
 
 ### Prerequisites
 
-- Node.js (v14 or later)
-- pnpm (v6 or later)
-- Supabase account and project
+- Node.js 22 (the pinned version is in [`.nvmrc`](.nvmrc))
+- pnpm 10
+- A Supabase project for database-backed development
 
-### Installation
+### Setup
 
-1. Clone the repository:
+1. Clone and install the project:
 
    ```bash
    git clone https://github.com/cameroncuster/gitgud.git
    cd gitgud
+   corepack enable
+   pnpm install --frozen-lockfile
    ```
 
-2. Install dependencies:
+2. Create `.env` with the client-safe Supabase values:
 
-   ```bash
-   pnpm install
+   ```dotenv
+   PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+   PUBLIC_SUPABASE_ANON_KEY=your-anon-or-publishable-key
    ```
 
-3. Set up environment variables:
+   Never use a Supabase service-role key in a `PUBLIC_*` variable.
 
-   Create a `.env` file in the root directory with the following variables:
+3. Apply the database schema if you are provisioning a new project. See [the SQL guide](sql/README.md) before running any database command.
 
-   ```
-   VITE_SUPABASE_URL=your_supabase_url
-   VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-   ```
-
-4. Run the database migration script to populate the database with initial problems:
-
-   ```bash
-   pnpm tsx scripts/migrate-problems.ts
-   ```
-
-5. Start the development server:
+4. Start the development server:
 
    ```bash
    pnpm dev
    ```
 
-6. Open your browser and navigate to `http://localhost:5173`
+   Vite prints the local URL, normally <http://localhost:5173>.
 
-### Database Setup
+## Validation
 
-The application uses Supabase as its database. The schema is defined in `supabase.session.sql`. You need to:
-
-1. Create a Supabase project
-2. Run the SQL commands in `supabase.session.sql` to create the necessary tables
-3. Set up the environment variables as described above
-4. Run the migration script to populate the database with initial problems
-
-## Building for Production
-
-To create a production build:
+Run the same core checks used by CI:
 
 ```bash
-pnpm build
+pnpm run lint
+pnpm run lint:es
+pnpm run check
+pnpm run test
+pnpm run build
+pnpm run test:e2e
 ```
 
-You can preview the production build with:
-
-```bash
-pnpm preview
-```
+The Playwright suite is anonymous and read-only. It must not log in, submit content, or mutate remote data.
 
 ## End-to-end tests
 
 The Playwright suite (`pnpm test:e2e`) has two layers:
 
-- **Mocked suite (default, always runs).** A local mock Supabase server
-  (`e2e/support/mock-supabase.ts`) serves representative fixtures
-  (`e2e/support/fixtures.ts`) over the exact endpoints the app reads
-  (`/rest/v1/problems`, `/rest/v1/contests`, and the `get_leaderboard` RPC). The
-  app is built bound to that mock, so the tests assert real rendered
-  problems/contests/leaderboard rows, external links, filters and sorts, the
-  explicit empty state, and safe degradation on a backend 500 — all
-  deterministically, without touching any real data. It needs no credentials.
-- **Live read-only smoke (opt-in).** When enabled, the suite loads real
-  anonymous data from a live Supabase project and asserts it renders. It performs
-  **only anonymous reads** — never a login, form submission, or write — and must
-  use the client-safe anon/publishable key, **never** a service-role key.
+- **Mocked suite (default).** A local mock Supabase server serves representative fixtures over the exact endpoints the app reads. Tests cover rendered problems, contests, leaderboard rows, links, filters, sorting, empty states, and backend failures without credentials or real data.
+- **Live read-only smoke (opt-in).** The suite can load anonymous data from a live Supabase project. It performs only reads and must use the client-safe anon or publishable key—never a service-role key.
 
-### Enabling the live smoke layer (CI contract)
-
-The live layer runs only when all of these are set (locally or in CI):
-
-| Variable                   | Where                     | Value                                             |
-| -------------------------- | ------------------------- | ------------------------------------------------- |
-| `SUPABASE_SMOKE`           | env / CI step             | `1`                                               |
-| `E2E_LIVE_ONLY`            | env / CI step             | `1` (build+serve only the live target)            |
-| `PUBLIC_SUPABASE_URL`      | repo **Actions variable** | your project URL, e.g. `https://xxxx.supabase.co` |
-| `PUBLIC_SUPABASE_ANON_KEY` | repo **Actions secret**   | the client-safe anon (publishable) key            |
-
-Run locally:
+To run only the live layer locally:
 
 ```bash
 SUPABASE_SMOKE=1 E2E_LIVE_ONLY=1 \
-  PUBLIC_SUPABASE_URL=https://xxxx.supabase.co \
+  PUBLIC_SUPABASE_URL=https://your-project.supabase.co \
   PUBLIC_SUPABASE_ANON_KEY=<anon key> \
   pnpm test:e2e
 ```
 
-(`E2E_LIVE_ONLY=1` builds and serves only the live target; the default
-`pnpm test:e2e` always runs the mocked layer.)
+In CI, configure `PUBLIC_SUPABASE_URL` as an Actions variable and `PUBLIC_SUPABASE_ANON_KEY` as an Actions secret. The workflow detects both values before enabling the live step; when either is absent, the deterministic mocked suite still runs.
 
-In CI the live step is guarded by
-`if: vars.PUBLIC_SUPABASE_URL != '' && secrets.PUBLIC_SUPABASE_ANON_KEY != ''`,
-so until the repository variable and secret are configured (Settings → Secrets
-and variables → Actions) the step is skipped and the build stays green. To turn
-it on, add the `PUBLIC_SUPABASE_URL` **variable** and the
-`PUBLIC_SUPABASE_ANON_KEY` **secret** there; no code change is required.
+## Database
 
-## Continuous Integration
+The complete schema lives under [`sql/`](sql/). It includes:
 
-This project uses GitHub Actions for continuous integration. The workflow automatically runs on push to main/master branches and on pull requests:
+- User roles, preferences, and account triggers
+- Problems, feedback, and solved-problem tracking
+- Contests, feedback, and participation tracking
+- Leaderboard and mutation functions
+- Explicit least-privilege grants and verification queries
 
-- Linting with Prettier to ensure code formatting standards
-- Type checking with Svelte Check
-- Unit tests (`pnpm test`) and the Playwright mocked suite
-- The live read-only Supabase smoke (only when the variable/secret above are configured)
-- Building the project to catch any build errors
+Apply and verify the schema using the commands in [`sql/README.md`](sql/README.md). Treat production data as immutable during development and testing.
 
-You can view the workflow configuration in `.github/workflows/ci.yml`.
+## Continuous integration
 
-## Project Structure
+GitHub Actions checks formatting, ESLint, Svelte types, unit tests, the deterministic Playwright suite, and the production build. The live read-only smoke runs only when its repository variable and secret are configured.
 
-- `src/routes`: Page components and routes
-- `src/lib`: Shared components and utilities
-  - `src/lib/header`: Header component
-  - `src/lib/services`: API services (e.g., Codeforces API, database)
-- `static`: Static assets
-- `scripts`: Utility scripts (e.g., database migration)
+## Project structure
 
-## Future Plans
-
-- Add support for more competitive programming platforms (LeetCode, HackerRank, AtCoder, etc.)
-- Implement user accounts to track solved problems
-- Add personalized problem recommendations
-- Create discussion forums for each problem
-- Add detailed statistics and analytics
+| Path                  | Purpose                                                |
+| --------------------- | ------------------------------------------------------ |
+| `src/routes/`         | SvelteKit pages, server loads, and API endpoints       |
+| `src/lib/components/` | Shared interface components                            |
+| `src/lib/services/`   | Supabase and external-platform integrations            |
+| `sql/`                | PostgreSQL schema, functions, grants, and verification |
+| `e2e/`                | Anonymous Playwright coverage                          |
+| `tests/`              | Dependency-light unit and regression tests             |
+| `static/`             | Site icons and source-platform artwork                 |
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Issues and focused pull requests are welcome. Keep changes narrow, avoid unrelated refactors, and run the validation commands for the surfaces you change. Database changes must preserve Row Level Security and least-privilege grants.
+
+## Security
+
+Do not commit credentials or use elevated Supabase keys in client code. If you discover a vulnerability, report it privately to the repository owner rather than opening a public exploit report.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+Copyright © 2025 Cameron Custer. Released under the [MIT License](LICENSE).
 
-## Acknowledgments
-
-- [SvelteKit](https://kit.svelte.dev/) for the framework
-- [Supabase](https://supabase.com/) for the database
-- All the competitive programmers who inspire this project
+Codeforces, Kattis, GitHub, Supabase, and Vercel are trademarks of their respective owners. gitgud is an independent community project.

@@ -1,59 +1,79 @@
-# gitgud Database Schema
+# gitgud database
 
-This directory contains the SQL files that define the database schema for gitgud.
+This directory is the source of truth for gitgud's PostgreSQL schema, Row Level Security policies, database functions, and explicit grants.
 
-## Directory Structure
+> **Safety:** run schema changes against a disposable or development Supabase project first. Never test by changing existing production records.
 
-- `init.sql` - Main initialization file that includes all other SQL files
-- `auth/` - Authentication and user management
-  - `user_roles.sql` - User roles table and policies
-  - `user_triggers.sql` - Triggers for new user creation
-- `problems/` - Problem-related tables and functions
-  - `problems.sql` - Problems table and policies
-  - `user_problem_feedback.sql` - User feedback for problems
-  - `user_solved_problems.sql` - Tracking solved problems
-  - `problem_functions.sql` - Functions for problem operations
-- `contests/` - Contest-related tables and functions
-  - `contests.sql` - Contests table and policies
-  - `user_contest_participation.sql` - Contest participation tracking
-  - `user_contest_feedback.sql` - User feedback for contests
-  - `contest_functions.sql` - Functions for contest operations
-- `common/` - Common utility functions
-  - `utility_functions.sql` - Common utility functions
+## Apply the schema
 
-## Usage
-
-To initialize the database schema, run the `init.sql` file in your Supabase SQL editor or using the Supabase CLI:
+`init.sql` uses `psql`'s `\ir` include command, so run it through `psql` from the repository root:
 
 ```bash
-psql -h your-supabase-host -U postgres -d postgres -f sql/init.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f sql/init.sql
 ```
 
-Or in the Supabase SQL editor, you can run:
+`DATABASE_URL` should come from a protected local environment or password file. Do not paste database credentials into shell history, source files, issues, or pull requests.
 
-```sql
-\i init.sql
+The Supabase dashboard SQL editor does **not** interpret `\ir`. If you use the dashboard, execute the files in the order listed by [`init.sql`](init.sql), ending with [`permissions.sql`](permissions.sql).
+
+## Verify permissions
+
+After applying the schema, run the read-only permission checks:
+
+```bash
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f sql/verify_permissions.sql
 ```
 
-Note that the paths in `init.sql` are relative to the `sql` directory, so you should run it from within that directory.
+Review every reported grant and policy before using the project with real data. Anonymous users should receive only the public reads and RPC execution the application requires; authenticated mutations must remain scoped by Row Level Security.
 
-## Schema Overview
+## Layout
 
-The database schema consists of several related tables:
+| Path                     | Purpose                                                 |
+| ------------------------ | ------------------------------------------------------- |
+| `init.sql`               | Ordered entry point for the complete schema             |
+| `permissions.sql`        | Least-privilege grants, applied after all objects exist |
+| `verify_permissions.sql` | Read-only grant and policy verification                 |
+| `auth/`                  | User roles, preferences, profile triggers, and policies |
+| `problems/`              | Problem catalog, feedback, solved state, and RPCs       |
+| `contests/`              | Contest catalog, feedback, participation, and RPCs      |
+| `leaderboard/`           | Public leaderboard functions                            |
+| `common/`                | Shared database utilities                               |
 
-1. **User Management**
+## Schema summary
 
-   - `user_roles` - Stores user roles (admin, user)
+### Authentication and profiles
 
-2. **Problems**
+- `user_roles` controls administrative capabilities.
+- `user_preferences` stores user-level display and privacy choices.
+- Authentication triggers create the corresponding application records.
 
-   - `problems` - Stores programming problems
-   - `user_problem_feedback` - Tracks user likes/dislikes for problems
-   - `user_solved_problems` - Tracks which problems users have solved
+### Problems
 
-3. **Contests**
-   - `contests` - Stores programming contests
-   - `user_contest_participation` - Tracks which contests users have participated in
-   - `user_contest_feedback` - Tracks user likes/dislikes for contests
+- `problems` stores the curated cross-platform catalog.
+- `user_problem_feedback` stores one user's like/dislike state.
+- `user_solved_problems` tracks personal progress.
+- Problem functions centralize authorized feedback and catalog mutations.
 
-Each table has appropriate Row Level Security (RLS) policies to ensure data security.
+### Contests
+
+- `contests` stores recommended contests.
+- `user_contest_feedback` stores one user's like/dislike state.
+- `user_contest_participation` tracks participation.
+- Contest functions centralize authorized feedback and catalog mutations.
+
+### Leaderboard
+
+Leaderboard functions expose the public ranking data used by the application without granting broad table access.
+
+## Change checklist
+
+For every database change:
+
+1. Update the relevant table or function file.
+2. Keep [`init.sql`](init.sql) ordered and complete.
+3. Update [`permissions.sql`](permissions.sql) when an object's access contract changes.
+4. Extend [`verify_permissions.sql`](verify_permissions.sql) for new grants, revocations, or policies.
+5. Validate on an isolated database.
+6. Confirm anonymous and authenticated roles cannot cross account or administrative boundaries.
+
+See the [project README](../README.md) for application setup and the [MIT License](../LICENSE) for licensing.
