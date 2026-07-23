@@ -26,19 +26,32 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f sql/verify_permissions.sql
 
 Review every reported grant and policy before using the project with real data. Anonymous users should receive only the public reads and RPC execution the application requires; authenticated mutations must remain scoped by Row Level Security.
 
+## Production rerun-hardening migration
+
+For an existing deployment, apply the transactional forward migration with `psql`:
+
+```bash
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f sql/migrate_schema_rerun_hardening.sql
+```
+
+The migration changes no application data. It pins the auth trigger functions, reruns every policy-bearing schema file, safely recreates feedback and auth triggers, reapplies [`permissions.sql`](permissions.sql), and verifies catalog postconditions before committing. It is idempotent and can be rerun after a partial deployment failure. Because it uses `\ir`, do not paste it into the Supabase dashboard SQL editor.
+
+Object files must not contain `GRANT` or `REVOKE`; [`permissions.sql`](permissions.sql) is the canonical reusable permission boundary. A one-off migration may contain ACL assertions or reapply that central file when required for safe rollout.
+
 ## Layout
 
-| Path                                | Purpose                                                   |
-| ----------------------------------- | --------------------------------------------------------- |
-| `init.sql`                          | Ordered entry point for the complete schema               |
-| `permissions.sql`                   | Least-privilege grants, applied after all objects exist   |
-| `verify_permissions.sql`            | Read-only grant and policy verification                   |
-| `cleanup_legacy_feedback_shims.sql` | One-off, idempotent removal of retired feedback overloads |
-| `auth/`                             | User roles, preferences, profile triggers, and policies   |
-| `problems/`                         | Problem catalog, feedback, solved state, and RPCs         |
-| `contests/`                         | Contest catalog, feedback, participation, and RPCs        |
-| `leaderboard/`                      | Public leaderboard functions                              |
-| `common/`                           | Shared database utilities                                 |
+| Path                                 | Purpose                                                   |
+| ------------------------------------ | --------------------------------------------------------- |
+| `init.sql`                           | Ordered entry point for the complete schema               |
+| `permissions.sql`                    | Least-privilege grants, applied after all objects exist   |
+| `verify_permissions.sql`             | Read-only grant and policy verification                   |
+| `cleanup_legacy_feedback_shims.sql`  | One-off, idempotent removal of retired feedback overloads |
+| `migrate_schema_rerun_hardening.sql` | Transactional production rollout for rerun hardening      |
+| `auth/`                              | User roles, preferences, profile triggers, and policies   |
+| `problems/`                          | Problem catalog, feedback, solved state, and RPCs         |
+| `contests/`                          | Contest catalog, feedback, participation, and RPCs        |
+| `leaderboard/`                       | Public leaderboard functions                              |
+| `common/`                            | Shared database utilities                                 |
 
 ## Schema summary
 
@@ -72,8 +85,8 @@ For every database change:
 
 1. Update the relevant table or function file.
 2. Keep [`init.sql`](init.sql) ordered and complete.
-3. Update [`permissions.sql`](permissions.sql) when an object's access contract changes.
-4. Extend [`verify_permissions.sql`](verify_permissions.sql) for new grants, revocations, or policies.
+3. Keep object-local `GRANT` and `REVOKE` statements out of schema files; update [`permissions.sql`](permissions.sql) when an object's access contract changes.
+4. Extend [`verify_permissions.sql`](verify_permissions.sql) for new grants, revocations, policies, or definer-function security settings.
 5. Validate on an isolated database.
 6. Confirm anonymous and authenticated roles cannot cross account or administrative boundaries.
 

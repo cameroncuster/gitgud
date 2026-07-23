@@ -11,11 +11,13 @@ CREATE TABLE IF NOT EXISTS user_roles (
 ALTER TABLE user_roles ENABLE ROW LEVEL SECURITY;
 
 -- Allow users to read their own role
+DROP POLICY IF EXISTS "Users can read their own role" ON user_roles;
 CREATE POLICY "Users can read their own role" ON user_roles FOR
 SELECT USING (auth.uid() = user_id);
 
 -- Only allow super admins to insert/update roles
 -- Note: The first admin will need to be created manually by a database administrator
+DROP POLICY IF EXISTS "Only super admins can insert roles" ON user_roles;
 CREATE POLICY "Only super admins can insert roles" ON user_roles FOR
 INSERT WITH CHECK (
     EXISTS (
@@ -26,6 +28,7 @@ INSERT WITH CHECK (
     )
   );
 
+DROP POLICY IF EXISTS "Only super admins can update roles" ON user_roles;
 CREATE POLICY "Only super admins can update roles" ON user_roles FOR
 UPDATE USING (
     EXISTS (

@@ -10,17 +10,16 @@ CREATE TABLE IF NOT EXISTS user_preferences (
 );
 -- Create RLS policies for user_preferences table
 ALTER TABLE user_preferences ENABLE ROW LEVEL SECURITY;
--- Drop existing policies if they exist
-DROP POLICY IF EXISTS "Users can read their own preferences" ON user_preferences;
-DROP POLICY IF EXISTS "Users can insert their own preferences" ON user_preferences;
-DROP POLICY IF EXISTS "Users can update their own preferences" ON user_preferences;
 -- Users can read their own preferences
+DROP POLICY IF EXISTS "Users can read their own preferences" ON user_preferences;
 CREATE POLICY "Users can read their own preferences" ON user_preferences FOR
 SELECT USING (auth.uid() = user_id);
 -- Users can insert their own preferences
+DROP POLICY IF EXISTS "Users can insert their own preferences" ON user_preferences;
 CREATE POLICY "Users can insert their own preferences" ON user_preferences FOR
 INSERT WITH CHECK (auth.uid() = user_id);
 -- Users can update their own preferences
+DROP POLICY IF EXISTS "Users can update their own preferences" ON user_preferences;
 CREATE POLICY "Users can update their own preferences" ON user_preferences FOR
 UPDATE USING (auth.uid() = user_id);
 -- Create function to automatically create user preferences on new user creation
@@ -29,7 +28,9 @@ INSERT INTO public.user_preferences (user_id, hide_from_leaderboard, theme)
 VALUES (NEW.id, false, 'light');
 RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp;
 -- Create trigger to call the function when a new user is created
 DROP TRIGGER IF EXISTS on_auth_user_created_preferences ON auth.users;
 CREATE TRIGGER on_auth_user_created_preferences

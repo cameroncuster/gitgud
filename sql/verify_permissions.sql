@@ -20,6 +20,8 @@
 --   Funcs   * allowed public RPC (get_leaderboard) executes for anon
 --           * authenticated INSERT relying on DEFAULT uuid_generate_v4()
 --             succeeds (positive default path)
+--           * auth trigger functions are SECURITY DEFINER with exactly
+--             search_path = public, pg_temp
 --           * internal trigger functions (handle_new_user,
 --             handle_new_user_preferences, update_updated_at_column) are NOT
 --             directly executable by anon or authenticated
@@ -31,6 +33,7 @@
 DO $$
 DECLARE
   anon_write_grants INT;
+  misconfigured_definer_functions INT;
   leaky_func_grants INT;
   leaky_feedback_grants INT;
   read_ok BOOLEAN;
@@ -48,21 +51,49 @@ BEGIN
   END IF;
 
   -- 2. Grant-level: internal functions must not be executable by PUBLIC / anon /
-  --    authenticated. has_function_privilege('public', ...) tests PUBLIC.
+  --    authenticated. PUBLIC is grantee OID 0 in the function ACL.
   SELECT COUNT(*) INTO leaky_func_grants
   FROM (VALUES
     ('handle_new_user()'),
     ('handle_new_user_preferences()'),
     ('update_updated_at_column()')
   ) AS f(sig)
-  WHERE has_function_privilege('anon', 'public.' || f.sig, 'EXECUTE')
-     OR has_function_privilege('authenticated', 'public.' || f.sig, 'EXECUTE')
-     OR has_function_privilege('public', 'public.' || f.sig, 'EXECUTE');
+  JOIN pg_proc p ON p.oid = to_regprocedure('public.' || f.sig)
+  WHERE has_function_privilege('anon', p.oid, 'EXECUTE')
+     OR has_function_privilege('authenticated', p.oid, 'EXECUTE')
+     OR EXISTS (
+       SELECT 1
+       FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS privilege
+       WHERE privilege.grantee = 0
+         AND privilege.privilege_type = 'EXECUTE'
+     );
   IF leaky_func_grants <> 0 THEN
     RAISE EXCEPTION '% internal function(s) are executable by a client role or PUBLIC', leaky_func_grants;
   END IF;
 
-  -- 3. anon can read the public catalog tables.
+  -- 3. Every client-facing or trigger SECURITY DEFINER function must have
+  --    exactly one pinned setting: search_path = public, pg_temp.
+  SELECT COUNT(*) INTO misconfigured_definer_functions
+  FROM (VALUES
+    ('handle_new_user()'),
+    ('handle_new_user_preferences()'),
+    ('get_leaderboard()'),
+    ('get_user_solved_problems(uuid)'),
+    ('update_problem_feedback(uuid,boolean)'),
+    ('update_contest_feedback(uuid,boolean)')
+  ) AS f(sig)
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    WHERE p.oid = to_regprocedure('public.' || f.sig)
+      AND p.prosecdef
+      AND p.proconfig = ARRAY['search_path=public, pg_temp']::TEXT[]
+  );
+  IF misconfigured_definer_functions <> 0 THEN
+    RAISE EXCEPTION '% SECURITY DEFINER function(s) lack the exact search_path = public, pg_temp', misconfigured_definer_functions;
+  END IF;
+
+  -- 4. anon can read the public catalog tables.
   SET LOCAL ROLE anon;
   PERFORM 1 FROM problems LIMIT 1;
   PERFORM 1 FROM contests LIMIT 1;
@@ -72,7 +103,7 @@ BEGIN
     RAISE EXCEPTION 'anon could not read public catalog tables';
   END IF;
 
-  -- 4. anon INSERT on problems must be denied (grant absent / RLS).
+  -- 5. anon INSERT on problems must be denied (grant absent / RLS).
   blocked := false;
   BEGIN
     SET LOCAL ROLE anon;
@@ -87,7 +118,7 @@ BEGIN
     RAISE EXCEPTION 'anon was able to INSERT into problems (expected denial)';
   END IF;
 
-  -- 5. anon UPDATE on contests must be denied.
+  -- 6. anon UPDATE on contests must be denied.
   blocked := false;
   BEGIN
     SET LOCAL ROLE anon;
@@ -101,7 +132,7 @@ BEGIN
     RAISE EXCEPTION 'anon was able to UPDATE contests (expected denial)';
   END IF;
 
-  -- 6. anon INSERT into an own-row table must be denied (no grant for anon).
+  -- 7. anon INSERT into an own-row table must be denied (no grant for anon).
   blocked := false;
   BEGIN
     SET LOCAL ROLE anon;
@@ -116,7 +147,7 @@ BEGIN
     RAISE EXCEPTION 'anon was able to INSERT into user_solved_problems (expected denial)';
   END IF;
 
-  -- 7. authenticated with no jwt (auth.uid() IS NULL) cannot INSERT admin-gated
+  -- 8. authenticated with no jwt (auth.uid() IS NULL) cannot INSERT admin-gated
   --    catalog rows: the grant exists but the RLS WITH CHECK requires an admin.
   blocked := false;
   BEGIN
@@ -132,12 +163,12 @@ BEGIN
     RAISE EXCEPTION 'authenticated (no jwt) inserted into problems (expected RLS denial)';
   END IF;
 
-  -- 8. Allowed public RPC executes for anon (SECURITY DEFINER read path).
+  -- 9. Allowed public RPC executes for anon (SECURITY DEFINER read path).
   SET LOCAL ROLE anon;
   PERFORM * FROM get_leaderboard() LIMIT 1;
   RESET ROLE;
 
-  -- 9. Positive default path: authenticated INSERT relying on
+  -- 10. Positive default path: authenticated INSERT relying on
   --    DEFAULT uuid_generate_v4() for its PK must succeed. Use an admin jwt so
   --    the problems RLS WITH CHECK passes, isolating the grant/default check.
   --    Runs inside a savepoint and is rolled back so no catalog row persists.
@@ -161,7 +192,7 @@ BEGIN
   DELETE FROM user_roles WHERE user_id = probe_id;
   DELETE FROM auth.users WHERE id = probe_id;
 
-  -- 10. Direct execution of an internal trigger function must be denied for
+  -- 11. Direct execution of an internal trigger function must be denied for
   --     authenticated with an insufficient_privilege error specifically (a
   --     privilege check precedes the "can only be called as trigger" error, so
   --     this distinguishes a real EXECUTE denial from the trigger-context
@@ -182,7 +213,7 @@ BEGIN
     RAISE EXCEPTION 'authenticated could directly EXECUTE update_updated_at_column (expected denial)';
   END IF;
 
-  -- 11. Grant-level: the canonical feedback RPCs must be EXECUTE-able by
+  -- 12. Grant-level: the canonical feedback RPCs must be EXECUTE-able by
   --     authenticated but NOT by anon or PUBLIC. These are SECURITY DEFINER
   --     writers, so a leaked anon/PUBLIC grant would expose a write path.
   SELECT COUNT(*) INTO leaky_feedback_grants
@@ -200,7 +231,7 @@ BEGIN
     RAISE EXCEPTION 'a canonical feedback RPC is not EXECUTE-able by authenticated (expected grant present)';
   END IF;
 
-  -- 12. The canonical two-argument signature must be the only overload for each
+  -- 13. The canonical two-argument signature must be the only overload for each
   --     feedback RPC. This forbids the retired five-argument shims and any
   --     unexpected future overload.
   IF EXISTS (

@@ -14,7 +14,7 @@
 CREATE OR REPLACE FUNCTION update_problem_feedback(
     p_problem_id UUID,
     p_is_like BOOLEAN
-  ) RETURNS SETOF problems
+  ) RETURNS SETOF public.problems
   LANGUAGE plpgsql
   SECURITY DEFINER
   SET search_path = public, pg_temp
@@ -30,55 +30,55 @@ BEGIN
   END IF;
 
   -- Lock the problem row so concurrent feedback serializes on it.
-  PERFORM 1 FROM problems WHERE id = p_problem_id FOR UPDATE;
+  PERFORM 1 FROM public.problems WHERE id = p_problem_id FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Problem with ID % not found', p_problem_id;
   END IF;
 
   -- Lock and read the caller's ACTUAL current feedback for this problem.
   SELECT feedback_type INTO v_current
-  FROM user_problem_feedback
+  FROM public.user_problem_feedback
   WHERE user_id = v_user_id
     AND problem_id = p_problem_id
   FOR UPDATE;
 
   IF v_current IS NULL THEN
     -- New feedback: add the requested reaction.
-    INSERT INTO user_problem_feedback (user_id, problem_id, feedback_type)
+    INSERT INTO public.user_problem_feedback (user_id, problem_id, feedback_type)
     VALUES (v_user_id, p_problem_id, v_requested);
 
     IF p_is_like THEN
-      UPDATE problems SET likes = likes + 1 WHERE id = p_problem_id;
+      UPDATE public.problems SET likes = likes + 1 WHERE id = p_problem_id;
     ELSE
-      UPDATE problems SET dislikes = dislikes + 1 WHERE id = p_problem_id;
+      UPDATE public.problems SET dislikes = dislikes + 1 WHERE id = p_problem_id;
     END IF;
 
   ELSIF v_current = v_requested THEN
     -- Same reaction repeated: undo it.
-    DELETE FROM user_problem_feedback
+    DELETE FROM public.user_problem_feedback
     WHERE user_id = v_user_id
       AND problem_id = p_problem_id;
 
     IF p_is_like THEN
-      UPDATE problems SET likes = GREATEST(0, likes - 1) WHERE id = p_problem_id;
+      UPDATE public.problems SET likes = GREATEST(0, likes - 1) WHERE id = p_problem_id;
     ELSE
-      UPDATE problems SET dislikes = GREATEST(0, dislikes - 1) WHERE id = p_problem_id;
+      UPDATE public.problems SET dislikes = GREATEST(0, dislikes - 1) WHERE id = p_problem_id;
     END IF;
 
   ELSE
     -- Switching between like and dislike.
-    UPDATE user_problem_feedback
+    UPDATE public.user_problem_feedback
     SET feedback_type = v_requested
     WHERE user_id = v_user_id
       AND problem_id = p_problem_id;
 
     IF p_is_like THEN
-      UPDATE problems
+      UPDATE public.problems
       SET likes = likes + 1,
           dislikes = GREATEST(0, dislikes - 1)
       WHERE id = p_problem_id;
     ELSE
-      UPDATE problems
+      UPDATE public.problems
       SET likes = GREATEST(0, likes - 1),
           dislikes = dislikes + 1
       WHERE id = p_problem_id;
@@ -88,10 +88,7 @@ BEGIN
   -- Return the updated problem.
   RETURN QUERY
   SELECT *
-  FROM problems
+  FROM public.problems
   WHERE id = p_problem_id;
 END;
 $$;
-
--- Ensure the function is accessible to authenticated users.
-GRANT EXECUTE ON FUNCTION update_problem_feedback(UUID, BOOLEAN) TO authenticated;
