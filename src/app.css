@@ -9,15 +9,17 @@
     --font-mono:
       ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
 
-    /* Codeforces rating colors */
-    --color-legendary-grandmaster: oklch(0.65 0.27 29.23);
-    --color-international-grandmaster: oklch(0.65 0.27 29.23);
-    --color-grandmaster: oklch(0.65 0.27 29.23);
-    --color-international-master: oklch(0.71 0.19 54.65);
-    --color-master: oklch(0.71 0.19 54.65);
-    --color-candidate-master: oklch(0.55 0.32 328.88);
+    /* Codeforces rating colors. Used as badge fills behind white text
+       (difficulty badges, leaderboard rank bubbles), so each is dark enough for
+       white to clear WCAG AA (>= 4.5:1) while keeping the tiers hue-distinct. */
+    --color-legendary-grandmaster: oklch(0.55 0.24 29.23);
+    --color-international-grandmaster: oklch(0.55 0.24 29.23);
+    --color-grandmaster: oklch(0.55 0.24 29.23);
+    --color-international-master: oklch(0.55 0.16 54.65);
+    --color-master: oklch(0.55 0.16 54.65);
+    --color-candidate-master: oklch(0.52 0.3 328.88);
     --color-expert: oklch(0.45 0.26 264.05);
-    --color-specialist: oklch(0.6 0.17 196.09);
+    --color-specialist: oklch(0.5 0.13 196.09);
     --color-pupil: oklch(0.51 0.18 142.5);
     --color-newbie: oklch(0.54 0 0);
 
@@ -67,6 +69,20 @@
     oklch(0.45 0.09 250) 8%,
     transparent
   ); /* Faint ink wash for solved rows */
+
+  /* Interactive-state colors used as text / border in the data tables (solved,
+     like, dislike). Dark enough on paper for normal-text WCAG AA (>= 4.5:1). */
+  --color-solved: oklch(0.5 0.15 145); /* Solved / participated green */
+  --color-like: oklch(0.5 0.15 145); /* Like green (same ink as solved) */
+  --color-dislike: oklch(0.5 0.2 27); /* Dislike red */
+
+  /* Contest star-difficulty scale (1..5). Rendered as large bold glyphs, so
+     each clears the >= 3:1 large-text bar on paper while staying hue-distinct. */
+  --color-star-1: oklch(0.55 0.15 145); /* Easy — green */
+  --color-star-2: oklch(0.5 0.15 250); /* Medium-easy — blue */
+  --color-star-3: oklch(0.58 0.13 75); /* Medium — amber */
+  --color-star-4: oklch(0.55 0.16 45); /* Medium-hard — orange */
+  --color-star-5: oklch(0.5 0.2 27); /* Hard — red */
 }
 
 /* Dark Ink theme. Selected via html[data-theme='dark'], set before first
@@ -95,6 +111,18 @@ html[data-theme='dark'] {
     oklch(0.78 0.09 250) 12%,
     transparent
   ); /* Faint ink wash for solved rows */
+
+  /* Interactive-state colors, lifted for the dark ground (normal-text AA). */
+  --color-solved: oklch(0.78 0.17 150); /* Solved / participated green */
+  --color-like: oklch(0.78 0.17 150); /* Like green (same ink as solved) */
+  --color-dislike: oklch(0.7 0.18 27); /* Dislike red */
+
+  /* Contest star-difficulty scale (1..5), lifted for the dark ground (>= 3:1). */
+  --color-star-1: oklch(0.78 0.17 150); /* Easy — green */
+  --color-star-2: oklch(0.72 0.13 250); /* Medium-easy — blue */
+  --color-star-3: oklch(0.8 0.15 80); /* Medium — amber */
+  --color-star-4: oklch(0.75 0.16 50); /* Medium-hard — orange */
+  --color-star-5: oklch(0.7 0.18 27); /* Hard — red */
 }
 
 /* Base styles */

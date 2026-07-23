@@ -76,6 +76,36 @@ $: filteredContests = contests.filter((contest) => {
   return true;
 });
 
+// Accessible names / state for the interactive column headers.
+$: participatedFilterLabel =
+  participatedFilterState === 'all'
+    ? 'Filter by participation status (showing all)'
+    : participatedFilterState === 'participated'
+      ? 'Filter by participation status (showing participated)'
+      : 'Filter by participation status (showing not participated)';
+
+$: typeFilterLabel =
+  typeFilterState === 'all'
+    ? 'Filter by contest type (showing all)'
+    : typeFilterState === 'icpc'
+      ? 'Filter by contest type (showing ICPC)'
+      : 'Filter by contest type (showing Codeforces)';
+
+$: difficultyAriaSort = (
+  difficultySortDirection === 'asc'
+    ? 'ascending'
+    : difficultySortDirection === 'desc'
+      ? 'descending'
+      : 'none'
+) as 'ascending' | 'descending' | 'none';
+
+$: difficultySortLabel =
+  difficultySortDirection === 'asc'
+    ? 'Difficulty, sorted ascending. Activate to sort descending.'
+    : difficultySortDirection === 'desc'
+      ? 'Difficulty, sorted descending. Activate to clear sorting.'
+      : 'Difficulty, not sorted. Activate to sort ascending.';
+
 // Handle filter changes
 function handleParticipatedFilter() {
   if (participatedFilterState === 'all') {
@@ -131,19 +161,27 @@ function getDifficultyStars(difficulty: number | undefined): string {
   return fullStar.repeat(difficulty) + emptyStar.repeat(5 - difficulty);
 }
 
-// Get color class based on difficulty
+// Get color class based on difficulty. Uses theme-token star colors that meet
+// the large-text contrast bar (>= 3:1) on both the Paper and Dark grounds,
+// rather than the fixed Tailwind hues that failed on paper.
 function getDifficultyColorClass(difficulty: number | undefined): string {
-  if (difficulty === undefined) return 'text-gray-400';
+  if (difficulty === undefined) return 'text-[var(--color-text-muted)]';
 
   const colors = [
-    'text-green-500', // 1 - Easy
-    'text-blue-500', // 2 - Medium-Easy
-    'text-yellow-500', // 3 - Medium
-    'text-orange-500', // 4 - Medium-Hard
-    'text-red-500' // 5 - Hard
+    'text-[var(--color-star-1)]', // 1 - Easy
+    'text-[var(--color-star-2)]', // 2 - Medium-Easy
+    'text-[var(--color-star-3)]', // 3 - Medium
+    'text-[var(--color-star-4)]', // 4 - Medium-Hard
+    'text-[var(--color-star-5)]' // 5 - Hard
   ];
 
   return colors[Math.min(difficulty, 5) - 1];
+}
+
+// Accessible label for the star rating, e.g. "Difficulty: 3 of 5".
+function getDifficultyLabel(difficulty: number | undefined): string {
+  if (difficulty === undefined) return 'Difficulty not rated';
+  return `Difficulty: ${difficulty} of 5`;
 }
 </script>
 
@@ -157,13 +195,18 @@ function getDifficultyColorClass(difficulty: number | undefined): string {
       <thead>
         <tr>
           <th
-            class="sticky top-0 z-10 w-[5%] cursor-pointer border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-3 text-center font-bold transition-colors duration-200 hover:bg-[color-mix(in_oklab,var(--color-tertiary)_90%,var(--color-accent)_10%,transparent)]"
-            on:click={handleParticipatedFilter}
-            title="Filter by participation status"
+            scope="col"
+            class="sticky top-0 z-10 w-[5%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-0 text-center font-bold"
           >
-            <div class="flex items-center justify-center gap-1">
+            <button
+              type="button"
+              class="flex w-full cursor-pointer items-center justify-center gap-1 p-3 font-bold transition-colors duration-200 hover:bg-[color-mix(in_oklab,var(--color-tertiary)_90%,var(--color-accent)_10%,transparent)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-accent)]"
+              on:click={handleParticipatedFilter}
+              aria-label={participatedFilterLabel}
+              title={participatedFilterLabel}
+            >
               {#if participatedFilterState === 'participated'}
-                <span class="text-sm font-bold text-[rgb(34_197_94)]">
+                <span class="text-sm font-bold text-[var(--color-solved)]" aria-hidden="true">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     width="16"
@@ -179,7 +222,7 @@ function getDifficultyColorClass(difficulty: number | undefined): string {
                   </svg>
                 </span>
               {:else if participatedFilterState === 'not-participated'}
-                <span class="text-sm font-bold text-[rgb(239_68_68)]">
+                <span class="text-sm font-bold text-[var(--color-dislike)]" aria-hidden="true">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     width="16"
@@ -212,35 +255,40 @@ function getDifficultyColorClass(difficulty: number | undefined): string {
                   </svg>
                 </span>
               {/if}
-            </div>
+            </button>
           </th>
           <th
-            class="sticky top-0 z-10 w-[6%] cursor-pointer border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-3 text-center font-bold transition-colors duration-200 hover:bg-[color-mix(in_oklab,var(--color-tertiary)_90%,var(--color-accent)_10%,transparent)]"
+            scope="col"
+            class="sticky top-0 z-10 w-[6%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-0 text-center font-bold"
             style="min-width: 50px;"
-            on:click={handleTypeFilter}
-            title="Filter by contest type"
           >
-            <div class="flex items-center justify-center gap-1">
+            <button
+              type="button"
+              class="flex w-full cursor-pointer items-center justify-center gap-1 p-3 font-bold transition-colors duration-200 hover:bg-[color-mix(in_oklab,var(--color-tertiary)_90%,var(--color-accent)_10%,transparent)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-accent)]"
+              on:click={handleTypeFilter}
+              aria-label={typeFilterLabel}
+              title={typeFilterLabel}
+            >
               {#if typeFilterState === 'icpc'}
-                <span class="text-sm font-bold text-[rgb(34_197_94)]">
+                <span class="text-sm font-bold text-[var(--color-solved)]" aria-hidden="true">
                   <div class="relative">
-                    <img src={icpcLogo} alt="ICPC" class="h-6 w-6 object-contain" />
+                    <img src={icpcLogo} alt="" class="h-6 w-6 object-contain" />
                     <div
-                      class="absolute -right-1 -bottom-1 h-3 w-3 rounded border border-white bg-[rgb(34_197_94)]"
+                      class="absolute -right-1 -bottom-1 h-3 w-3 rounded border border-white bg-[var(--color-solved)]"
                     ></div>
                   </div>
                 </span>
               {:else if typeFilterState === 'codeforces'}
-                <span class="text-sm font-bold text-[rgb(239_68_68)]">
+                <span class="text-sm font-bold text-[var(--color-dislike)]" aria-hidden="true">
                   <div class="relative">
-                    <img src={codeforcesLogo} alt="Codeforces" class="h-5 w-5 object-contain" />
+                    <img src={codeforcesLogo} alt="" class="h-5 w-5 object-contain" />
                     <div
-                      class="absolute -right-1 -bottom-1 h-3 w-3 rounded border border-white bg-[rgb(239_68_68)]"
+                      class="absolute -right-1 -bottom-1 h-3 w-3 rounded border border-white bg-[var(--color-dislike)]"
                     ></div>
                   </div>
                 </span>
               {:else}
-                <span class="text-sm font-bold text-[var(--color-text-muted)]">
+                <span class="text-sm font-bold text-[var(--color-text-muted)]" aria-hidden="true">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     width="16"
@@ -256,9 +304,10 @@ function getDifficultyColorClass(difficulty: number | undefined): string {
                   </svg>
                 </span>
               {/if}
-            </div>
+            </button>
           </th>
           <th
+            scope="col"
             class="sticky top-0 z-10 w-[34%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-3 text-left font-bold"
           >
             Contest
@@ -269,25 +318,32 @@ function getDifficultyColorClass(difficulty: number | undefined): string {
             Duration
           </th>
           <th
-            class="sticky top-0 z-10 w-[15%] cursor-pointer border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-3 text-center font-bold transition-colors duration-200 hover:bg-[color-mix(in_oklab,var(--color-tertiary)_90%,var(--color-accent)_10%,transparent)]"
-            on:click={handleDifficultySort}
-            title="Click to sort by difficulty"
+            scope="col"
+            aria-sort={difficultyAriaSort}
+            class="sticky top-0 z-10 w-[15%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-0 text-center font-bold"
           >
-            <div class="flex items-center justify-center gap-2">
+            <button
+              type="button"
+              class="flex w-full cursor-pointer items-center justify-center gap-2 p-3 font-bold transition-colors duration-200 hover:bg-[color-mix(in_oklab,var(--color-tertiary)_90%,var(--color-accent)_10%,transparent)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-accent)]"
+              on:click={handleDifficultySort}
+              aria-label={difficultySortLabel}
+              title={difficultySortLabel}
+            >
               {#if difficultySortDirection === 'asc'}
-                <span class="text-sm font-bold text-[var(--color-accent)]">▲</span>
+                <span class="text-sm font-bold text-[var(--color-accent)]" aria-hidden="true">▲</span>
               {:else if difficultySortDirection === 'desc'}
-                <span class="text-sm font-bold text-[var(--color-accent)]">▼</span>
+                <span class="text-sm font-bold text-[var(--color-accent)]" aria-hidden="true">▼</span>
               {:else}
                 <span
                   class="flex flex-col text-sm leading-[1] font-bold text-[var(--color-text-muted)]"
+                  aria-hidden="true"
                 >
                   <span>▲</span>
                   <span>▼</span>
                 </span>
               {/if}
               <span>Difficulty</span>
-            </div>
+            </button>
           </th>
           <th
             class="sticky top-0 z-10 w-[21%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-3 text-left font-bold"
@@ -312,10 +368,12 @@ function getDifficultyColorClass(difficulty: number | undefined): string {
       <tbody>
         {#each filteredContests as contest (contest.url)}
           <tr
-            class="relative border-b border-[var(--color-border)] transition-colors duration-200 last:border-b-0
-            ${contest.id && userParticipation.has(contest.id)
-              ? 'border-l-4 border-l-[rgb(34_197_94)] bg-[var(--color-solved-row)]'
-              : 'hover:bg-[var(--color-tertiary)]/30'}"
+            class={`relative border-b border-[var(--color-border)] transition-colors duration-200 last:border-b-0
+            ${
+              contest.id && userParticipation.has(contest.id)
+                ? 'border-l-4 border-l-[var(--color-solved)] bg-[var(--color-solved-row)]'
+                : 'hover:bg-[var(--color-tertiary)]/30'
+            }`}
           >
             <td class="p-3 text-center">
               {#if contest.id}
@@ -323,8 +381,8 @@ function getDifficultyColorClass(difficulty: number | undefined): string {
                 <button
                   class={`flex h-8 w-8 cursor-pointer items-center justify-center rounded transition-colors duration-300
                     ${hasParticipated
-                      ? 'bg-[rgb(34_197_94)] text-white'
-                      : 'border-2 border-[var(--color-border)] bg-transparent text-[var(--color-text)] hover:border-[rgb(34_197_94)] hover:bg-[color-mix(in_oklab,rgb(34_197_94)_10%,transparent)] hover:text-[rgb(34_197_94)]'
+                      ? 'bg-[var(--color-solved)] text-white'
+                      : 'border-2 border-[var(--color-border)] bg-transparent text-[var(--color-text)] hover:border-[var(--color-solved)] hover:bg-[color-mix(in_oklab,var(--color-solved)_10%,transparent)] hover:text-[var(--color-solved)]'
                     } ${!isAuthenticated ? 'cursor-not-allowed opacity-50' : ''}`}
                   on:click={() => isAuthenticated && onToggleParticipation(contest.id!, !hasParticipated)}
                   title={hasParticipated ? 'Mark as not participated' : 'Mark as participated'}
@@ -374,11 +432,17 @@ function getDifficultyColorClass(difficulty: number | undefined): string {
             </td>
             <td class="p-3 text-center">
               {#if contest.difficulty !== undefined}
-                <span class={`text-2xl font-bold ${getDifficultyColorClass(contest.difficulty)}`}>
-                  {getDifficultyStars(contest.difficulty)}
+                <span
+                  class={`text-2xl font-bold ${getDifficultyColorClass(contest.difficulty)}`}
+                  role="img"
+                  aria-label={getDifficultyLabel(contest.difficulty)}
+                >
+                  <span aria-hidden="true">{getDifficultyStars(contest.difficulty)}</span>
                 </span>
               {:else}
-                <span class="text-[var(--color-text-muted)]">-</span>
+                <span class="text-[var(--color-text-muted)]" aria-label={getDifficultyLabel(undefined)}
+                  ><span aria-hidden="true">-</span></span
+                >
               {/if}
             </td>
             <td class="p-3 text-left">
@@ -386,7 +450,8 @@ function getDifficultyColorClass(difficulty: number | undefined): string {
                 href={contest.addedByUrl}
                 target="_blank"
                 rel="noopener noreferrer external"
-                class="text-[var(--color-username)] hover:underline"
+                class="text-[var(--color-username)] hover:text-[color-mix(in_oklab,var(--color-username)_80%,white)] hover:underline"
+                title={'@' + contest.addedBy}
               >
                 @{contest.addedBy}
               </a>
@@ -401,8 +466,8 @@ function getDifficultyColorClass(difficulty: number | undefined): string {
                   <button
                     class={`flex cursor-pointer items-center gap-1 rounded border-2 px-2 py-1 transition-colors duration-200
                       ${hasLiked
-                        ? 'border-[color-mix(in_oklab,rgb(34_197_94)_50%,transparent)] bg-[color-mix(in_oklab,rgb(34_197_94)_10%,transparent)] text-[rgb(34_197_94)]'
-                        : 'border-[var(--color-border)] bg-transparent text-[var(--color-text)] hover:border-[color-mix(in_oklab,rgb(34_197_94)_50%,transparent)] hover:bg-[color-mix(in_oklab,rgb(34_197_94)_10%,transparent)] hover:text-[rgb(34_197_94)]'
+                        ? 'border-[color-mix(in_oklab,var(--color-like)_50%,transparent)] bg-[color-mix(in_oklab,var(--color-like)_10%,transparent)] text-[var(--color-like)]'
+                        : 'border-[var(--color-border)] bg-transparent text-[var(--color-text)] hover:border-[color-mix(in_oklab,var(--color-like)_50%,transparent)] hover:bg-[color-mix(in_oklab,var(--color-like)_10%,transparent)] hover:text-[var(--color-like)]'
                       } ${!isAuthenticated ? 'cursor-not-allowed opacity-50' : ''}`}
                     on:click={() => isAuthenticated && onLike(contest.id!, true)}
                     title={!isAuthenticated
@@ -410,6 +475,10 @@ function getDifficultyColorClass(difficulty: number | undefined): string {
                       : hasLiked
                         ? 'Undo like'
                         : 'Like this contest'}
+                    aria-pressed={hasLiked}
+                    aria-label={`Like${hasLiked ? ' (liked)' : ''}, ${contest.likes} ${
+                      contest.likes === 1 ? 'like' : 'likes'
+                    }`}
                     disabled={!isAuthenticated}
                   >
                     <svg
@@ -423,6 +492,7 @@ function getDifficultyColorClass(difficulty: number | undefined): string {
                       stroke-linecap="round"
                       stroke-linejoin="round"
                       class="stroke-2"
+                      aria-hidden="true"
                     >
                       <path
                         d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"
@@ -435,8 +505,8 @@ function getDifficultyColorClass(difficulty: number | undefined): string {
                   <button
                     class={`flex cursor-pointer items-center gap-1 rounded border-2 px-2 py-1 transition-colors duration-200
                       ${hasDisliked
-                        ? 'border-[color-mix(in_oklab,rgb(239_68_68)_50%,transparent)] bg-[color-mix(in_oklab,rgb(239_68_68)_10%,transparent)] text-[rgb(239_68_68)]'
-                        : 'border-[var(--color-border)] bg-transparent text-[var(--color-text)] hover:border-[color-mix(in_oklab,rgb(239_68_68)_50%,transparent)] hover:bg-[color-mix(in_oklab,rgb(239_68_68)_10%,transparent)] hover:text-[rgb(239_68_68)]'
+                        ? 'border-[color-mix(in_oklab,var(--color-dislike)_50%,transparent)] bg-[color-mix(in_oklab,var(--color-dislike)_10%,transparent)] text-[var(--color-dislike)]'
+                        : 'border-[var(--color-border)] bg-transparent text-[var(--color-text)] hover:border-[color-mix(in_oklab,var(--color-dislike)_50%,transparent)] hover:bg-[color-mix(in_oklab,var(--color-dislike)_10%,transparent)] hover:text-[var(--color-dislike)]'
                       } ${!isAuthenticated ? 'cursor-not-allowed opacity-50' : ''}`}
                     on:click={() => isAuthenticated && onLike(contest.id!, false)}
                     title={!isAuthenticated
@@ -444,6 +514,10 @@ function getDifficultyColorClass(difficulty: number | undefined): string {
                       : hasDisliked
                         ? 'Undo dislike'
                         : 'Dislike this contest'}
+                    aria-pressed={hasDisliked}
+                    aria-label={`Dislike${hasDisliked ? ' (disliked)' : ''}, ${contest.dislikes} ${
+                      contest.dislikes === 1 ? 'dislike' : 'dislikes'
+                    }`}
                     disabled={!isAuthenticated}
                   >
                     <svg
@@ -457,6 +531,7 @@ function getDifficultyColorClass(difficulty: number | undefined): string {
                       stroke-linecap="round"
                       stroke-linejoin="round"
                       class="stroke-2"
+                      aria-hidden="true"
                     >
                       <path
                         d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"
@@ -466,6 +541,12 @@ function getDifficultyColorClass(difficulty: number | undefined): string {
                   </button>
                 {/if}
               </div>
+            </td>
+          </tr>
+        {:else}
+          <tr>
+            <td colspan="7" class="p-8 text-center text-[var(--color-text-muted)]">
+              No contests match the current filters.
             </td>
           </tr>
         {/each}

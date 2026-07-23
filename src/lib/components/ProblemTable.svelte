@@ -116,6 +116,35 @@ function getRatingTierName(rating: number | undefined): string {
   return TIERS.find(([min]) => rating >= min)?.[1] || 'Newbie';
 }
 
+// Accessible names / state for the interactive column headers. Each announces
+// the current filter/sort state and the action a press will take.
+$: solvedFilterLabel =
+  solvedFilterState === 'all'
+    ? 'Filter by solved status (showing all)'
+    : solvedFilterState === 'solved'
+      ? 'Filter by solved status (showing solved)'
+      : 'Filter by solved status (showing unsolved)';
+
+$: sourceFilterLabel =
+  sourceFilterValue === 'all'
+    ? 'Filter by source (showing all)'
+    : `Filter by source (showing ${sourceFilterValue})`;
+
+$: difficultyAriaSort = (
+  difficultySortDirection === 'asc'
+    ? 'ascending'
+    : difficultySortDirection === 'desc'
+      ? 'descending'
+      : 'none'
+) as 'ascending' | 'descending' | 'none';
+
+$: difficultySortLabel =
+  difficultySortDirection === 'asc'
+    ? 'Difficulty, sorted ascending. Activate to sort descending.'
+    : difficultySortDirection === 'desc'
+      ? 'Difficulty, sorted descending. Activate to clear sorting.'
+      : 'Difficulty, not sorted. Activate to sort ascending.';
+
 // Function to get difficulty tooltip text
 function getDifficultyTooltip(problem: Problem): string {
   if (problem.source === 'kattis') {
@@ -136,13 +165,18 @@ function getDifficultyTooltip(problem: Problem): string {
       <thead>
         <tr>
           <th
-            class="sticky top-0 z-10 w-[5%] cursor-pointer border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-3 text-center font-bold transition-colors duration-200 hover:bg-[color-mix(in_oklab,var(--color-tertiary)_90%,var(--color-accent)_10%,transparent)]"
-            on:click={handleSolvedFilter}
-            title="Filter by solved status"
+            scope="col"
+            class="sticky top-0 z-10 w-[5%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-0 text-center font-bold"
           >
-            <div class="flex items-center justify-center gap-1">
+            <button
+              type="button"
+              class="flex w-full cursor-pointer items-center justify-center gap-1 p-3 font-bold transition-colors duration-200 hover:bg-[color-mix(in_oklab,var(--color-tertiary)_90%,var(--color-accent)_10%,transparent)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-accent)]"
+              on:click={handleSolvedFilter}
+              aria-label={solvedFilterLabel}
+              title={solvedFilterLabel}
+            >
               {#if solvedFilterState === 'solved'}
-                <span class="text-sm font-bold text-[rgb(34_197_94)]">
+                <span class="text-sm font-bold text-[var(--color-solved)]" aria-hidden="true">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     width="16"
@@ -159,7 +193,7 @@ function getDifficultyTooltip(problem: Problem): string {
                   </svg>
                 </span>
               {:else if solvedFilterState === 'unsolved'}
-                <span class="text-sm font-bold text-[rgb(239_68_68)]">
+                <span class="text-sm font-bold text-[var(--color-dislike)]" aria-hidden="true">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     width="16"
@@ -177,7 +211,7 @@ function getDifficultyTooltip(problem: Problem): string {
                   </svg>
                 </span>
               {:else}
-                <span class="text-sm font-bold text-[var(--color-text-muted)]">
+                <span class="text-sm font-bold text-[var(--color-text-muted)]" aria-hidden="true">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     width="16"
@@ -193,34 +227,39 @@ function getDifficultyTooltip(problem: Problem): string {
                   </svg>
                 </span>
               {/if}
-            </div>
+            </button>
           </th>
           <th
-            class="sticky top-0 z-10 w-[5%] cursor-pointer border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-3 text-center font-bold transition-colors duration-200 hover:bg-[color-mix(in_oklab,var(--color-tertiary)_90%,var(--color-accent)_10%,transparent)]"
-            on:click={handleSourceFilter}
-            title="Filter by source"
+            scope="col"
+            class="sticky top-0 z-10 w-[5%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-0 text-center font-bold"
           >
-            <div class="flex items-center justify-center gap-1">
+            <button
+              type="button"
+              class="flex w-full cursor-pointer items-center justify-center gap-1 p-3 font-bold transition-colors duration-200 hover:bg-[color-mix(in_oklab,var(--color-tertiary)_90%,var(--color-accent)_10%,transparent)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-accent)]"
+              on:click={handleSourceFilter}
+              aria-label={sourceFilterLabel}
+              title={sourceFilterLabel}
+            >
               {#if sourceFilterValue === 'codeforces'}
-                <span class="text-sm font-bold text-[#3B5998]">
+                <span class="text-sm font-bold text-[#3B5998]" aria-hidden="true">
                   <div class="relative">
-                    <img src={codeforcesLogo} alt="Codeforces" class="h-5 w-5 object-contain" />
+                    <img src={codeforcesLogo} alt="" class="h-5 w-5 object-contain" />
                     <div
                       class="absolute -right-1 -bottom-1 h-3 w-3 rounded border border-white bg-[#3B5998]"
                     ></div>
                   </div>
                 </span>
               {:else if sourceFilterValue === 'kattis'}
-                <span class="text-sm font-bold text-[#f2ae00]">
+                <span class="text-sm font-bold text-[#f2ae00]" aria-hidden="true">
                   <div class="relative">
-                    <img src={kattisLogo} alt="Kattis" class="h-5 w-5 object-contain" />
+                    <img src={kattisLogo} alt="" class="h-5 w-5 object-contain" />
                     <div
                       class="absolute -right-1 -bottom-1 h-3 w-3 rounded border border-white bg-[#f2ae00]"
                     ></div>
                   </div>
                 </span>
               {:else}
-                <span class="text-sm font-bold text-[var(--color-text-muted)]">
+                <span class="text-sm font-bold text-[var(--color-text-muted)]" aria-hidden="true">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     width="16"
@@ -236,32 +275,40 @@ function getDifficultyTooltip(problem: Problem): string {
                   </svg>
                 </span>
               {/if}
-            </div>
+            </button>
           </th>
           <th
+            scope="col"
             class="sticky top-0 z-10 w-[25%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-3 text-left font-bold"
             >Problem</th
           >
           <th
-            class="sticky top-0 z-10 w-[11%] cursor-pointer border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-3 py-4 text-center font-bold transition-colors duration-200 hover:bg-[color-mix(in_oklab,var(--color-tertiary)_90%,var(--color-accent)_10%,transparent)]"
-            on:click={handleDifficultySort}
-            title="Click to sort by difficulty"
+            scope="col"
+            aria-sort={difficultyAriaSort}
+            class="sticky top-0 z-10 w-[11%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-0 text-center font-bold"
           >
-            <div class="flex items-center justify-center gap-2">
+            <button
+              type="button"
+              class="flex w-full cursor-pointer items-center justify-center gap-2 p-3 py-4 font-bold transition-colors duration-200 hover:bg-[color-mix(in_oklab,var(--color-tertiary)_90%,var(--color-accent)_10%,transparent)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-accent)]"
+              on:click={handleDifficultySort}
+              aria-label={difficultySortLabel}
+              title={difficultySortLabel}
+            >
               {#if difficultySortDirection === 'asc'}
-                <span class="text-sm font-bold text-[var(--color-accent)]">▲</span>
+                <span class="text-sm font-bold text-[var(--color-accent)]" aria-hidden="true">▲</span>
               {:else if difficultySortDirection === 'desc'}
-                <span class="text-sm font-bold text-[var(--color-accent)]">▼</span>
+                <span class="text-sm font-bold text-[var(--color-accent)]" aria-hidden="true">▼</span>
               {:else}
                 <span
                   class="flex flex-col text-sm leading-[1] font-bold text-[var(--color-text-muted)]"
+                  aria-hidden="true"
                 >
                   <span>▲</span>
                   <span>▼</span>
                 </span>
               {/if}
               <span class="font-bold">Difficulty</span>
-            </div>
+            </button>
           </th>
           <th
             class="sticky top-0 z-10 w-[10%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-3 text-left font-bold"
@@ -290,10 +337,12 @@ function getDifficultyTooltip(problem: Problem): string {
       <tbody>
         {#each problems as problem (problem.url)}
           <tr
-            class="relative border-b border-[var(--color-border)] transition-colors duration-200 last:border-b-0
-            ${problem.id && userSolvedProblems.has(problem.id)
-              ? 'border-l-4 border-l-[rgb(34_197_94)] bg-[var(--color-solved-row)]'
-              : 'hover:bg-[var(--color-tertiary)]/30'}"
+            class={`relative border-b border-[var(--color-border)] transition-colors duration-200 last:border-b-0
+            ${
+              problem.id && userSolvedProblems.has(problem.id)
+                ? 'border-l-4 border-l-[var(--color-solved)] bg-[var(--color-solved-row)]'
+                : 'hover:bg-[var(--color-tertiary)]/30'
+            }`}
           >
             <td class="p-3 text-center">
               {#if problem.id}
@@ -301,8 +350,8 @@ function getDifficultyTooltip(problem: Problem): string {
                 <button
                   class={`flex h-8 w-8 cursor-pointer items-center justify-center rounded transition-colors duration-300
                     ${isSolved
-                      ? 'bg-[rgb(34_197_94)] text-white'
-                      : 'border-2 border-[var(--color-border)] bg-transparent text-[var(--color-text)] hover:border-[rgb(34_197_94)] hover:bg-[color-mix(in_oklab,rgb(34_197_94)_10%,transparent)] hover:text-[rgb(34_197_94)]'
+                      ? 'bg-[var(--color-solved)] text-white'
+                      : 'border-2 border-[var(--color-border)] bg-transparent text-[var(--color-text)] hover:border-[var(--color-solved)] hover:bg-[color-mix(in_oklab,var(--color-solved)_10%,transparent)] hover:text-[var(--color-solved)]'
                     } ${!isAuthenticated ? 'cursor-not-allowed opacity-50' : ''}`}
                   on:click={() => isAuthenticated && onToggleSolved(problem.id!, !isSolved)}
                   title={!isAuthenticated
@@ -403,8 +452,8 @@ function getDifficultyTooltip(problem: Problem): string {
                   <button
                     class={`flex cursor-pointer items-center gap-1 rounded border-2 px-2 py-1 transition-colors duration-200
                       ${hasLiked
-                        ? 'border-[color-mix(in_oklab,rgb(34_197_94)_50%,transparent)] bg-[color-mix(in_oklab,rgb(34_197_94)_10%,transparent)] text-[rgb(34_197_94)]'
-                        : 'border-[var(--color-border)] bg-transparent text-[var(--color-text)] hover:border-[color-mix(in_oklab,rgb(34_197_94)_50%,transparent)] hover:bg-[color-mix(in_oklab,rgb(34_197_94)_10%,transparent)] hover:text-[rgb(34_197_94)]'
+                        ? 'border-[color-mix(in_oklab,var(--color-like)_50%,transparent)] bg-[color-mix(in_oklab,var(--color-like)_10%,transparent)] text-[var(--color-like)]'
+                        : 'border-[var(--color-border)] bg-transparent text-[var(--color-text)] hover:border-[color-mix(in_oklab,var(--color-like)_50%,transparent)] hover:bg-[color-mix(in_oklab,var(--color-like)_10%,transparent)] hover:text-[var(--color-like)]'
                       } ${!isAuthenticated ? 'cursor-not-allowed opacity-50' : ''}`}
                     on:click={() => isAuthenticated && onLike(problem.id!, true)}
                     title={!isAuthenticated
@@ -412,6 +461,10 @@ function getDifficultyTooltip(problem: Problem): string {
                       : hasLiked
                         ? 'Undo like'
                         : 'Like this problem'}
+                    aria-pressed={hasLiked}
+                    aria-label={`Like${hasLiked ? ' (liked)' : ''}, ${problem.likes} ${
+                      problem.likes === 1 ? 'like' : 'likes'
+                    }`}
                     disabled={!isAuthenticated}
                   >
                     <svg
@@ -425,6 +478,7 @@ function getDifficultyTooltip(problem: Problem): string {
                       stroke-linecap="round"
                       stroke-linejoin="round"
                       class="stroke-2"
+                      aria-hidden="true"
                     >
                       <path
                         d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"
@@ -437,8 +491,8 @@ function getDifficultyTooltip(problem: Problem): string {
                   <button
                     class={`flex cursor-pointer items-center gap-1 rounded border-2 px-2 py-1 transition-colors duration-200
                       ${hasDisliked
-                        ? 'border-[color-mix(in_oklab,rgb(239_68_68)_50%,transparent)] bg-[color-mix(in_oklab,rgb(239_68_68)_10%,transparent)] text-[rgb(239_68_68)]'
-                        : 'border-[var(--color-border)] bg-transparent text-[var(--color-text)] hover:border-[color-mix(in_oklab,rgb(239_68_68)_50%,transparent)] hover:bg-[color-mix(in_oklab,rgb(239_68_68)_10%,transparent)] hover:text-[rgb(239_68_68)]'
+                        ? 'border-[color-mix(in_oklab,var(--color-dislike)_50%,transparent)] bg-[color-mix(in_oklab,var(--color-dislike)_10%,transparent)] text-[var(--color-dislike)]'
+                        : 'border-[var(--color-border)] bg-transparent text-[var(--color-text)] hover:border-[color-mix(in_oklab,var(--color-dislike)_50%,transparent)] hover:bg-[color-mix(in_oklab,var(--color-dislike)_10%,transparent)] hover:text-[var(--color-dislike)]'
                       } ${!isAuthenticated ? 'cursor-not-allowed opacity-50' : ''}`}
                     on:click={() => isAuthenticated && onLike(problem.id!, false)}
                     title={!isAuthenticated
@@ -446,6 +500,10 @@ function getDifficultyTooltip(problem: Problem): string {
                       : hasDisliked
                         ? 'Undo dislike'
                         : 'Dislike this problem'}
+                    aria-pressed={hasDisliked}
+                    aria-label={`Dislike${hasDisliked ? ' (disliked)' : ''}, ${problem.dislikes} ${
+                      problem.dislikes === 1 ? 'dislike' : 'dislikes'
+                    }`}
                     disabled={!isAuthenticated}
                   >
                     <svg
@@ -459,6 +517,7 @@ function getDifficultyTooltip(problem: Problem): string {
                       stroke-linecap="round"
                       stroke-linejoin="round"
                       class="stroke-2"
+                      aria-hidden="true"
                     >
                       <path
                         d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"
@@ -468,6 +527,12 @@ function getDifficultyTooltip(problem: Problem): string {
                   </button>
                 {/if}
               </div>
+            </td>
+          </tr>
+        {:else}
+          <tr>
+            <td colspan="7" class="p-8 text-center text-[var(--color-text-muted)]">
+              No problems match the current filters.
             </td>
           </tr>
         {/each}
