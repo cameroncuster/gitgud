@@ -14,3 +14,8 @@ yarn.lock
 
 # Ignore scripts folder
 scripts/
+
+# Ignore Playwright artifacts
+test-results/
+playwright-report/
+blob-report/
