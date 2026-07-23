@@ -28,16 +28,17 @@ Review every reported grant and policy before using the project with real data. 
 
 ## Layout
 
-| Path                     | Purpose                                                 |
-| ------------------------ | ------------------------------------------------------- |
-| `init.sql`               | Ordered entry point for the complete schema             |
-| `permissions.sql`        | Least-privilege grants, applied after all objects exist |
-| `verify_permissions.sql` | Read-only grant and policy verification                 |
-| `auth/`                  | User roles, preferences, profile triggers, and policies |
-| `problems/`              | Problem catalog, feedback, solved state, and RPCs       |
-| `contests/`              | Contest catalog, feedback, participation, and RPCs      |
-| `leaderboard/`           | Public leaderboard functions                            |
-| `common/`                | Shared database utilities                               |
+| Path                                | Purpose                                                   |
+| ----------------------------------- | --------------------------------------------------------- |
+| `init.sql`                          | Ordered entry point for the complete schema               |
+| `permissions.sql`                   | Least-privilege grants, applied after all objects exist   |
+| `verify_permissions.sql`            | Read-only grant and policy verification                   |
+| `cleanup_legacy_feedback_shims.sql` | One-off, idempotent removal of retired feedback overloads |
+| `auth/`                             | User roles, preferences, profile triggers, and policies   |
+| `problems/`                         | Problem catalog, feedback, solved state, and RPCs         |
+| `contests/`                         | Contest catalog, feedback, participation, and RPCs        |
+| `leaderboard/`                      | Public leaderboard functions                              |
+| `common/`                           | Shared database utilities                                 |
 
 ## Schema summary
 

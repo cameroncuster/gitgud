@@ -11,15 +11,6 @@
 --     feedback"/"undo" flags. Repeated or forged calls therefore cannot drive
 --     the counters away from the true feedback rows.
 -- search_path is pinned so object resolution cannot be hijacked by the caller.
---
--- Rollout note: the canonical function is the 2-argument (p_contest_id,
--- p_is_like) signature below. A legacy 5-argument compatibility shim is kept
--- TEMPORARILY at the bottom of this file so an old client (still sending
--- p_user_id / p_is_undo / p_previous_feedback) keeps working across a
--- non-atomic DB/client deploy. That shim ignores the caller-supplied identity
--- and state and delegates here, so it inherits every guarantee. It MUST be
--- dropped once all clients have rolled over -- see
--- sql/cleanup_legacy_feedback_shims.sql for the cleanup migration.
 CREATE OR REPLACE FUNCTION update_contest_feedback(
     p_contest_id UUID,
     p_is_like BOOLEAN
@@ -102,44 +93,5 @@ BEGIN
 END;
 $$;
 
--- Ensure the function is accessible to authenticated users
+-- Ensure the function is accessible to authenticated users.
 GRANT EXECUTE ON FUNCTION update_contest_feedback(UUID, BOOLEAN) TO authenticated;
-
--- ---------------------------------------------------------------------------
--- TEMPORARY backward-compatibility shim (remove after clients roll over).
---
--- Old clients call update_contest_feedback with 5 arguments
--- (p_contest_id, p_user_id, p_is_like, p_is_undo, p_previous_feedback). We keep
--- this signature ONLY so a client deployed before the DB migration keeps
--- working; we do NOT trust any of its identity/state arguments. p_user_id,
--- p_is_undo and p_previous_feedback are accepted and then IGNORED: the shim
--- delegates to the secured 2-argument function, which derives identity from
--- auth.uid() and the new/switch/undo transition from the locked current row.
--- It is therefore exactly as resistant to impersonation and counter drift as
--- the 2-argument function.
---
--- CLEANUP: once all clients send the 2-argument form, drop this shim by running
--- the forward migration sql/cleanup_legacy_feedback_shims.sql (which runs
---   DROP FUNCTION IF EXISTS update_contest_feedback(UUID, UUID, BOOLEAN, BOOLEAN, TEXT);
--- ) and then remove this definition and its grant.
-CREATE OR REPLACE FUNCTION update_contest_feedback(
-    p_contest_id UUID,
-    p_user_id UUID,
-    p_is_like BOOLEAN,
-    p_is_undo BOOLEAN DEFAULT FALSE,
-    p_previous_feedback TEXT DEFAULT NULL
-  ) RETURNS SETOF contests
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path = public, pg_temp
-AS $$
-BEGIN
-  -- Deliberately ignore p_user_id / p_is_undo / p_previous_feedback: identity
-  -- and the transition are derived inside the 2-argument function from
-  -- auth.uid() and the actual stored feedback row.
-  RETURN QUERY
-  SELECT * FROM update_contest_feedback(p_contest_id, p_is_like);
-END;
-$$;
-
-GRANT EXECUTE ON FUNCTION update_contest_feedback(UUID, UUID, BOOLEAN, BOOLEAN, TEXT) TO authenticated;
