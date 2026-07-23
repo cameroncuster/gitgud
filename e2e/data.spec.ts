@@ -63,11 +63,10 @@ test.describe('problems data', () => {
     const rows = page.locator('table tbody tr');
     await expect(rows).toHaveCount(PROBLEMS.length);
 
-    // The source column header cycles all -> codeforces -> kattis -> all.
-    const sourceHeader = page.locator('th[title="Filter by source"]');
+    const sourceFilter = page.getByRole('button', { name: /Filter by source/i });
 
     // First click -> codeforces only.
-    await sourceHeader.click();
+    await sourceFilter.click();
     const codeforces = PROBLEMS.filter((p) => !p.url.includes('kattis.com'));
     await expect(rows).toHaveCount(codeforces.length);
     for (const p of codeforces) {
@@ -75,7 +74,7 @@ test.describe('problems data', () => {
     }
 
     // Second click -> kattis only.
-    await sourceHeader.click();
+    await sourceFilter.click();
     const kattis = PROBLEMS.filter((p) => p.url.includes('kattis.com'));
     await expect(rows).toHaveCount(kattis.length);
     for (const p of kattis) {
@@ -140,10 +139,9 @@ test.describe('contests data', () => {
     const rows = page.locator('table tbody tr');
     await expect(rows).toHaveCount(CONTESTS.length);
 
-    // The type column header cycles all -> icpc -> codeforces -> all.
-    const typeHeader = page.locator('th[title="Filter by contest type"]');
+    const typeFilter = page.getByRole('button', { name: /Filter by contest type/i });
 
-    await typeHeader.click();
+    await typeFilter.click();
     const icpc = CONTESTS.filter((c) => c.type === 'ICPC');
     await expect(rows).toHaveCount(icpc.length);
     for (const c of icpc) {

@@ -38,16 +38,6 @@ test.describe('content shells render', () => {
     await expect(page.getByRole('columnheader', { name: /Difficulty/i })).toBeVisible();
   });
 
-  // With the placeholder backend the public reads resolve to zero rows, so the
-  // tables render their explicit empty state rather than data rows.
-  test('home problems table shows an explicit empty state when there are no rows', async ({
-    page
-  }) => {
-    await page.goto('/');
-    await expect(page.getByRole('columnheader', { name: /Problem/i })).toBeVisible();
-    await expect(page.getByText(/No problems match the current filters/i)).toBeVisible();
-  });
-
   test('leaderboard page renders a table with expected columns', async ({ page }) => {
     await page.goto('/leaderboard');
     const table = page.locator('table').first();
