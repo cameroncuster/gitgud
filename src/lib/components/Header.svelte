@@ -2,12 +2,9 @@
 import { page } from '$app/state';
 import { afterNavigate } from '$app/navigation';
 import { resolve } from '$app/paths';
-import { user } from '$lib/services/auth';
+import { user, authInitialized } from '$lib/services/auth';
 import { signInWithGithub, signOut, isAdmin } from '$lib/services/auth';
 import { onMount } from 'svelte';
-
-// Add a loading state to prevent button flash
-let authLoading = true;
 
 // Use a flag to ensure we've fully mounted before showing anything
 let isMounted = false;
@@ -25,16 +22,6 @@ let githubUrl = '';
 onMount(() => {
   // Mark component as mounted
   isMounted = true;
-
-  // Set a small timeout to ensure smooth loading and prevent flashing
-  setTimeout(() => {
-    if (isMounted) {
-      // Only set authLoading to false if we have user data or after a timeout
-      if ($user || !$user) {
-        authLoading = false;
-      }
-    }
-  }, 300);
 
   // Set up a subscription to the user store
   const unsubscribe = user.subscribe(async (value) => {
@@ -231,9 +218,9 @@ afterNavigate(() => {
         {/if}
       </ul>
       <div
-        class="mr-4 flex min-w-[70px] items-center justify-end gap-3 transition-opacity duration-300 sm:mr-2 md:mr-0 {authLoading
-          ? 'invisible opacity-0'
-          : 'visible opacity-100'}"
+        class="mr-4 flex min-w-[70px] items-center justify-end gap-3 transition-opacity duration-300 sm:mr-2 md:mr-0 {$authInitialized
+          ? 'visible opacity-100'
+          : 'invisible opacity-0'}"
         style="will-change: opacity;"
       >
         {#if $user}
@@ -335,7 +322,7 @@ afterNavigate(() => {
           {/if}
         </ul>
         <div
-          class="mt-2 flex flex-col items-start justify-start gap-3 px-1 transition-opacity duration-300 {authLoading ? 'invisible opacity-0' : 'visible opacity-100'}"
+          class="mt-2 flex flex-col items-start justify-start gap-3 px-1 transition-opacity duration-300 {$authInitialized ? 'visible opacity-100' : 'invisible opacity-0'}"
           style="will-change: opacity;"
         >
           {#if $user}
