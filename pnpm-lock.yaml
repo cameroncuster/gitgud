@@ -11,9 +11,6 @@ importers:
       '@supabase/supabase-js':
         specifier: ^2.110.8
         version: 2.110.8
-      supabase:
-        specifier: ^2.109.1
-        version: 2.109.1
     devDependencies:
       '@eslint/compat':
         specifier: ^2.1.0
@@ -69,6 +66,9 @@ importers:
       publint:
         specifier: ^0.3.21
         version: 0.3.21
+      supabase:
+        specifier: ^2.109.1
+        version: 2.109.1
       svelte:
         specifier: ^5.56.7
         version: 5.56.7(@typescript-eslint/types@8.65.0)
