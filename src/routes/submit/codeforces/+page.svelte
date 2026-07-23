@@ -304,9 +304,9 @@ async function processUrls() {
     </h1>
 
     {#if checkingAdmin}
-      <div class="mb-6 py-4 text-center text-blue-400">Checking permissions...</div>
+      <div class="mb-6 py-4 text-center text-[var(--color-info)]">Checking permissions...</div>
     {:else if error && !processingResults.length}
-      <div class="mb-6 py-4 text-center text-red-500">{error}</div>
+      <div class="mb-6 py-4 text-center text-[var(--color-error)]">{error}</div>
     {/if}
 
     {#if isAdminUser && !checkingAdmin}
@@ -321,13 +321,13 @@ async function processUrls() {
             bind:value={handle}
             placeholder="Enter your Codeforces handle (optional)"
             disabled={loading}
-            class="font-inherit box-border w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] p-3 text-base text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] placeholder:opacity-70 focus:border-[var(--color-primary)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+            class="font-inherit box-border w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] p-3 text-base text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] placeholder:opacity-70 focus:border-[var(--color-accent)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
           />
         </div>
 
         <div class="mb-6">
           <label for="problemUrls" class="mb-2 block font-semibold text-[var(--color-heading)]">
-            Problem or Contest URLs <span class="text-red-500">*</span>
+            Problem or Contest URLs <span class="text-[var(--color-error)]">*</span>
           </label>
           <textarea
             id="problemUrls"
@@ -336,7 +336,7 @@ async function processUrls() {
             required
             disabled={loading}
             rows="12"
-            class="font-inherit box-border min-h-[150px] w-full resize-y rounded-md border border-[var(--color-border)] bg-[var(--color-background)] p-3 text-base text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] placeholder:opacity-70 focus:border-[var(--color-primary)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+            class="font-inherit box-border min-h-[150px] w-full resize-y rounded-md border border-[var(--color-border)] bg-[var(--color-background)] p-3 text-base text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] placeholder:opacity-70 focus:border-[var(--color-accent)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
           ></textarea>
           <small class="mt-2 block text-sm text-[var(--color-text-muted)]">
             Enter Codeforces problem or contest URLs. URLs can be separated by spaces or newlines.
@@ -347,7 +347,7 @@ async function processUrls() {
         <div>
           <button
             type="submit"
-            class="w-full cursor-pointer rounded-md border-none bg-[var(--color-primary)] px-3 py-3 text-base font-semibold text-white transition-colors duration-200 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            class="w-full cursor-pointer rounded-md border-none bg-[var(--color-accent)] px-3 py-3 text-base font-semibold text-[var(--color-on-accent)] transition-colors duration-200 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
             disabled={loading}
           >
             {loading ? 'Processing...' : 'Submit'}
@@ -363,9 +363,9 @@ async function processUrls() {
               <div
                 class="flex items-center justify-between rounded border-l-4 bg-[var(--color-background)] p-3 {result.status ===
                 'success'
-                  ? 'border-l-green-500'
+                  ? 'border-l-[var(--color-success)]'
                   : result.status === 'error'
-                    ? 'border-l-red-500'
+                    ? 'border-l-[var(--color-error)]'
                     : 'border-l-[var(--color-border)]'}"
               >
                 <div class="font-medium break-all">
@@ -373,7 +373,7 @@ async function processUrls() {
                     href={result.url}
                     target="_blank"
                     rel="noopener noreferrer external"
-                    class="text-[var(--color-text)] no-underline hover:text-[var(--color-primary)] hover:underline"
+                    class="text-[var(--color-text)] no-underline hover:text-[var(--color-accent)] hover:underline"
                   >
                     {result.isContest
                       ? (result.name ? `${result.name}` : result.url)
@@ -387,11 +387,11 @@ async function processUrls() {
                 </div>
                 <div class="ml-4 whitespace-nowrap">
                   {#if result.status === 'pending'}
-                    <span class="text-blue-400">Pending</span>
+                    <span class="text-[var(--color-info)]">Pending</span>
                   {:else if result.status === 'success'}
-                    <span class="text-green-500">✓ {result.message}</span>
+                    <span class="text-[var(--color-success)]">✓ {result.message}</span>
                   {:else}
-                    <span class="text-red-500">✗ {result.message}</span>
+                    <span class="text-[var(--color-error)]">✗ {result.message}</span>
                   {/if}
                 </div>
               </div>

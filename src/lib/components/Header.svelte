@@ -265,7 +265,7 @@ afterNavigate(() => {
           </div>
         {:else}
           <button
-            class="cursor-pointer rounded border border-[var(--color-accent)] bg-[var(--color-accent)] px-3 py-1.5 text-sm font-bold text-white transition-colors hover:brightness-110"
+            class="cursor-pointer rounded border border-[var(--color-accent)] bg-[var(--color-accent)] px-3 py-1.5 text-sm font-bold text-[var(--color-on-accent)] transition-colors hover:brightness-110"
             on:click={handleLogin}
             title="Login with GitHub"
           >
@@ -367,7 +367,7 @@ afterNavigate(() => {
             </button>
           {:else}
             <button
-              class="cursor-pointer rounded border border-[var(--color-accent)] bg-[var(--color-accent)] px-3 py-1.5 text-sm font-bold text-white transition-colors hover:brightness-110"
+              class="cursor-pointer rounded border border-[var(--color-accent)] bg-[var(--color-accent)] px-3 py-1.5 text-sm font-bold text-[var(--color-on-accent)] transition-colors hover:brightness-110"
               on:click={handleLogin}
               title="Login with GitHub"
             >

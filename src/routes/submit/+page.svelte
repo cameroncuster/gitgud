@@ -60,14 +60,14 @@ onMount(() => {
     <h1 class="mb-6 text-center text-2xl font-semibold">Submit Problems</h1>
 
     {#if checkingAdmin}
-      <div class="p-4 text-center text-blue-500">Checking permissions...</div>
+      <div class="p-4 text-center text-[var(--color-info)]">Checking permissions...</div>
     {:else if error}
-      <div class="p-4 text-center text-red-500">{error}</div>
+      <div class="p-4 text-center text-[var(--color-error)]">{error}</div>
     {:else if isAdminUser}
       <div class="flex flex-col gap-6">
         <a
           href={resolve('/submit/codeforces')}
-          class="bg-background border-border text-text hover:border-primary flex items-center gap-6 rounded-lg border p-4 no-underline transition-colors duration-200 sm:p-6"
+          class="bg-background border-border text-text hover:border-accent flex items-center gap-6 rounded-lg border p-4 no-underline transition-colors duration-200 sm:p-6"
         >
           <img src={codeforcesLogo} alt="Codeforces" class="h-12 w-12 object-contain" />
           <div>
@@ -76,7 +76,7 @@ onMount(() => {
         </a>
         <a
           href={resolve('/submit/kattis')}
-          class="bg-background border-border text-text hover:border-primary flex items-center gap-6 rounded-lg border p-4 no-underline transition-colors duration-200 sm:p-6"
+          class="bg-background border-border text-text hover:border-accent flex items-center gap-6 rounded-lg border p-4 no-underline transition-colors duration-200 sm:p-6"
         >
           <img src={kattisLogo} alt="Kattis" class="h-12 w-12 object-contain" />
           <div>
