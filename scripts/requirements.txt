@@ -25,7 +25,7 @@ pydantic==2.10.6
 pydantic_core==2.27.2
 pyparsing==3.2.1
 python-dotenv==1.0.1
-requests==2.32.3
+requests==2.33.0
 rsa==4.9
 soupsieve==2.6
 tqdm==4.67.1
