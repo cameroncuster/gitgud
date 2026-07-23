@@ -63,8 +63,9 @@ export async function resetMockStore(): Promise<void> {
 }
 
 // Drive the mock's provider (upstream) mode so a spec can exercise the
-// provider-failure and not-found paths deterministically.
-export type ProviderMode = 'ok' | 'fail' | 'notfound';
+// provider-failure, not-found, rate-limited, and malformed paths
+// deterministically.
+export type ProviderMode = 'ok' | 'fail' | 'notfound' | 'malformed' | 'ratelimited';
 export async function setProviderMode(mode: ProviderMode): Promise<void> {
   const res = await fetch(`${MOCK_URL}/__control/provider`, {
     method: 'POST',
@@ -74,6 +75,17 @@ export async function setProviderMode(mode: ProviderMode): Promise<void> {
   if (!res.ok) {
     throw new Error(`failed to set provider mode '${mode}': HTTP ${res.status}`);
   }
+}
+
+// Read the number of user_solved_problems write attempts the mock has seen this
+// run. Used to assert that a read-only preview performs ZERO writes.
+export async function getSolvedWriteAttempts(): Promise<number> {
+  const res = await fetch(`${MOCK_URL}/__control/scenario`);
+  if (!res.ok) {
+    throw new Error(`failed to read control state: HTTP ${res.status}`);
+  }
+  const body = (await res.json()) as { solvedWriteAttempts?: number };
+  return body.solvedWriteAttempts ?? 0;
 }
 
 // Stub the BROWSER-side Codeforces upstream calls the app makes directly

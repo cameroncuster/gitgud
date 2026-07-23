@@ -171,18 +171,27 @@ test('error status uses the semantic error color', () => {
 
 test('both toggles focus with a keyboard-visible accent ring, not the invisible primary', () => {
   // Both role="switch" buttons must draw a focus-visible ring in accent; none
-  // may keep the old `focus:ring-[var(--color-primary)]`.
-  const rings = [...SETTINGS.matchAll(/focus-visible:ring-\[var\(--color-accent\)\]/g)];
-  assert.equal(rings.length, 2, 'expected both toggles to use a focus-visible accent ring');
+  // may keep the old `focus:ring-[var(--color-primary)]`. Scope the assertion to
+  // the toggle buttons themselves so unrelated accessible focus rings elsewhere
+  // on the page (e.g. the import controls) do not perturb the count.
+  const toggles = [...SETTINGS.matchAll(/<button[^>]*role="switch"[\s\S]*?>/g)].map((m) => m[0]);
+  assert.equal(toggles.length, 2, 'expected exactly two role="switch" toggles');
+  for (const toggle of toggles) {
+    assert.match(
+      toggle,
+      /focus-visible:ring-\[var\(--color-accent\)\]/,
+      'each toggle must use a focus-visible accent ring'
+    );
+    // focus-visible (not bare focus) so a keyboard focus shows the ring without
+    // painting it on pointer clicks.
+    assert.match(toggle, /focus-visible:ring-2/, 'each toggle must use focus-visible:ring-2');
+  }
+  // No control anywhere may keep the old invisible primary focus ring.
   assert.doesNotMatch(
     SETTINGS,
     /focus:ring-\[var\(--color-primary\)\]/,
     'toggles must not keep the invisible primary focus ring'
   );
-  // focus-visible (not bare focus) so a keyboard focus shows the ring without
-  // painting it on pointer clicks.
-  const focusVisible = [...SETTINGS.matchAll(/focus-visible:ring-2/g)];
-  assert.equal(focusVisible.length, 2, 'both toggles must use focus-visible:ring-2');
 });
 
 // --- no artificial delay / session-gated init --------------------------------
