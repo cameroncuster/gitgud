@@ -16,7 +16,7 @@ grpcio-status==1.71.0rc2
 httplib2==0.22.0
 idna==3.10
 proto-plus==1.26.0
-protobuf==5.29.3
+protobuf==5.29.6
 psycopg==3.2.5
 psycopg-binary==3.2.5
 pyasn1==0.6.1
