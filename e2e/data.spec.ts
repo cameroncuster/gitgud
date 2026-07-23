@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { collect, expectClean, waitForShell } from './support/harness.ts';
 import { PROBLEMS, CONTESTS, LEADERBOARD } from './support/fixtures.ts';
 import { setScenario } from './support/scenario.ts';
+import { getProblemSource } from '../src/lib/services/problemSource.ts';
 
 test.beforeEach(async () => {
   await setScenario('data');
@@ -67,7 +68,7 @@ test.describe('problems data', () => {
 
     // First click -> codeforces only.
     await sourceFilter.click();
-    const codeforces = PROBLEMS.filter((p) => !p.url.includes('kattis.com'));
+    const codeforces = PROBLEMS.filter((p) => getProblemSource(p.url) === 'codeforces');
     await expect(rows).toHaveCount(codeforces.length);
     for (const p of codeforces) {
       await expect(page.getByRole('link', { name: p.name, exact: true })).toBeVisible();
@@ -75,7 +76,7 @@ test.describe('problems data', () => {
 
     // Second click -> kattis only.
     await sourceFilter.click();
-    const kattis = PROBLEMS.filter((p) => p.url.includes('kattis.com'));
+    const kattis = PROBLEMS.filter((p) => getProblemSource(p.url) === 'kattis');
     await expect(rows).toHaveCount(kattis.length);
     for (const p of kattis) {
       await expect(page.getByRole('link', { name: p.name, exact: true })).toBeVisible();
