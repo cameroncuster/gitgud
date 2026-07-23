@@ -34,10 +34,10 @@ async function loadLeaderboard(): Promise<void> {
 
 <svelte:head>
   <title>Leaderboard</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
 </svelte:head>
 
 <div class="mx-auto w-full max-w-[1200px] px-0">
+  <h1 class="sr-only">Leaderboard</h1>
   {#if loading}
     <div class="flex h-[calc(100vh-4rem)] items-center justify-center py-2 text-center">
       <div>

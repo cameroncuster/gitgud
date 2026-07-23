@@ -11,6 +11,7 @@ let isMounted = false;
 
 // Mobile menu state
 let mobileMenuOpen = false;
+let mobileMenuButton: HTMLButtonElement | null = null;
 
 // Track admin status
 let isUserAdmin = false;
@@ -106,11 +107,23 @@ function toggleMobileMenu() {
   mobileMenuOpen = !mobileMenuOpen;
 }
 
+// The mobile menu is a disclosure, not a modal: no focus trap and the rest of
+// the page stays interactive. Escape closes it and returns focus to the toggle
+// so keyboard users are not stranded.
+function handleMobileMenuKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && mobileMenuOpen) {
+    mobileMenuOpen = false;
+    mobileMenuButton?.focus();
+  }
+}
+
 // Close mobile menu when navigating to a new page
 afterNavigate(() => {
   mobileMenuOpen = false;
 });
 </script>
+
+<svelte:window on:keydown={handleMobileMenuKeydown} />
 
 <header
   class="sticky top-0 z-50 w-full border-b border-[var(--color-border)] bg-[var(--color-secondary)] py-3"
@@ -133,8 +146,11 @@ afterNavigate(() => {
 
     <!-- Mobile menu button -->
     <button
+      bind:this={mobileMenuButton}
       class="flex items-center rounded-md border-2 border-[var(--color-border)] px-2 py-1 text-[var(--color-text)] transition-colors hover:bg-[var(--color-tertiary)] lg:hidden"
       aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+      aria-expanded={mobileMenuOpen}
+      aria-controls="mobile-menu"
       on:click={toggleMobileMenu}
     >
       <svg
@@ -279,6 +295,7 @@ afterNavigate(() => {
   <!-- Mobile menu -->
   {#if mobileMenuOpen}
     <div
+      id="mobile-menu"
       class="mt-3 border-t border-[var(--color-border)] bg-[var(--color-secondary)] px-4 py-4 lg:hidden"
     >
       <nav class="flex flex-col gap-4">
