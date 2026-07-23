@@ -87,11 +87,43 @@ jobs:
         run: pnpm exec playwright install-deps chromium
         if: steps.playwright-cache.outputs.cache-hit == 'true'
 
-      - name: Run Playwright smoke suite
+      # Layer A — deterministic mocked suite. Always runs. The Playwright config
+      # starts a local mock Supabase server and builds the app bound to it, so
+      # these env values are inert placeholders (kept only to satisfy
+      # $env/static/public if referenced elsewhere). No real credentials needed.
+      - name: Run Playwright mocked suite
         run: pnpm run test:e2e
         env:
           PUBLIC_SUPABASE_URL: http://localhost
           PUBLIC_SUPABASE_ANON_KEY: placeholder
+
+      # Layer B — live read-only Supabase smoke. Opt-in: runs only when both the
+      # PUBLIC_SUPABASE_URL variable and the PUBLIC_SUPABASE_ANON_KEY secret are
+      # configured on the repository (Settings -> Secrets and variables ->
+      # Actions). It performs only anonymous reads (never a login, form
+      # submission, or write) and must use the client-safe anon/publishable key
+      # — NEVER a service-role key. When the key is absent the step is skipped,
+      # so forks and unconfigured repos stay green. See README for the contract.
+      - name: Detect live Supabase configuration
+        shell: bash
+        env:
+          LIVE_SUPABASE_URL: ${{ vars.PUBLIC_SUPABASE_URL }}
+          LIVE_SUPABASE_ANON_KEY: ${{ secrets.PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          if [[ -n "$LIVE_SUPABASE_URL" && -n "$LIVE_SUPABASE_ANON_KEY" ]]; then
+            echo "LIVE_SUPABASE_CONFIGURED=true" >> "$GITHUB_ENV"
+          fi
+
+      - name: Run Playwright live read-only Supabase smoke
+        if: ${{ env.LIVE_SUPABASE_CONFIGURED == 'true' }}
+        run: pnpm run test:e2e
+        env:
+          # E2E_LIVE_ONLY makes the config build+serve only the live target (the
+          # mocked layer builds into the same dir, so the two never run at once).
+          SUPABASE_SMOKE: '1'
+          E2E_LIVE_ONLY: '1'
+          PUBLIC_SUPABASE_URL: ${{ vars.PUBLIC_SUPABASE_URL }}
+          PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.PUBLIC_SUPABASE_ANON_KEY }}
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
