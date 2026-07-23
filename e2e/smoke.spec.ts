@@ -1,54 +1,16 @@
-import { test, expect, type Page, type ConsoleMessage } from '@playwright/test';
+import { test, expect } from '@playwright/test';
+import { collect, expectClean, waitForShell } from './support/harness.ts';
+import { setScenario } from './support/scenario.ts';
 
-// Anonymous smoke suite. Every test runs without authentication and performs
-// only public reads and navigation — no login, form submission, or remote
-// mutation. Data assertions are deliberately structural (headings, columns,
-// nav, guards) so they stay green regardless of the live content behind the
-// public Supabase reads.
+// Shell, navigation, guard, and theme behavior. These run in the `data`
+// scenario against the mock Supabase backend, which is reachable and returns
+// representative fixtures — so, unlike the original placeholder-backed suite,
+// they hold to a strict bar: no unexpected console errors and no failed network
+// requests (see harness.ts). Data-content assertions live in data.spec.ts.
 
-// The suite runs against a placeholder Supabase (see playwright.config.ts), so
-// the client-side data fetch fails with a benign network error. Allow only
-// that known-benign class of message; anything else is treated as an
-// unexpected error.
-const BENIGN_CONSOLE = [
-  /Failed to fetch/i,
-  /fetch failed/i,
-  /Error (fetching|loading)/i,
-  /ECONNREFUSED/i,
-  /NetworkError/i,
-  /net::ERR/i,
-  /Failed to load resource/i,
-  /favicon/i
-];
-
-function isBenign(text: string): boolean {
-  return BENIGN_CONSOLE.some((re) => re.test(text));
-}
-
-// Attach console/pageerror collectors and return the list of unexpected
-// messages seen so far. Data-layer network failures against the placeholder
-// backend are filtered out; genuine script errors are not.
-function trackPageErrors(page: Page): string[] {
-  const unexpected: string[] = [];
-  page.on('console', (msg: ConsoleMessage) => {
-    if (msg.type() === 'error' && !isBenign(msg.text())) {
-      unexpected.push(`console.error: ${msg.text()}`);
-    }
-  });
-  page.on('pageerror', (err: Error) => {
-    if (!isBenign(err.message)) {
-      unexpected.push(`pageerror: ${err.message}`);
-    }
-  });
-  return unexpected;
-}
-
-// The app hydrates client-side; the header "Home" link is present in the
-// server-rendered HTML, so waiting for it to be visible is a cheap, reliable
-// signal that the shell is up. Anchor-based nav then behaves consistently.
-async function waitForShell(page: Page): Promise<void> {
-  await expect(page.getByRole('link', { name: 'Home' })).toBeVisible();
-}
+test.beforeEach(async () => {
+  await setScenario('data');
+});
 
 const PUBLIC_ROUTES = [
   { path: '/', title: /Problems/i },
@@ -60,18 +22,16 @@ const PUBLIC_ROUTES = [
 test.describe('public routes render without unexpected errors', () => {
   for (const route of PUBLIC_ROUTES) {
     test(`loads ${route.path}`, async ({ page }) => {
-      const errors = trackPageErrors(page);
+      const errors = collect(page);
       await page.goto(route.path);
       await expect(page).toHaveTitle(route.title);
       await waitForShell(page);
-      expect(errors, `unexpected page/console errors on ${route.path}`).toEqual([]);
+      expectClean(errors, route.path);
     });
   }
 });
 
-test.describe('content shells render (structure only, no data assertions)', () => {
-  // The home problems table renders its column headers from the client shell
-  // independent of how many rows come back.
+test.describe('content shells render', () => {
   test('home page renders the problems table header', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('columnheader', { name: /Problem/i })).toBeVisible();
@@ -87,9 +47,6 @@ test.describe('content shells render (structure only, no data assertions)', () =
     await expect(table.getByRole('columnheader', { name: /Solves/i })).toBeVisible();
   });
 
-  // Contests renders a loading state until data resolves, and with the
-  // placeholder backend it never resolves to rows — so assert the durable page
-  // shell (title + header) rather than the data-dependent table.
   test('contests page renders its shell', async ({ page }) => {
     await page.goto('/contests');
     await expect(page).toHaveTitle(/Contests/i);
@@ -146,28 +103,30 @@ test.describe('mobile navigation', () => {
 
 test.describe('anonymous guards', () => {
   // Both routes gate their content behind an authenticated session. For an
-  // anonymous visitor the guard must never expose the protected UI — it either
-  // redirects home or holds the page in its pre-auth state. Asserting the
-  // protected content is absent captures the guard without depending on the
-  // session-check network timing (which is non-deterministic against the
-  // placeholder backend).
-  test('anonymous /settings never exposes the settings form', async ({ page }) => {
+  // anonymous visitor the guard redirects home and never exposes the protected
+  // UI. Asserting the redirect plus the absence of protected content captures
+  // the guard against a reachable backend (where the session check resolves
+  // quickly).
+  test('anonymous /settings redirects home and never exposes the settings form', async ({
+    page
+  }) => {
     await page.goto('/settings');
-    await waitForShell(page);
-    // The pre-auth state is the loading placeholder; the settings form (the
-    // authenticated-only Privacy section) is never reached without a session.
-    await expect(page.getByText(/Loading settings/i)).toBeVisible();
+    // The guard finds no session and redirects to the home route.
+    await page.waitForURL(/\/$/);
+    // The authenticated-only Privacy section is never reached.
     await expect(page.getByText('Privacy', { exact: true })).toHaveCount(0);
   });
 
-  test('anonymous /submit never exposes the submit options', async ({ page }) => {
+  test('anonymous /submit redirects home and never exposes the submit options', async ({
+    page
+  }) => {
     await page.goto('/submit');
-    await waitForShell(page);
-    // The pre-auth state is the permission check; the provider cards
-    // (authenticated admin-only) are never reached without a session.
-    await expect(page.getByText(/Checking permissions/i)).toBeVisible();
-    await expect(page.getByRole('link', { name: /Codeforces/i })).toHaveCount(0);
-    await expect(page.getByRole('link', { name: /Kattis/i })).toHaveCount(0);
+    await page.waitForURL(/\/$/);
+    // The submit page's own UI (its heading and admin-only provider cards) is
+    // never reached. (Asserted via the submit heading rather than a source
+    // name, since the home page legitimately contains Codeforces/Kattis links.)
+    await expect(page.getByRole('heading', { name: /Submit Problems/i })).toHaveCount(0);
+    await expect(page).not.toHaveURL(/\/submit/);
   });
 });
 
