@@ -217,9 +217,9 @@
     </h1>
 
     {#if checkingAdmin}
-      <div class="text-center py-4 mb-6 text-blue-400">Checking permissions...</div>
+      <div class="text-center py-4 mb-6 text-[var(--color-info)]">Checking permissions...</div>
     {:else if error && !processingResults.length}
-      <div class="text-center py-4 mb-6 text-red-500">{error}</div>
+      <div class="text-center py-4 mb-6 text-[var(--color-error)]">{error}</div>
     {/if}
 
     {#if isAdminUser && !checkingAdmin}
@@ -234,13 +234,13 @@
             bind:value={handle}
             placeholder={handlePlaceholder}
             disabled={loading}
-            class="w-full p-3 border border-[var(--color-border)] rounded-md bg-[var(--color-background)] text-[var(--color-text)] text-base box-border font-inherit placeholder:text-[var(--color-text-muted)] placeholder:opacity-70 disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:border-[var(--color-primary)]"
+            class="w-full p-3 border border-[var(--color-border)] rounded-md bg-[var(--color-background)] text-[var(--color-text)] text-base box-border font-inherit placeholder:text-[var(--color-text-muted)] placeholder:opacity-70 disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:border-[var(--color-accent)]"
           />
         </div>
 
         <div class="mb-6">
           <label for="problemUrls" class="block mb-2 font-semibold text-[var(--color-heading)]">
-            Problem URLs <span class="text-red-500">*</span>
+            Problem URLs <span class="text-[var(--color-error)]">*</span>
           </label>
           <textarea
             id="problemUrls"
@@ -249,7 +249,7 @@
             required
             disabled={loading}
             rows="8"
-            class="w-full p-3 border border-[var(--color-border)] rounded-md bg-[var(--color-background)] text-[var(--color-text)] text-base box-border font-inherit resize-y min-h-[150px] placeholder:text-[var(--color-text-muted)] placeholder:opacity-70 disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:border-[var(--color-primary)]"
+            class="w-full p-3 border border-[var(--color-border)] rounded-md bg-[var(--color-background)] text-[var(--color-text)] text-base box-border font-inherit resize-y min-h-[150px] placeholder:text-[var(--color-text-muted)] placeholder:opacity-70 disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:border-[var(--color-accent)]"
           ></textarea>
           <small class="block mt-2 text-[var(--color-text-muted)] text-sm">{urlsDescription}</small>
         </div>
@@ -257,7 +257,7 @@
         <div>
           <button
             type="submit"
-            class="w-full py-3 px-3 bg-[var(--color-primary)] text-white border-none rounded-md text-base font-semibold cursor-pointer transition-colors duration-200 hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
+            class="w-full py-3 px-3 bg-[var(--color-accent)] text-[var(--color-on-accent)] border-none rounded-md text-base font-semibold cursor-pointer transition-colors duration-200 hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed"
             disabled={loading}
           >
             {loading ? 'Processing...' : 'Submit Problems'}
@@ -273,9 +273,9 @@
               <div
                 class="flex justify-between items-center p-3 bg-[var(--color-background)] rounded border-l-4 {result.status ===
                 'success'
-                  ? 'border-l-green-500'
+                  ? 'border-l-[var(--color-success)]'
                   : result.status === 'error'
-                    ? 'border-l-red-500'
+                    ? 'border-l-[var(--color-error)]'
                     : 'border-l-[var(--color-border)]'}"
               >
                 <div class="font-medium break-all">
@@ -283,18 +283,18 @@
                     href={result.url}
                     target="_blank"
                     rel="noopener noreferrer external"
-                    class="text-[var(--color-text)] no-underline hover:text-[var(--color-primary)] hover:underline"
+                    class="text-[var(--color-text)] no-underline hover:text-[var(--color-accent)] hover:underline"
                   >
                     {formatResultUrl(result.url, result.name)}
                   </a>
                 </div>
                 <div class="whitespace-nowrap ml-4">
                   {#if result.status === 'pending'}
-                    <span class="text-blue-400">Pending</span>
+                    <span class="text-[var(--color-info)]">Pending</span>
                   {:else if result.status === 'success'}
-                    <span class="text-green-500">✓ {result.message}</span>
+                    <span class="text-[var(--color-success)]">✓ {result.message}</span>
                   {:else}
-                    <span class="text-red-500">✗ {result.message}</span>
+                    <span class="text-[var(--color-error)]">✗ {result.message}</span>
                   {/if}
                 </div>
               </div>
