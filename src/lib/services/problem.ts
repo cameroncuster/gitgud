@@ -3,6 +3,7 @@
  */
 import { supabase } from './database';
 import { user } from './auth';
+import { getProblemSource } from './problemSource';
 import { get } from 'svelte/store';
 
 /**
@@ -51,13 +52,6 @@ export type UserSolvedProblem = {
   problem_id: string;
   solved_at: string;
 };
-
-/**
- * Determine the problem source based on URL
- */
-export function getProblemSource(url: string): 'codeforces' | 'kattis' {
-  return url.includes('kattis.com') ? 'kattis' : 'codeforces';
-}
 
 /**
  * Columns selected when reading problems for display. Kept explicit so we only
