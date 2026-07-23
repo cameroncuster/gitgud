@@ -5,14 +5,17 @@ import {
   seedAdminSession,
   seedMemberSession,
   resetMockStore,
-  setProviderMode
+  setProviderMode,
+  getInsertedCounts
 } from './support/auth.ts';
 
-// Authenticated admin submit-path coverage for /submit/kattis (the shared
-// ProblemSubmitForm). A deterministic Supabase session is seeded before app
-// boot; the admin gate reads the mocked user_roles; the server-side Kattis page
-// fetch (/api/kattis -> open.kattis.com) is redirected to the mock; all inserts
-// land only in the mock's isolated in-memory store (reset per test).
+// Authenticated admin coverage for the unified /submit workspace on the Kattis
+// provider (deep link /submit/kattis preselects it). A deterministic Supabase
+// session is seeded before app boot; the admin gate reads the mocked user_roles;
+// the server-side Kattis page fetch (/api/kattis -> open.kattis.com) is
+// redirected to the mock; all inserts land only in the mock's isolated in-memory
+// store (reset per test). The workspace's two-phase flow (Preview links, then
+// Add problems) is pinned here too: nothing is written before the final confirm.
 
 const KATTIS_PROBLEM = 'open.kattis.com/problems/hello';
 const KATTIS_PROBLEM_2 = 'open.kattis.com/problems/twostones';
@@ -26,20 +29,32 @@ test.beforeEach(async () => {
 async function gotoSubmit(page: Page) {
   const errors = collect(page);
   await page.goto('/submit/kattis');
+  await page.waitForURL(/\/submit\?provider=kattis$/);
   await waitForShell(page);
   return errors;
 }
 
-const rows = (page: Page) => page.locator('[data-testid="results"] li');
+const rows = (page: Page) => page.locator('[data-testid="preview-row"]');
+const previewButton = (page: Page) => page.getByTestId('preview-button');
+// Inline on desktop, pinned on mobile — target whichever copy is visible.
+const confirmButton = (page: Page) =>
+  page.locator(
+    '[data-testid="confirm-button"]:visible, [data-testid="confirm-button-mobile"]:visible'
+  );
+
+async function stage(page: Page, text: string) {
+  await page.getByLabel(/Problem URLs/i).fill(text);
+  await previewButton(page).click();
+}
 
 test.describe('admin authorization gate', () => {
-  test('a seeded admin sees the submit form', async ({ page }) => {
+  test('a seeded admin sees the workspace with Kattis preselected', async ({ page }) => {
     await seedAdminSession(page);
     await gotoSubmit(page);
 
-    await expect(page).toHaveURL(/\/submit\/kattis$/);
-    await expect(page.getByRole('heading', { name: /Submit Kattis/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Submit Problems/i })).toBeVisible();
     await expect(page.getByLabel(/Problem URLs/i)).toBeVisible();
+    await expect(page.getByTestId('provider-kattis')).toHaveAttribute('aria-checked', 'true');
   });
 
   test('a seeded non-admin is denied and never sees the form', async ({ page }) => {
@@ -53,83 +68,113 @@ test.describe('admin authorization gate', () => {
   test('an anonymous visitor is redirected home', async ({ page }) => {
     await page.goto('/submit/kattis');
     await page.waitForURL(/\/$/);
-    await expect(page.getByRole('heading', { name: /Submit Kattis/i })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: /Submit Problems/i })).toHaveCount(0);
   });
 });
 
-test.describe('admin submit paths', () => {
-  test('submits a single Kattis problem successfully', async ({ page }) => {
+test.describe('two-phase flow and submit paths', () => {
+  test('previewing writes nothing until the final confirm', async ({ page }) => {
     await seedAdminSession(page);
     const errors = await gotoSubmit(page);
 
-    await page.getByLabel(/Problem URLs/i).fill(KATTIS_PROBLEM);
-    await page.getByRole('button', { name: /^Submit$/ }).click();
-
+    await stage(page, KATTIS_PROBLEM);
     const row = rows(page).filter({ hasText: 'Mock Kattis Problem' });
     await expect(row).toBeVisible();
-    await expect(row.getByText(/Problem added/i)).toBeVisible();
-    await expect(
-      page.getByRole('status').filter({ hasText: /1 item added, 0 failures/i })
-    ).toBeVisible();
+    expect(await getInsertedCounts()).toEqual({ problems: 0, contests: 0 });
 
-    expectClean(errors, '/submit/kattis (single problem)');
+    await confirmButton(page).click();
+    await expect(row.getByText(/✓ Added/)).toBeVisible();
+    expect(await getInsertedCounts()).toEqual({ problems: 1, contests: 0 });
+
+    expectClean(errors, '/submit (single Kattis problem)');
   });
 
-  test('submits a batch of two problems', async ({ page }) => {
+  test('adds a batch of two problems', async ({ page }) => {
     await seedAdminSession(page);
     await gotoSubmit(page);
 
-    await page.getByLabel(/Problem URLs/i).fill(`${KATTIS_PROBLEM}\n${KATTIS_PROBLEM_2}`);
-    await page.getByRole('button', { name: /^Submit$/ }).click();
-
+    await stage(page, `${KATTIS_PROBLEM}\n${KATTIS_PROBLEM_2}`);
     await expect(rows(page)).toHaveCount(2);
-    await expect(page.getByText(/Problem added/i)).toHaveCount(2);
+
+    await confirmButton(page).click();
+    await expect(rows(page).filter({ hasText: '✓ Added' })).toHaveCount(2);
+    expect(await getInsertedCounts()).toEqual({ problems: 2, contests: 0 });
   });
 
-  test('invalid input surfaces an inline error and processes nothing', async ({ page }) => {
+  test('removing a staged row excludes it from the write', async ({ page }) => {
     await seedAdminSession(page);
     await gotoSubmit(page);
 
-    // A URL for a different site yields no valid Kattis URLs.
+    await stage(page, `${KATTIS_PROBLEM}\n${KATTIS_PROBLEM_2}`);
+    await expect(rows(page)).toHaveCount(2);
+    await rows(page).last().getByTestId('remove-row').click();
+    await expect(rows(page)).toHaveCount(1);
+
+    await confirmButton(page).click();
+    // Wait for the write to complete before reading the store.
+    await expect(rows(page).filter({ hasText: '✓ Added' })).toHaveCount(1);
+    expect(await getInsertedCounts()).toEqual({ problems: 1, contests: 0 });
+  });
+
+  test('invalid input surfaces an inline error and stages nothing', async ({ page }) => {
+    await seedAdminSession(page);
+    await gotoSubmit(page);
+
     await page.getByLabel(/Problem URLs/i).fill('https://codeforces.com/contest/1/problem/A');
-    await page.getByRole('button', { name: /^Submit$/ }).click();
+    await previewButton(page).click();
 
     await expect(page.getByRole('alert')).toContainText(/No valid Kattis URLs/i);
     await expect(rows(page)).toHaveCount(0);
   });
 
-  test('re-submitting the same problem reports a duplicate', async ({ page }) => {
+  test('re-submitting the same problem previews a duplicate that cannot be added', async ({
+    page
+  }) => {
     await seedAdminSession(page);
     await gotoSubmit(page);
 
-    await page.getByLabel(/Problem URLs/i).fill(KATTIS_PROBLEM);
-    await page.getByRole('button', { name: /^Submit$/ }).click();
-    await expect(page.getByText(/Problem added/i)).toBeVisible();
+    await stage(page, KATTIS_PROBLEM);
+    await confirmButton(page).click();
+    await expect(rows(page).filter({ hasText: '✓ Added' })).toBeVisible();
 
-    await page.getByLabel(/Problem URLs/i).fill(KATTIS_PROBLEM);
-    await page.getByRole('button', { name: /^Submit$/ }).click();
-    await expect(page.getByText(/already exists/i)).toBeVisible();
+    await stage(page, KATTIS_PROBLEM);
+    const row = rows(page).filter({ hasText: /already exists/i });
+    await expect(row).toBeVisible();
+    await expect(row).toHaveAttribute('data-valid', 'false');
+    await expect(confirmButton(page)).toBeDisabled();
   });
 
-  test('a provider page-fetch failure degrades to the deterministic fallback insert', async ({
-    page
-  }) => {
+  test('a provider page-fetch failure degrades to the deterministic fallback', async ({ page }) => {
     // Documented existing behavior (fetchKattisProblemData): when the Kattis
     // page fetch fails, the service logs the error and FALLS BACK to a minimal
-    // problem derived from the URL id (formatted name), still inserting. This
-    // pins that fallback rather than asserting a failure UI that does not
-    // exist. A console error is emitted by the fallback, so we do not assert a
-    // clean console here.
+    // problem derived from the URL id (formatted name), still resolving to a
+    // valid, addable row. This pins that fallback. A console error is emitted by
+    // the fallback, so we do not assert a clean console here.
     await seedAdminSession(page);
     await setProviderMode('fail');
     await gotoSubmit(page);
 
-    await page.getByLabel(/Problem URLs/i).fill(KATTIS_PROBLEM);
-    await page.getByRole('button', { name: /^Submit$/ }).click();
-
-    // The fallback formats the problem id ('hello') into a display name.
+    await stage(page, KATTIS_PROBLEM);
     const row = rows(page).filter({ hasText: 'Hello' });
     await expect(row).toBeVisible();
-    await expect(row.getByText(/Problem added/i)).toBeVisible();
+    await expect(row).toHaveAttribute('data-valid', 'true');
+    await confirmButton(page).click();
+    await expect(row.getByText(/✓ Added/)).toBeVisible();
+  });
+});
+
+test.describe('provider switching', () => {
+  test('switching providers clears any staged preview', async ({ page }) => {
+    await seedAdminSession(page);
+    await gotoSubmit(page);
+
+    await stage(page, KATTIS_PROBLEM);
+    await expect(rows(page)).toHaveCount(1);
+
+    // Switching to Codeforces discards the Kattis preview so the Review stage
+    // never mixes providers.
+    await page.getByTestId('provider-codeforces').click();
+    await expect(rows(page)).toHaveCount(0);
+    await expect(page.getByTestId('provider-codeforces')).toHaveAttribute('aria-checked', 'true');
   });
 });

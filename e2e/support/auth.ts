@@ -62,6 +62,18 @@ export async function resetMockStore(): Promise<void> {
   }
 }
 
+// Read the mock's isolated insert counts. Used by the two-phase submit specs to
+// prove that the resolve/preview stage performs ZERO writes and that only the
+// still-present valid rows are written on final confirm.
+export async function getInsertedCounts(): Promise<{ problems: number; contests: number }> {
+  const res = await fetch(`${MOCK_URL}/__control/scenario`);
+  if (!res.ok) {
+    throw new Error(`failed to read mock insert counts: HTTP ${res.status}`);
+  }
+  const body = (await res.json()) as { inserted: { problems: number; contests: number } };
+  return body.inserted;
+}
+
 // Drive the mock's provider (upstream) mode so a spec can exercise the
 // provider-failure and not-found paths deterministically.
 export type ProviderMode = 'ok' | 'fail' | 'notfound';
