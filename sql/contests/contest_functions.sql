@@ -14,7 +14,7 @@
 CREATE OR REPLACE FUNCTION update_contest_feedback(
     p_contest_id UUID,
     p_is_like BOOLEAN
-  ) RETURNS SETOF contests
+  ) RETURNS SETOF public.contests
   LANGUAGE plpgsql
   SECURITY DEFINER
   SET search_path = public, pg_temp
@@ -30,55 +30,55 @@ BEGIN
   END IF;
 
   -- Lock the contest row so concurrent feedback serializes on it.
-  PERFORM 1 FROM contests WHERE id = p_contest_id FOR UPDATE;
+  PERFORM 1 FROM public.contests WHERE id = p_contest_id FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Contest with ID % not found', p_contest_id;
   END IF;
 
   -- Lock and read the caller's ACTUAL current feedback for this contest.
   SELECT feedback_type INTO v_current
-  FROM user_contest_feedback
+  FROM public.user_contest_feedback
   WHERE user_id = v_user_id
     AND contest_id = p_contest_id
   FOR UPDATE;
 
   IF v_current IS NULL THEN
     -- New feedback: add the requested reaction.
-    INSERT INTO user_contest_feedback (user_id, contest_id, feedback_type)
+    INSERT INTO public.user_contest_feedback (user_id, contest_id, feedback_type)
     VALUES (v_user_id, p_contest_id, v_requested);
 
     IF p_is_like THEN
-      UPDATE contests SET likes = likes + 1 WHERE id = p_contest_id;
+      UPDATE public.contests SET likes = likes + 1 WHERE id = p_contest_id;
     ELSE
-      UPDATE contests SET dislikes = dislikes + 1 WHERE id = p_contest_id;
+      UPDATE public.contests SET dislikes = dislikes + 1 WHERE id = p_contest_id;
     END IF;
 
   ELSIF v_current = v_requested THEN
     -- Same reaction repeated: undo it.
-    DELETE FROM user_contest_feedback
+    DELETE FROM public.user_contest_feedback
     WHERE user_id = v_user_id
       AND contest_id = p_contest_id;
 
     IF p_is_like THEN
-      UPDATE contests SET likes = GREATEST(0, likes - 1) WHERE id = p_contest_id;
+      UPDATE public.contests SET likes = GREATEST(0, likes - 1) WHERE id = p_contest_id;
     ELSE
-      UPDATE contests SET dislikes = GREATEST(0, dislikes - 1) WHERE id = p_contest_id;
+      UPDATE public.contests SET dislikes = GREATEST(0, dislikes - 1) WHERE id = p_contest_id;
     END IF;
 
   ELSE
     -- Switching between like and dislike.
-    UPDATE user_contest_feedback
+    UPDATE public.user_contest_feedback
     SET feedback_type = v_requested
     WHERE user_id = v_user_id
       AND contest_id = p_contest_id;
 
     IF p_is_like THEN
-      UPDATE contests
+      UPDATE public.contests
       SET likes = likes + 1,
           dislikes = GREATEST(0, dislikes - 1)
       WHERE id = p_contest_id;
     ELSE
-      UPDATE contests
+      UPDATE public.contests
       SET likes = GREATEST(0, likes - 1),
           dislikes = dislikes + 1
       WHERE id = p_contest_id;
@@ -88,10 +88,7 @@ BEGIN
   -- Return the updated contest.
   RETURN QUERY
   SELECT *
-  FROM contests
+  FROM public.contests
   WHERE id = p_contest_id;
 END;
 $$;
-
--- Ensure the function is accessible to authenticated users.
-GRANT EXECUTE ON FUNCTION update_contest_feedback(UUID, BOOLEAN) TO authenticated;

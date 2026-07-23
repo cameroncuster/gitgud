@@ -5,7 +5,9 @@ BEGIN
   VALUES (NEW.id, 'user');
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- Create trigger to call the function when a new user is created
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;

@@ -11,20 +11,21 @@ CREATE TABLE IF NOT EXISTS user_solved_problems (
 ALTER TABLE user_solved_problems ENABLE ROW LEVEL SECURITY;
 
 -- Users can read all solved problems (needed for displaying statistics)
+DROP POLICY IF EXISTS "Anyone can read solved problems" ON user_solved_problems;
 CREATE POLICY "Anyone can read solved problems" ON user_solved_problems FOR
 SELECT USING (true);
 
 -- Users can only mark their own problems as solved
+DROP POLICY IF EXISTS "Users can mark their own solved problems" ON user_solved_problems;
 CREATE POLICY "Users can mark their own solved problems" ON user_solved_problems FOR
 INSERT WITH CHECK (auth.uid() = user_id);
 
 -- Users can only update their own solved problems
+DROP POLICY IF EXISTS "Users can update their own solved problems" ON user_solved_problems;
 CREATE POLICY "Users can update their own solved problems" ON user_solved_problems FOR
 UPDATE USING (auth.uid() = user_id);
 
 -- Users can only delete their own solved problems
+DROP POLICY IF EXISTS "Users can delete their own solved problems" ON user_solved_problems;
 CREATE POLICY "Users can delete their own solved problems" ON user_solved_problems FOR 
 DELETE USING (auth.uid() = user_id);
-
--- Grant access to authenticated users
-GRANT ALL ON user_solved_problems TO authenticated;
