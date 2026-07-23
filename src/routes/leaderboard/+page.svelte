@@ -1,15 +1,20 @@
 <script lang="ts">
-import { onMount } from 'svelte';
 import { browser } from '$app/environment';
 import { fetchLeaderboard } from '$lib/services/leaderboard';
 import type { LeaderboardEntry } from '$lib/services/leaderboard';
+import type { PageData } from './$types';
 import LeaderboardTable from '$lib/components/LeaderboardTable.svelte';
 
-let leaderboardEntries: LeaderboardEntry[] = [];
+// Entries provided by the server-side load so the initial render (including
+// SSR) ships with rows instead of waiting for a client-side fetch.
+export let data: PageData;
+
+let leaderboardEntries: LeaderboardEntry[] = data.entries ?? [];
 let loading: boolean = false;
 let error: string | null = null;
 
-// Load leaderboard data
+// Load leaderboard data. Used for the client-side retry path; the initial list
+// is seeded from the server-side load above.
 async function loadLeaderboard(): Promise<void> {
   if (!browser) return;
 
@@ -25,11 +30,6 @@ async function loadLeaderboard(): Promise<void> {
     loading = false;
   }
 }
-
-// Load data on mount
-onMount(() => {
-  loadLeaderboard();
-});
 </script>
 
 <svelte:head>
