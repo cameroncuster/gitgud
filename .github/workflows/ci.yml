@@ -104,20 +104,26 @@ jobs:
       # submission, or write) and must use the client-safe anon/publishable key
       # — NEVER a service-role key. When the key is absent the step is skipped,
       # so forks and unconfigured repos stay green. See README for the contract.
-      - name: Run Playwright live read-only Supabase smoke
-        if: ${{ env.LIVE_SUPABASE_URL != '' && env.LIVE_SUPABASE_ANON_KEY != '' }}
-        run: pnpm run test:e2e
+      - name: Detect live Supabase configuration
+        shell: bash
         env:
-          # GitHub does not allow direct secrets references in step conditions.
-          # Resolve both values into the step environment before evaluating it.
           LIVE_SUPABASE_URL: ${{ vars.PUBLIC_SUPABASE_URL }}
           LIVE_SUPABASE_ANON_KEY: ${{ secrets.PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          if [[ -n "$LIVE_SUPABASE_URL" && -n "$LIVE_SUPABASE_ANON_KEY" ]]; then
+            echo "LIVE_SUPABASE_CONFIGURED=true" >> "$GITHUB_ENV"
+          fi
+
+      - name: Run Playwright live read-only Supabase smoke
+        if: ${{ env.LIVE_SUPABASE_CONFIGURED == 'true' }}
+        run: pnpm run test:e2e
+        env:
           # E2E_LIVE_ONLY makes the config build+serve only the live target (the
           # mocked layer builds into the same dir, so the two never run at once).
           SUPABASE_SMOKE: '1'
           E2E_LIVE_ONLY: '1'
-          PUBLIC_SUPABASE_URL: ${{ env.LIVE_SUPABASE_URL }}
-          PUBLIC_SUPABASE_ANON_KEY: ${{ env.LIVE_SUPABASE_ANON_KEY }}
+          PUBLIC_SUPABASE_URL: ${{ vars.PUBLIC_SUPABASE_URL }}
+          PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.PUBLIC_SUPABASE_ANON_KEY }}
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
