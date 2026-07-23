@@ -2,7 +2,17 @@
 import type { Problem } from '$lib/services/problem';
 import { user } from '$lib/services/auth';
 import { createEventDispatcher } from 'svelte';
+import {
+  cycleTableState,
+  getDifficultyAriaSort,
+  getDifficultySortLabel,
+  getSortedAuthors,
+  nextSortDirection,
+  type SortDirection
+} from '$lib/utils/table';
 import RecommendersFilter from './RecommendersFilter.svelte';
+import ResponsiveTableContainer from './ResponsiveTableContainer.svelte';
+import TableFeedbackButtons from './TableFeedbackButtons.svelte';
 // Use static image paths instead of imports
 const codeforcesLogo = '/images/codeforces.png';
 const kattisLogo = '/images/kattis.png';
@@ -19,11 +29,14 @@ export let onToggleSolved: (problemId: string, isSolved: boolean) => Promise<voi
 
 // State
 let isAuthenticated = false;
-let difficultySortDirection: 'asc' | 'desc' | null = null;
+let difficultySortDirection: SortDirection = null;
 let solvedFilterState: 'all' | 'solved' | 'unsolved' = 'all';
 let authorFilterValue: string | null = null;
 let sourceFilterValue: 'all' | 'codeforces' | 'kattis' = 'all';
 let uniqueAuthors: string[];
+
+const SOLVED_FILTER_STATES = ['all', 'solved', 'unsolved'] as const;
+const SOURCE_FILTER_STATES = ['all', 'codeforces', 'kattis'] as const;
 
 // Subscribe to auth state
 user.subscribe((value) => {
@@ -34,58 +47,20 @@ user.subscribe((value) => {
 export let allAuthors: string[] = [];
 
 // If allAuthors is not provided, fall back to extracting from current problems
-$: {
-  if (allAuthors.length === 0) {
-    uniqueAuthors = [...new Set(problems.map((p) => p.addedBy))].sort();
-  } else {
-    uniqueAuthors = [...allAuthors].sort();
-  }
-}
+$: uniqueAuthors = getSortedAuthors(problems, allAuthors);
 
-// Function to handle difficulty column click
 function handleDifficultySort() {
-  // Toggle sort direction: null -> asc -> desc -> null
-  if (difficultySortDirection === null) {
-    difficultySortDirection = 'asc';
-  } else if (difficultySortDirection === 'asc') {
-    difficultySortDirection = 'desc';
-  } else {
-    difficultySortDirection = null;
-  }
-
-  // Dispatch event to parent component
+  difficultySortDirection = nextSortDirection(difficultySortDirection);
   dispatch('sortDifficulty', { direction: difficultySortDirection });
 }
 
-// Function to handle solved filter click
 function handleSolvedFilter() {
-  // Toggle filter state: all -> solved -> unsolved -> all
-  if (solvedFilterState === 'all') {
-    solvedFilterState = 'solved';
-  } else if (solvedFilterState === 'solved') {
-    solvedFilterState = 'unsolved';
-  } else {
-    solvedFilterState = 'all';
-  }
-
-  // Dispatch event to parent component
+  solvedFilterState = cycleTableState(solvedFilterState, SOLVED_FILTER_STATES);
   dispatch('filterSolved', { state: solvedFilterState });
 }
 
-// Function to handle author filter is now handled directly in the RecommendersFilter component
-
-// Function to handle source filter click
 function handleSourceFilter() {
-  // Toggle filter state: all -> codeforces -> kattis -> all
-  if (sourceFilterValue === 'all') {
-    sourceFilterValue = 'codeforces';
-  } else if (sourceFilterValue === 'codeforces') {
-    sourceFilterValue = 'kattis';
-  } else {
-    sourceFilterValue = 'all';
-  }
-
-  // Dispatch event to parent component
+  sourceFilterValue = cycleTableState(sourceFilterValue, SOURCE_FILTER_STATES);
   dispatch('filterSource', { source: sourceFilterValue === 'all' ? null : sourceFilterValue });
 }
 
@@ -130,20 +105,8 @@ $: sourceFilterLabel =
     ? 'Filter by source (showing all)'
     : `Filter by source (showing ${sourceFilterValue})`;
 
-$: difficultyAriaSort = (
-  difficultySortDirection === 'asc'
-    ? 'ascending'
-    : difficultySortDirection === 'desc'
-      ? 'descending'
-      : 'none'
-) as 'ascending' | 'descending' | 'none';
-
-$: difficultySortLabel =
-  difficultySortDirection === 'asc'
-    ? 'Difficulty, sorted ascending. Activate to sort descending.'
-    : difficultySortDirection === 'desc'
-      ? 'Difficulty, sorted descending. Activate to clear sorting.'
-      : 'Difficulty, not sorted. Activate to sort ascending.';
+$: difficultyAriaSort = getDifficultyAriaSort(difficultySortDirection);
+$: difficultySortLabel = getDifficultySortLabel(difficultySortDirection);
 
 // Function to get difficulty tooltip text
 function getDifficultyTooltip(problem: Problem): string {
@@ -155,10 +118,7 @@ function getDifficultyTooltip(problem: Problem): string {
 }
 </script>
 
-<div class="scroll-affordance mt-4 w-full">
-  <div
-    class="table-wrapper rounded-md border-2 border-[var(--color-border)] bg-[var(--color-secondary)]"
-  >
+<ResponsiveTableContainer variant="problem">
     <table
       class="w-full min-w-[900px] table-fixed border-collapse overflow-hidden bg-[var(--color-secondary)] font-mono text-sm"
     >
@@ -445,86 +405,15 @@ function getDifficultyTooltip(problem: Problem): string {
             <td class="p-3 text-right">
               <div class="flex justify-end gap-2">
                 {#if problem.id}
-                  {@const hasLiked = userFeedback[problem.id] === 'like'}
-                  {@const hasDisliked = userFeedback[problem.id] === 'dislike'}
-
-                  <!-- Like button -->
-                  <button
-                    class={`flex cursor-pointer items-center gap-1 rounded border-2 px-2 py-1 transition-colors duration-200
-                      ${hasLiked
-                        ? 'border-[color-mix(in_oklab,var(--color-like)_50%,transparent)] bg-[color-mix(in_oklab,var(--color-like)_10%,transparent)] text-[var(--color-like)]'
-                        : 'border-[var(--color-border)] bg-transparent text-[var(--color-text)] hover:border-[color-mix(in_oklab,var(--color-like)_50%,transparent)] hover:bg-[color-mix(in_oklab,var(--color-like)_10%,transparent)] hover:text-[var(--color-like)]'
-                      } ${!isAuthenticated ? 'cursor-not-allowed opacity-50' : ''}`}
-                    on:click={() => isAuthenticated && onLike(problem.id!, true)}
-                    title={!isAuthenticated
-                      ? 'Sign in to like problems'
-                      : hasLiked
-                        ? 'Undo like'
-                        : 'Like this problem'}
-                    aria-pressed={hasLiked}
-                    aria-label={`Like${hasLiked ? ' (liked)' : ''}, ${problem.likes} ${
-                      problem.likes === 1 ? 'like' : 'likes'
-                    }`}
-                    disabled={!isAuthenticated}
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      class="stroke-2"
-                      aria-hidden="true"
-                    >
-                      <path
-                        d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"
-                      ></path>
-                    </svg>
-                    <span>{problem.likes}</span>
-                  </button>
-
-                  <!-- Dislike button -->
-                  <button
-                    class={`flex cursor-pointer items-center gap-1 rounded border-2 px-2 py-1 transition-colors duration-200
-                      ${hasDisliked
-                        ? 'border-[color-mix(in_oklab,var(--color-dislike)_50%,transparent)] bg-[color-mix(in_oklab,var(--color-dislike)_10%,transparent)] text-[var(--color-dislike)]'
-                        : 'border-[var(--color-border)] bg-transparent text-[var(--color-text)] hover:border-[color-mix(in_oklab,var(--color-dislike)_50%,transparent)] hover:bg-[color-mix(in_oklab,var(--color-dislike)_10%,transparent)] hover:text-[var(--color-dislike)]'
-                      } ${!isAuthenticated ? 'cursor-not-allowed opacity-50' : ''}`}
-                    on:click={() => isAuthenticated && onLike(problem.id!, false)}
-                    title={!isAuthenticated
-                      ? 'Sign in to dislike problems'
-                      : hasDisliked
-                        ? 'Undo dislike'
-                        : 'Dislike this problem'}
-                    aria-pressed={hasDisliked}
-                    aria-label={`Dislike${hasDisliked ? ' (disliked)' : ''}, ${problem.dislikes} ${
-                      problem.dislikes === 1 ? 'dislike' : 'dislikes'
-                    }`}
-                    disabled={!isAuthenticated}
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      class="stroke-2"
-                      aria-hidden="true"
-                    >
-                      <path
-                        d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"
-                      ></path>
-                    </svg>
-                    <span>{problem.dislikes}</span>
-                  </button>
+                  <TableFeedbackButtons
+                    likes={problem.likes}
+                    dislikes={problem.dislikes}
+                    feedback={userFeedback[problem.id]}
+                    {isAuthenticated}
+                    subject="problem"
+                    iconSize={16}
+                    onFeedback={(isLike) => onLike(problem.id!, isLike)}
+                  />
                 {/if}
               </div>
             </td>
@@ -538,22 +427,14 @@ function getDifficultyTooltip(problem: Problem): string {
         {/each}
       </tbody>
     </table>
-  </div>
-</div>
+</ResponsiveTableContainer>
 
 <style>
 /* Ensure table is responsive and centered */
 @media (max-width: 768px) {
   div {
-    margin-left: auto;
     margin-right: auto;
-  }
-}
-
-/* Remove margin between sidebar and table */
-@media (min-width: 768px) {
-  .table-wrapper {
-    margin-left: 0;
+    margin-left: auto;
   }
 }
 
@@ -565,55 +446,6 @@ td:last-child {
 /* Ensure table fits within container */
 .w-full {
   max-width: 100%;
-}
-
-/* Ensure proper table scrolling */
-.table-wrapper {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  width: 100%;
-}
-
-/* Below the desktop breakpoint the table is wider than the viewport and scrolls
-   horizontally. Make that scroll discoverable: a right-edge ink fade signals
-   there is more to the right, and a thin always-visible scrollbar confirms it.
-   Desktop (>=900px, where the table fits) is unaffected. */
-@media (max-width: 899px) {
-  .scroll-affordance {
-    position: relative;
-  }
-
-  .scroll-affordance::after {
-    content: '';
-    position: absolute;
-    top: 2px;
-    right: 2px;
-    bottom: 2px;
-    width: 2rem;
-    border-top-right-radius: 0.375rem;
-    border-bottom-right-radius: 0.375rem;
-    background: linear-gradient(
-      to right,
-      transparent,
-      color-mix(in oklab, var(--color-secondary) 85%, transparent)
-    );
-    pointer-events: none;
-    z-index: 20;
-  }
-
-  .table-wrapper {
-    scrollbar-width: thin;
-    scrollbar-color: var(--color-border) transparent;
-  }
-
-  .table-wrapper::-webkit-scrollbar {
-    height: 6px;
-  }
-
-  .table-wrapper::-webkit-scrollbar-thumb {
-    background-color: var(--color-border);
-    border-radius: 9999px;
-  }
 }
 
 /* Basic styling for elements */
