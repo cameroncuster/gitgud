@@ -15,6 +15,12 @@ import type { LeaderboardEntry } from '$lib/services/leaderboard';
 import { user } from '$lib/services/auth';
 import ProblemTable from '$lib/components/ProblemTable.svelte';
 import TopicSidebar from '$lib/components/TopicSidebar.svelte';
+import {
+  getSortedAuthors,
+  sortByDifficulty,
+  sortByScore,
+  type SortDirection
+} from '$lib/utils/table';
 
 // Props
 export let pageTitle = 'Problems';
@@ -46,61 +52,15 @@ let targetUser: LeaderboardEntry | null = null;
 // Problem types
 const PROBLEM_TYPES = ['graph', 'array', 'string', 'math', 'tree', 'queries', 'geometry', 'misc'];
 
-// Function to calculate problem score (likes - dislikes)
-function calculateScore(problem: Problem): number {
-  return problem.likes - problem.dislikes;
+function sortProblemsByScore(problemsToSort: readonly Problem[]): Problem[] {
+  return sortByScore(problemsToSort, 'desc');
 }
 
-// Function to sort problems by score (likes - dislikes)
-function sortProblemsByScore(problemsToSort: Problem[]): Problem[] {
-  // Group problems by score
-  const problemsByScore: Record<number, Problem[]> = {};
-
-  // Calculate score for each problem and group them
-  problemsToSort.forEach((problem) => {
-    const score = calculateScore(problem);
-    if (!problemsByScore[score]) {
-      problemsByScore[score] = [];
-    }
-    problemsByScore[score].push(problem);
-  });
-
-  Object.values(problemsByScore).forEach((group) => {
-    group.sort((a, b) => {
-      if (a.id && b.id) {
-        return a.id.localeCompare(b.id);
-      }
-      return 0;
-    });
-  });
-
-  // Get all scores and sort them in descending order
-  const scores = Object.keys(problemsByScore)
-    .map(Number)
-    .sort((a, b) => b - a);
-
-  // Flatten the groups in order of score
-  return scores.flatMap((score) => problemsByScore[score]);
-}
-
-// Function to sort problems by difficulty
 function sortProblemsByDifficulty(
-  problemsToSort: Problem[],
-  direction: 'asc' | 'desc' | null
+  problemsToSort: readonly Problem[],
+  direction: SortDirection
 ): Problem[] {
-  if (direction === null) {
-    // If no direction specified, return to default sort (by score)
-    return sortProblemsByScore([...problemsToSort]);
-  }
-
-  return [...problemsToSort].sort((a, b) => {
-    // Handle undefined difficulties
-    const diffA = a.difficulty ?? 0;
-    const diffB = b.difficulty ?? 0;
-
-    // Sort based on direction
-    return direction === 'asc' ? diffA - diffB : diffB - diffA;
-  });
+  return sortByDifficulty(problemsToSort, direction, sortProblemsByScore);
 }
 
 // Special topic value for NEW problems
@@ -151,7 +111,7 @@ function filterProblems(): void {
   let filtered = getProblemsWithoutAuthorFilter();
 
   // Update available authors based on current filters (except author filter)
-  availableAuthors = [...new Set(filtered.map((p) => p.addedBy))].sort();
+  availableAuthors = getSortedAuthors(filtered);
 
   // Apply author filter if selected
   if (selectedAuthor) {
@@ -338,7 +298,7 @@ function handleDifficultySort({ detail }: CustomEvent<{ direction: 'asc' | 'desc
   const problemsWithoutAuthorFilter = getProblemsWithoutAuthorFilter();
 
   // Update available authors
-  availableAuthors = [...new Set(problemsWithoutAuthorFilter.map((p) => p.addedBy))].sort();
+  availableAuthors = getSortedAuthors(problemsWithoutAuthorFilter);
 
   // Sort the problems by difficulty
   filteredProblems = sortProblemsByDifficulty(filteredProblems, detail.direction);
@@ -398,7 +358,7 @@ async function loadProblems() {
     }
 
     // Initialize available authors with all authors
-    availableAuthors = [...new Set(problems.map((p) => p.addedBy))].sort();
+    availableAuthors = getSortedAuthors(problems);
 
     // Initialize filtered problems using our filter function
     if (!alreadySeeded) {
@@ -422,7 +382,7 @@ async function loadProblems() {
 // (including SSR) shows data without waiting for a client-side fetch.
 if (initialProblems && problems.length === 0) {
   problems = sortProblemsByScore(initialProblems);
-  availableAuthors = [...new Set(problems.map((p) => p.addedBy))].sort();
+  availableAuthors = getSortedAuthors(problems);
   filterProblems();
 }
 

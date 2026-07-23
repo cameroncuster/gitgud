@@ -3,7 +3,17 @@ import type { Contest } from '$lib/services/contest';
 import { formatDuration } from '$lib/services/contest';
 import { user } from '$lib/services/auth';
 import { createEventDispatcher } from 'svelte';
+import {
+  cycleTableState,
+  getDifficultyAriaSort,
+  getDifficultySortLabel,
+  getSortedAuthors,
+  nextSortDirection,
+  type SortDirection
+} from '$lib/utils/table';
 import RecommendersFilter from './RecommendersFilter.svelte';
+import ResponsiveTableContainer from './ResponsiveTableContainer.svelte';
+import TableFeedbackButtons from './TableFeedbackButtons.svelte';
 
 // Event dispatcher
 const dispatch = createEventDispatcher();
@@ -25,17 +35,17 @@ $: isAuthenticated = !!$user;
 
 // Filter states
 let difficultyFilter: number | null = null;
-let difficultySortDirection: 'asc' | 'desc' | null = null;
+let difficultySortDirection: SortDirection = null;
 let participatedFilterState: 'participated' | 'not-participated' | 'all' = 'all';
 let authorFilter: string | null = null;
 let typeFilterState: 'all' | 'icpc' | 'codeforces' = 'all';
 
+const PARTICIPATION_FILTER_STATES = ['all', 'participated', 'not-participated'] as const;
+const TYPE_FILTER_STATES = ['all', 'icpc', 'codeforces'] as const;
+
 // Get unique authors for filter dropdown
 // If allAuthors is provided, use it; otherwise, fall back to extracting from current contests
-$: uniqueAuthors =
-  allAuthors.length > 0
-    ? [...allAuthors].sort()
-    : [...new Set(contests.map((contest) => contest.addedBy))].sort();
+$: uniqueAuthors = getSortedAuthors(contests, allAuthors);
 
 // Apply filters to contests
 $: filteredContests = contests.filter((contest) => {
@@ -91,65 +101,26 @@ $: typeFilterLabel =
       ? 'Filter by contest type (showing ICPC)'
       : 'Filter by contest type (showing Codeforces)';
 
-$: difficultyAriaSort = (
-  difficultySortDirection === 'asc'
-    ? 'ascending'
-    : difficultySortDirection === 'desc'
-      ? 'descending'
-      : 'none'
-) as 'ascending' | 'descending' | 'none';
+$: difficultyAriaSort = getDifficultyAriaSort(difficultySortDirection);
+$: difficultySortLabel = getDifficultySortLabel(difficultySortDirection);
 
-$: difficultySortLabel =
-  difficultySortDirection === 'asc'
-    ? 'Difficulty, sorted ascending. Activate to sort descending.'
-    : difficultySortDirection === 'desc'
-      ? 'Difficulty, sorted descending. Activate to clear sorting.'
-      : 'Difficulty, not sorted. Activate to sort ascending.';
-
-// Handle filter changes
 function handleParticipatedFilter() {
-  if (participatedFilterState === 'all') {
-    participatedFilterState = 'participated';
-  } else if (participatedFilterState === 'participated') {
-    participatedFilterState = 'not-participated';
-  } else {
-    participatedFilterState = 'all';
-  }
-
-  // Dispatch event to parent component
+  participatedFilterState = cycleTableState(
+    participatedFilterState,
+    PARTICIPATION_FILTER_STATES
+  );
   dispatch('filterParticipated', { state: participatedFilterState });
 }
 
-// Handle contest type filter
 function handleTypeFilter() {
-  if (typeFilterState === 'all') {
-    typeFilterState = 'icpc';
-  } else if (typeFilterState === 'icpc') {
-    typeFilterState = 'codeforces';
-  } else {
-    typeFilterState = 'all';
-  }
-
-  // Dispatch event to parent component
+  typeFilterState = cycleTableState(typeFilterState, TYPE_FILTER_STATES);
   dispatch('filterType', { type: typeFilterState });
 }
 
-// Handle difficulty sort
 function handleDifficultySort() {
-  // Toggle sort direction: null -> asc -> desc -> null
-  if (difficultySortDirection === null) {
-    difficultySortDirection = 'asc';
-  } else if (difficultySortDirection === 'asc') {
-    difficultySortDirection = 'desc';
-  } else {
-    difficultySortDirection = null;
-  }
-
-  // Dispatch event to parent component
+  difficultySortDirection = nextSortDirection(difficultySortDirection);
   dispatch('sortDifficulty', { direction: difficultySortDirection });
 }
-
-// Function to handle author filter is now handled directly in the RecommendersFilter component
 
 // Generate star rating display
 function getDifficultyStars(difficulty: number | undefined): string {
@@ -185,10 +156,7 @@ function getDifficultyLabel(difficulty: number | undefined): string {
 }
 </script>
 
-<div class="scroll-affordance mt-4 w-full">
-  <div
-    class="table-wrapper rounded-md border-2 border-[var(--color-border)] bg-[var(--color-secondary)]"
-  >
+<ResponsiveTableContainer variant="contest">
     <table
       class="w-full min-w-[900px] table-fixed border-collapse overflow-hidden bg-[var(--color-secondary)] font-mono text-sm"
     >
@@ -459,86 +427,15 @@ function getDifficultyLabel(difficulty: number | undefined): string {
             <td class="p-3 text-right">
               <div class="flex justify-end gap-2">
                 {#if contest.id}
-                  {@const hasLiked = userFeedback[contest.id] === 'like'}
-                  {@const hasDisliked = userFeedback[contest.id] === 'dislike'}
-
-                  <!-- Like button -->
-                  <button
-                    class={`flex cursor-pointer items-center gap-1 rounded border-2 px-2 py-1 transition-colors duration-200
-                      ${hasLiked
-                        ? 'border-[color-mix(in_oklab,var(--color-like)_50%,transparent)] bg-[color-mix(in_oklab,var(--color-like)_10%,transparent)] text-[var(--color-like)]'
-                        : 'border-[var(--color-border)] bg-transparent text-[var(--color-text)] hover:border-[color-mix(in_oklab,var(--color-like)_50%,transparent)] hover:bg-[color-mix(in_oklab,var(--color-like)_10%,transparent)] hover:text-[var(--color-like)]'
-                      } ${!isAuthenticated ? 'cursor-not-allowed opacity-50' : ''}`}
-                    on:click={() => isAuthenticated && onLike(contest.id!, true)}
-                    title={!isAuthenticated
-                      ? 'Sign in to like contests'
-                      : hasLiked
-                        ? 'Undo like'
-                        : 'Like this contest'}
-                    aria-pressed={hasLiked}
-                    aria-label={`Like${hasLiked ? ' (liked)' : ''}, ${contest.likes} ${
-                      contest.likes === 1 ? 'like' : 'likes'
-                    }`}
-                    disabled={!isAuthenticated}
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      class="stroke-2"
-                      aria-hidden="true"
-                    >
-                      <path
-                        d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"
-                      ></path>
-                    </svg>
-                    <span>{contest.likes}</span>
-                  </button>
-
-                  <!-- Dislike button -->
-                  <button
-                    class={`flex cursor-pointer items-center gap-1 rounded border-2 px-2 py-1 transition-colors duration-200
-                      ${hasDisliked
-                        ? 'border-[color-mix(in_oklab,var(--color-dislike)_50%,transparent)] bg-[color-mix(in_oklab,var(--color-dislike)_10%,transparent)] text-[var(--color-dislike)]'
-                        : 'border-[var(--color-border)] bg-transparent text-[var(--color-text)] hover:border-[color-mix(in_oklab,var(--color-dislike)_50%,transparent)] hover:bg-[color-mix(in_oklab,var(--color-dislike)_10%,transparent)] hover:text-[var(--color-dislike)]'
-                      } ${!isAuthenticated ? 'cursor-not-allowed opacity-50' : ''}`}
-                    on:click={() => isAuthenticated && onLike(contest.id!, false)}
-                    title={!isAuthenticated
-                      ? 'Sign in to dislike contests'
-                      : hasDisliked
-                        ? 'Undo dislike'
-                        : 'Dislike this contest'}
-                    aria-pressed={hasDisliked}
-                    aria-label={`Dislike${hasDisliked ? ' (disliked)' : ''}, ${contest.dislikes} ${
-                      contest.dislikes === 1 ? 'dislike' : 'dislikes'
-                    }`}
-                    disabled={!isAuthenticated}
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      class="stroke-2"
-                      aria-hidden="true"
-                    >
-                      <path
-                        d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"
-                      ></path>
-                    </svg>
-                    <span>{contest.dislikes}</span>
-                  </button>
+                  <TableFeedbackButtons
+                    likes={contest.likes}
+                    dislikes={contest.dislikes}
+                    feedback={userFeedback[contest.id]}
+                    {isAuthenticated}
+                    subject="contest"
+                    iconSize={18}
+                    onFeedback={(isLike) => onLike(contest.id!, isLike)}
+                  />
                 {/if}
               </div>
             </td>
@@ -552,58 +449,9 @@ function getDifficultyLabel(difficulty: number | undefined): string {
         {/each}
       </tbody>
     </table>
-  </div>
-</div>
+</ResponsiveTableContainer>
 
 <style>
-/* Ensure the table is responsive */
-.table-wrapper {
-  overflow-x: auto;
-  position: relative;
-}
-
-/* Below the desktop breakpoint the table is wider than the viewport and scrolls
-   horizontally. Make that scroll discoverable: a right-edge ink fade signals
-   there is more to the right, and a thin always-visible scrollbar confirms it.
-   Desktop (>=900px, where the table fits) is unaffected. */
-@media (max-width: 899px) {
-  .scroll-affordance {
-    position: relative;
-  }
-
-  .scroll-affordance::after {
-    content: '';
-    position: absolute;
-    top: 2px;
-    right: 2px;
-    bottom: 2px;
-    width: 2rem;
-    border-top-right-radius: 0.375rem;
-    border-bottom-right-radius: 0.375rem;
-    background: linear-gradient(
-      to right,
-      transparent,
-      color-mix(in oklab, var(--color-secondary) 85%, transparent)
-    );
-    pointer-events: none;
-    z-index: 20;
-  }
-
-  .table-wrapper {
-    scrollbar-width: thin;
-    scrollbar-color: var(--color-border) transparent;
-  }
-
-  .table-wrapper::-webkit-scrollbar {
-    height: 6px;
-  }
-
-  .table-wrapper::-webkit-scrollbar-thumb {
-    background-color: var(--color-border);
-    border-radius: 9999px;
-  }
-}
-
 /* Add smooth transitions for buttons */
 button {
   transition: all 0.2s ease;

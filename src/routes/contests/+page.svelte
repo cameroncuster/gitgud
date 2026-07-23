@@ -12,6 +12,12 @@ import type { Contest } from '$lib/services/contest';
 import type { PageData } from './$types';
 import { user } from '$lib/services/auth';
 import { SvelteSet } from 'svelte/reactivity';
+import {
+  getSortedAuthors,
+  sortByDifficulty,
+  sortByScore,
+  type SortDirection
+} from '$lib/utils/table';
 
 // Contests provided by the server-side load so the initial render (including
 // SSR) ships with data instead of waiting for a client-side fetch.
@@ -72,7 +78,7 @@ function updateAvailableAuthors(): void {
   const contestsWithoutAuthorFilter = getContestsWithoutAuthorFilter();
 
   // Update available authors based on current filters
-  availableAuthors = [...new Set(contestsWithoutAuthorFilter.map((c) => c.addedBy))].sort();
+  availableAuthors = getSortedAuthors(contestsWithoutAuthorFilter);
 }
 
 // Function to handle participation filter
@@ -144,70 +150,21 @@ async function loadContests() {
   }
 }
 
-// Function to sort contests by difficulty
 function sortContestsByDifficulty(
-  contestsToSort: Contest[],
-  direction: 'asc' | 'desc' | null
+  contestsToSort: readonly Contest[],
+  direction: SortDirection
 ): Contest[] {
-  if (direction === null) {
-    // If no direction specified, return to default sort (by likes)
-    return sortContestsByLikes(contestsToSort, 'desc');
-  }
-
-  return [...contestsToSort].sort((a, b) => {
-    // Handle undefined difficulties
-    const diffA = a.difficulty ?? 0;
-    const diffB = b.difficulty ?? 0;
-
-    // Sort based on direction
-    return direction === 'asc' ? diffA - diffB : diffB - diffA;
-  });
+  return sortByDifficulty(contestsToSort, direction, (contestsToReset) =>
+    sortContestsByLikes(contestsToReset, 'desc')
+  );
 }
 
-// Function to calculate contest score (likes - dislikes)
-function calculateScore(contest: Contest): number {
-  return contest.likes - contest.dislikes;
-}
-
-// Function to sort contests by score (likes - dislikes)
 function sortContestsByLikes(
-  contestsToSort: Contest[],
-  direction: 'asc' | 'desc' | null
+  contestsToSort: readonly Contest[],
+  direction: SortDirection
 ): Contest[] {
-  if (direction === null) {
-    // If no direction specified, return to default sort (original order)
-    return [...contests];
-  }
-
-  // Group contests by score
-  const contestsByScore: Record<number, Contest[]> = {};
-
-  // Calculate score for each contest and group them
-  contestsToSort.forEach((contest) => {
-    const score = calculateScore(contest);
-    if (!contestsByScore[score]) {
-      contestsByScore[score] = [];
-    }
-    contestsByScore[score].push(contest);
-  });
-
-  // Sort contests within each score group by ID for consistency
-  Object.values(contestsByScore).forEach((group) => {
-    group.sort((a, b) => {
-      if (a.id && b.id) {
-        return a.id.localeCompare(b.id);
-      }
-      return 0;
-    });
-  });
-
-  // Get all scores and sort them based on direction
-  const scores = Object.keys(contestsByScore)
-    .map(Number)
-    .sort((a, b) => (direction === 'asc' ? a - b : b - a));
-
-  // Flatten the groups in order of score
-  return scores.flatMap((score) => contestsByScore[score]);
+  if (direction === null) return [...contests];
+  return sortByScore(contestsToSort, direction);
 }
 
 // Handle difficulty sort event

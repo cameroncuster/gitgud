@@ -25,6 +25,10 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const FEEDBACK_BUTTONS = readFileSync(
+  join(__dirname, '../src/lib/components/TableFeedbackButtons.svelte'),
+  'utf8'
+);
 const COMPONENTS = {
   ProblemTable: readFileSync(join(__dirname, '../src/lib/components/ProblemTable.svelte'), 'utf8'),
   ContestTable: readFileSync(join(__dirname, '../src/lib/components/ContestTable.svelte'), 'utf8')
@@ -63,29 +67,28 @@ for (const [name, src] of Object.entries(COMPONENTS)) {
     );
   });
 
-  // Bug #2 guard: every like/dislike button carries an aria-label and
-  // aria-pressed. Both tables render exactly two such buttons (like + dislike).
-  test(`[${name}] like/dislike buttons expose aria-label + aria-pressed`, () => {
-    const likeLabels = [...src.matchAll(/aria-label=\{`Like/g)].length;
-    const dislikeLabels = [...src.matchAll(/aria-label=\{`Dislike/g)].length;
-    const pressed = [...src.matchAll(/aria-pressed=\{has(Liked|Disliked)\}/g)].length;
-    assert.equal(likeLabels, 1, 'expected one like button with an aria-label');
-    assert.equal(dislikeLabels, 1, 'expected one dislike button with an aria-label');
-    assert.equal(pressed, 2, 'expected aria-pressed on both the like and dislike buttons');
-  });
-
-  // The aria-label must include the count so screen-reader users hear e.g.
-  // "Like, 5 likes" rather than a bare "5".
-  test(`[${name}] like/dislike aria-labels include the count`, () => {
-    assert.match(src, /aria-label=\{`Like[^`]*,\s*\$\{[^}]*\.likes\}/);
-    assert.match(src, /aria-label=\{`Dislike[^`]*,\s*\$\{[^}]*\.dislikes\}/);
-  });
-
-  // The decorative thumb glyphs must be hidden from assistive tech so the
-  // aria-label is the sole accessible name. Both buttons use an <svg>; require
-  // at least the two like/dislike glyphs to be aria-hidden.
-  test(`[${name}] decorative like/dislike glyphs are aria-hidden`, () => {
-    const hidden = [...src.matchAll(/class="stroke-2"\s+aria-hidden="true"/g)].length;
-    assert.ok(hidden >= 2, `expected >= 2 aria-hidden thumb glyphs, found ${hidden}`);
+  test(`[${name}] renders the shared feedback controls`, () => {
+    assert.match(src, /<TableFeedbackButtons/);
+    assert.match(src, /likes=\{/);
+    assert.match(src, /dislikes=\{/);
+    assert.match(src, /onFeedback=\{/);
   });
 }
+
+// Bug #2 guard: the shared buttons retain the complete accessible state once,
+// rather than duplicating a fragile implementation in each table.
+test('[TableFeedbackButtons] like/dislike buttons expose aria-label + aria-pressed', () => {
+  assert.equal([...FEEDBACK_BUTTONS.matchAll(/aria-label=\{`Like/g)].length, 1);
+  assert.equal([...FEEDBACK_BUTTONS.matchAll(/aria-label=\{`Dislike/g)].length, 1);
+  assert.equal([...FEEDBACK_BUTTONS.matchAll(/aria-pressed=\{has(Liked|Disliked)\}/g)].length, 2);
+});
+
+test('[TableFeedbackButtons] aria-labels include the feedback counts', () => {
+  assert.match(FEEDBACK_BUTTONS, /aria-label=\{`Like[^`]*,\s*\$\{likes\}/);
+  assert.match(FEEDBACK_BUTTONS, /aria-label=\{`Dislike[^`]*,\s*\$\{dislikes\}/);
+});
+
+test('[TableFeedbackButtons] decorative glyphs are aria-hidden', () => {
+  const hidden = [...FEEDBACK_BUTTONS.matchAll(/class="stroke-2"\s+aria-hidden="true"/g)].length;
+  assert.equal(hidden, 2);
+});
