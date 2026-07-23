@@ -68,7 +68,12 @@ test.describe('admin authorization gate', () => {
     await seedAdminSession(page);
     await gotoSubmit(page);
 
-    await expect(page.getByRole('heading', { name: /Submit Problems/i })).toBeVisible();
+    const pageHeading = page.getByRole('heading', { level: 1, name: /Submit Problems/i });
+    await expect(pageHeading).toHaveCount(1);
+    await expect(pageHeading).toHaveClass(/sr-only/);
+    const headingBox = await pageHeading.boundingBox();
+    expect(headingBox?.width).toBeLessThanOrEqual(1);
+    expect(headingBox?.height).toBeLessThanOrEqual(1);
     await expect(page.getByLabel(/Problem URLs/i)).toBeVisible();
     await expect(page.getByTestId('provider-codeforces')).toHaveAttribute('aria-checked', 'true');
     await expect(page.getByText(/Only admins can submit/i)).toHaveCount(0);
