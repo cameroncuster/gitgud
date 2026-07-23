@@ -65,7 +65,7 @@ onMount(() => {
 
 <!-- Mobile sidebar toggle -->
 <button
-  class="sidebar-toggle fixed bottom-6 left-6 z-50 flex h-14 w-14 items-center justify-center rounded-full border border-[var(--color-border)] bg-[var(--color-primary)] text-white transition-transform active:scale-95 md:hidden"
+  class="sidebar-toggle fixed bottom-6 left-6 z-50 flex h-14 w-14 items-center justify-center rounded-full border border-[var(--color-border)] bg-[var(--color-accent)] text-white shadow-lg transition-transform hover:brightness-110 active:scale-95 md:hidden"
   on:click={onToggle}
   aria-label="Toggle filters"
 >
