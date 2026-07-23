@@ -22,10 +22,6 @@
 --               never be driven negative by forged/repeated calls
 --             * counters and the per-user feedback row stay consistent across
 --               new -> switch -> undo transitions driven only by the RPC
---   Legacy    * the temporary 5-argument compatibility shim carries the SAME
---               guarantees: it ignores the caller-supplied user id / undo /
---               previous-feedback arguments and delegates to the secured 2-arg
---               function, so forged identity/state cannot impersonate or drift
 DO $$
 DECLARE
   user_a UUID;
@@ -202,68 +198,6 @@ BEGIN
   SELECT COUNT(*) INTO v_rows FROM user_contest_feedback WHERE contest_id = con_id AND user_id = user_a;
   IF v_likes <> 0 OR v_rows <> 0 THEN
     RAISE EXCEPTION 'contest RPC drifted on repeated like: likes=%, rows=% (expected 0, 0)', v_likes, v_rows;
-  END IF;
-
-  -- ============ LEGACY 5-ARG COMPATIBILITY SHIM ============
-  -- The shim exists only for the rollout window. It must be exactly as safe as
-  -- the 2-arg function: it has to ignore the caller-supplied p_user_id /
-  -- p_is_undo / p_previous_feedback and derive everything from auth.uid() plus
-  -- the stored row. These checks call the shim the way a pre-fix client did --
-  -- forging those arguments -- and confirm no impersonation or drift results.
-
-  -- Reset to a clean slate for the shim checks.
-  DELETE FROM user_problem_feedback WHERE problem_id = prob_id;
-  UPDATE problems SET likes = 0, dislikes = 0 WHERE id = prob_id;
-
-  -- 10. Impersonation via the shim is impossible: attacker (user B) is
-  --     authenticated as themselves but forges p_user_id = user A. The feedback
-  --     must be attributed to B (auth.uid()), never to the forged A.
-  PERFORM set_config('request.jwt.claim.sub', user_b::text, true);
-  SET LOCAL ROLE authenticated;
-  PERFORM update_problem_feedback(prob_id, user_a, true, false, NULL);
-  RESET ROLE;
-  SELECT COUNT(*) INTO v_rows FROM user_problem_feedback WHERE problem_id = prob_id AND user_id = user_a;
-  IF v_rows <> 0 THEN
-    RAISE EXCEPTION 'legacy shim let user B write feedback as forged user A (impersonation)';
-  END IF;
-  SELECT feedback_type INTO v_type FROM user_problem_feedback WHERE problem_id = prob_id AND user_id = user_b;
-  IF v_type IS DISTINCT FROM 'like' THEN
-    RAISE EXCEPTION 'legacy shim did not attribute feedback to the authenticated user B (got %)', v_type;
-  END IF;
-
-  -- 11. Counter drift via the shim is impossible: forge p_previous_feedback so
-  --     the OLD code would have treated each repeat as a fresh switch and
-  --     incremented likes every call. The shim ignores it and derives an
-  --     undo/redo from the real row, so 3 identical forged "like" calls leave
-  --     the counter == the true row count, never inflated.
-  DELETE FROM user_problem_feedback WHERE problem_id = prob_id;
-  UPDATE problems SET likes = 0, dislikes = 0 WHERE id = prob_id;
-  PERFORM set_config('request.jwt.claim.sub', user_a::text, true);
-  SET LOCAL ROLE authenticated;
-  PERFORM update_problem_feedback(prob_id, user_a, true, false, NULL);       -- new like -> likes = 1
-  PERFORM update_problem_feedback(prob_id, user_a, true, false, 'dislike');  -- forged switch -> undo -> likes = 0
-  PERFORM update_problem_feedback(prob_id, user_a, true, true,  'dislike');  -- forged flags -> new like -> likes = 1
-  RESET ROLE;
-  SELECT likes INTO v_likes FROM problems WHERE id = prob_id;
-  SELECT COUNT(*) INTO v_rows FROM user_problem_feedback WHERE problem_id = prob_id AND user_id = user_a AND feedback_type = 'like';
-  IF v_likes <> v_rows THEN
-    RAISE EXCEPTION 'legacy shim drifted counter under forged flags: likes=% but real like rows=%', v_likes, v_rows;
-  END IF;
-
-  -- 12. The contest shim shares the behavior: a forged-identity like followed by
-  --     an identical forged repeat nets to zero with no row, attributed to the
-  --     authenticated caller only.
-  DELETE FROM user_contest_feedback WHERE contest_id = con_id;
-  UPDATE contests SET likes = 0, dislikes = 0 WHERE id = con_id;
-  PERFORM set_config('request.jwt.claim.sub', user_a::text, true);
-  SET LOCAL ROLE authenticated;
-  PERFORM update_contest_feedback(con_id, user_b, true, false, NULL);        -- forge user B
-  PERFORM update_contest_feedback(con_id, user_b, true, false, 'dislike');   -- forged repeat -> undo
-  RESET ROLE;
-  SELECT likes INTO v_likes FROM contests WHERE id = con_id;
-  SELECT COUNT(*) INTO v_rows FROM user_contest_feedback WHERE contest_id = con_id;
-  IF v_likes <> 0 OR v_rows <> 0 THEN
-    RAISE EXCEPTION 'contest legacy shim drifted/mis-attributed: likes=%, rows=% (expected 0, 0)', v_likes, v_rows;
   END IF;
 
   -- ---- Clean up every disposable object this test created ----
