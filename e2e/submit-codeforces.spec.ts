@@ -185,7 +185,7 @@ test.describe('invalid entries cannot be submitted', () => {
 });
 
 test.describe('single / batch / contest / duplicate paths', () => {
-  test('adds a single problem successfully', async ({ page }) => {
+  test('@sanity adds a single problem successfully', async ({ page }) => {
     await seedAdminSession(page);
     const errors = await gotoSubmit(page);
 

@@ -78,7 +78,7 @@ test.describe('admin authorization gate', () => {
 });
 
 test.describe('two-phase flow and submit paths', () => {
-  test('previewing writes nothing until the final confirm', async ({ page }) => {
+  test('@sanity previewing writes nothing until the final confirm', async ({ page }) => {
     await seedAdminSession(page);
     const errors = await gotoSubmit(page);
 

@@ -26,8 +26,10 @@
 //   POST /rest/v1/rpc/get_leaderboard     -> array of leaderboard rows
 //
 // Auth endpoints (GoTrue subset):
+//   GET  /auth/v1/authorize               -> deterministic GitHub OAuth callback
 //   GET  /auth/v1/user                    -> the user for the Bearer token
 //   POST /auth/v1/token?grant_type=...    -> a refreshed session (deterministic)
+//   POST /auth/v1/logout                  -> successful session revocation
 //
 // Authenticated submit-path endpoints (bounded, in-memory, isolated):
 //   GET  /rest/v1/user_roles?user_id=eq.  -> the caller's role row(s)
@@ -158,6 +160,42 @@ function eqFilter(url: URL, col: string): string | null {
 }
 
 // --- Auth (GoTrue) -----------------------------------------------------------
+// Return the implicit-flow callback URL that Supabase would receive after a
+// successful GitHub OAuth exchange. The browser client follows this URL and
+// persists the hash session before the callback route forwards home.
+function handleAuthAuthorize(res: http.ServerResponse, url: URL): void {
+  const redirect = url.searchParams.get('redirect_to');
+  if (!redirect) {
+    sendJson(res, 400, { message: 'missing redirect_to' });
+    return;
+  }
+
+  let callback: URL;
+  try {
+    callback = new URL(redirect);
+  } catch {
+    sendJson(res, 400, { message: 'invalid redirect_to' });
+    return;
+  }
+
+  if (callback.hostname !== 'localhost' || callback.pathname !== '/auth/callback') {
+    sendJson(res, 400, { message: 'redirect_to is not the test callback' });
+    return;
+  }
+
+  const expiresIn = 60 * 60;
+  callback.hash = new URLSearchParams({
+    access_token: ADMIN_USER.accessToken,
+    expires_in: String(expiresIn),
+    expires_at: String(Math.floor(Date.now() / 1000) + expiresIn),
+    refresh_token: ADMIN_USER.refreshToken,
+    token_type: 'bearer',
+    provider_token: 'e2e-github-provider-token'
+  }).toString();
+  res.writeHead(302, { Location: callback.toString() });
+  res.end();
+}
+
 // GET /auth/v1/user resolves the Bearer token to a seeded user. The server-side
 // admin recheck calls supabase.auth.getUser(token); an unknown/absent token
 // yields a 401 exactly as GoTrue would.
@@ -459,6 +497,11 @@ const server = http.createServer(async (req, res) => {
   }
 
   // Auth (GoTrue) -------------------------------------------------------------
+  if (url.pathname === '/auth/v1/authorize') {
+    await readBody(req);
+    handleAuthAuthorize(res, url);
+    return;
+  }
   if (url.pathname === '/auth/v1/user') {
     await readBody(req);
     handleAuthUser(req, res);
@@ -467,6 +510,18 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/auth/v1/token') {
     const body = await readBody(req);
     handleAuthToken(res, body);
+    return;
+  }
+  if (url.pathname === '/auth/v1/logout') {
+    await readBody(req);
+    // GoTrue accepts a scope query parameter; this deterministic mock only
+    // needs to acknowledge the request because the client clears local state.
+    res.writeHead(204, {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': '*',
+      'Access-Control-Allow-Methods': 'POST,OPTIONS'
+    });
+    res.end();
     return;
   }
 
