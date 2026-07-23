@@ -51,7 +51,7 @@ import { PROBLEMS, CONTESTS, LEADERBOARD } from './fixtures.ts';
 import { ADMIN_USER, MEMBER_USER } from './constants.ts';
 
 type Scenario = 'data' | 'empty' | 'error';
-type ProviderMode = 'ok' | 'fail' | 'notfound';
+type ProviderMode = 'ok' | 'fail' | 'notfound' | 'malformed' | 'ratelimited';
 
 // Server-wide current scenario, switched via the control endpoint.
 let scenario: Scenario = (process.env.MOCK_SCENARIO as Scenario) || 'data';
@@ -72,6 +72,14 @@ let insertedProblems: { id: string; url: string; name: string }[] = [];
 let insertedContests: { id: string; url: string; name: string }[] = [];
 let insertSeq = 0;
 
+// In-memory user_solved_problems store, keyed by user_id -> set of problem_id.
+// Idempotent (a repeat insert of an existing pair is a unique violation the app
+// treats as already-solved) and reset per scenario so imports never leak.
+let solvedByUser = new Map<string, Set<string>>();
+// Total user_solved_problems write attempts (POST) seen this run, so a spec can
+// assert that preview performs ZERO writes.
+let solvedWriteAttempts = 0;
+
 // --- Provider (Codeforces/Kattis) stub mode ----------------------------------
 // The server-side app endpoints (/api/codeforces/problems, /api/kattis) fetch
 // real upstream providers. In E2E those upstreams are redirected to this mock
@@ -84,6 +92,8 @@ function resetState(): void {
   insertedProblems = [];
   insertedContests = [];
   insertSeq = 0;
+  solvedByUser = new Map();
+  solvedWriteAttempts = 0;
   provider = 'ok';
 }
 
@@ -287,6 +297,97 @@ function handleCodeforcesProblemset(res: http.ServerResponse): void {
   sendJson(res, 200, { status: 'OK', result: { problems } });
 }
 
+// Codeforces user.status upstream (redirected here via PUBLIC_CODEFORCES_API_BASE).
+// Drives the solved-problem import: `ok` returns accepted solves that intersect
+// the two fixture problems plus an untracked one; the other modes exercise the
+// not-found, provider-failure, rate-limited, and malformed paths.
+function handleCodeforcesUserStatus(res: http.ServerResponse): void {
+  if (provider === 'fail') {
+    sendJson(res, 503, { status: 'FAILED', comment: 'mock codeforces upstream failure' });
+    return;
+  }
+  if (provider === 'ratelimited') {
+    sendJson(res, 429, { status: 'FAILED', comment: 'Call limit exceeded' });
+    return;
+  }
+  if (provider === 'notfound') {
+    sendJson(res, 400, { status: 'FAILED', comment: 'handle: User with handle ghost not found' });
+    return;
+  }
+  if (provider === 'malformed') {
+    // Valid HTTP 200 but a body the route cannot parse as JSON.
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end('<html>not json</html>');
+    return;
+  }
+  // ok: accepted solves for the two tracked fixture problems (contest 1000 A/B)
+  // plus an accepted solve for an untracked problem and a rejected solve that
+  // must be ignored.
+  const result = [
+    { verdict: 'OK', problem: { contestId: 1000, index: 'A' } },
+    { verdict: 'OK', problem: { contestId: 1000, index: 'A' } },
+    { verdict: 'OK', problem: { contestId: 1000, index: 'B' } },
+    { verdict: 'OK', problem: { contestId: 9999, index: 'Z' } },
+    { verdict: 'WRONG_ANSWER', problem: { contestId: 1000, index: 'C' } }
+  ];
+  sendJson(res, 200, { status: 'OK', result });
+}
+
+// --- user_solved_problems (read + idempotent user-scoped insert) -------------
+// GET returns the caller's solved problem_ids; POST records them idempotently in
+// the isolated store. The caller is resolved from the Bearer token so writes are
+// scoped to the current user exactly as RLS (auth.uid() = user_id) would.
+function handleSolvedRead(req: http.IncomingMessage, res: http.ServerResponse, url: URL): void {
+  const userId = eqFilter(url, 'user_id');
+  const set = userId ? solvedByUser.get(userId) : undefined;
+  const rows = set ? Array.from(set).map((problem_id) => ({ problem_id })) : [];
+  sendJson(res, 200, rows);
+}
+
+async function handleSolvedInsert(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  body: string
+): Promise<void> {
+  solvedWriteAttempts++;
+  const caller = userByToken.get(bearerToken(req));
+  if (!caller) {
+    sendJson(res, 401, { code: 401, msg: 'invalid claim: missing sub claim' });
+    return;
+  }
+
+  let records: { user_id?: string; problem_id?: string }[];
+  try {
+    const parsed = JSON.parse(body || '[]');
+    records = Array.isArray(parsed) ? parsed : [parsed];
+  } catch {
+    sendJson(res, 400, { code: 'PGRST102', message: 'invalid insert body' });
+    return;
+  }
+
+  const set = solvedByUser.get(caller.id) ?? new Set<string>();
+  const inserted: { problem_id: string }[] = [];
+  for (const record of records) {
+    // Emulate RLS: a row may only be written for the caller's own user_id.
+    if (record.user_id && record.user_id !== caller.id) {
+      sendJson(res, 403, { code: '42501', message: 'row-level security violation' });
+      return;
+    }
+    const problemId = record.problem_id || '';
+    if (!problemId) continue;
+    // ignoreDuplicates: an already-solved pair is not returned as newly inserted.
+    if (!set.has(problemId)) {
+      set.add(problemId);
+      inserted.push({ problem_id: problemId });
+    }
+  }
+  solvedByUser.set(caller.id, set);
+
+  // upsert(...).select('problem_id') returns only the newly-inserted rows when
+  // ignoreDuplicates is set.
+  sendJson(res, 201, inserted);
+}
+
 function handleKattisPage(res: http.ServerResponse): void {
   if (provider === 'fail') {
     res.writeHead(500, { 'Content-Type': 'text/plain' });
@@ -324,7 +425,8 @@ const server = http.createServer(async (req, res) => {
     sendJson(res, 200, {
       scenario,
       provider,
-      inserted: { problems: insertedProblems.length, contests: insertedContests.length }
+      inserted: { problems: insertedProblems.length, contests: insertedContests.length },
+      solvedWriteAttempts
     });
     return;
   }
@@ -340,7 +442,13 @@ const server = http.createServer(async (req, res) => {
     const body = await readBody(req);
     try {
       const next = (JSON.parse(body || '{}') as { mode?: ProviderMode }).mode;
-      if (next === 'ok' || next === 'fail' || next === 'notfound') {
+      if (
+        next === 'ok' ||
+        next === 'fail' ||
+        next === 'notfound' ||
+        next === 'malformed' ||
+        next === 'ratelimited'
+      ) {
         provider = next;
       }
     } catch {
@@ -366,6 +474,27 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/problemset.problems') {
     await readBody(req);
     handleCodeforcesProblemset(res);
+    return;
+  }
+  if (url.pathname === '/api/user.status') {
+    await readBody(req);
+    handleCodeforcesUserStatus(res);
+    return;
+  }
+
+  // user_solved_problems: read (GET) and idempotent user-scoped insert (POST).
+  if (url.pathname === '/rest/v1/user_solved_problems') {
+    if (req.method === 'POST') {
+      const body = await readBody(req);
+      await handleSolvedInsert(req, res, body);
+      return;
+    }
+    await readBody(req);
+    if (scenario === 'error') {
+      sendError(res);
+      return;
+    }
+    handleSolvedRead(req, res, url);
     return;
   }
   if (url.pathname.startsWith('/problems/')) {
