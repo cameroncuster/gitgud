@@ -255,13 +255,10 @@ async function handleLike(contestId: string, isLike: boolean) {
       isUndo = true;
     }
 
-    // Call the service to update feedback
-    const updatedContest = await updateContestFeedback(
-      contestId,
-      isLike,
-      isUndo,
-      currentFeedback || null
-    );
+    // Call the service to update feedback. The server derives the identity and
+    // the new/switch/undo transition from the actual stored feedback; isUndo is
+    // used only for the local optimistic UI update below.
+    const updatedContest = await updateContestFeedback(contestId, isLike);
 
     if (updatedContest) {
       // Update the contest in the list

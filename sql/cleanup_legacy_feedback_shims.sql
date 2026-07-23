@@ -1,0 +1,29 @@
+-- Cleanup migration: drop the temporary legacy 5-argument feedback shims.
+--
+-- CONTEXT
+-- The feedback RPCs were hardened to derive identity from auth.uid() and the
+-- like/dislike deltas from the locked stored row, and their canonical signature
+-- shrank to (id, is_like). To survive a NON-ATOMIC database/client rollout, a
+-- temporary 5-argument compatibility shim was kept alongside each new function
+-- (defined at the bottom of sql/problems/problem_functions.sql and
+-- sql/contests/contest_functions.sql, granted in sql/permissions.sql). The shim
+-- ignores the caller-supplied p_user_id / p_is_undo / p_previous_feedback and
+-- delegates to the secured 2-argument function, so it is safe -- but it should
+-- not outlive the rollout.
+--
+-- WHEN TO RUN
+-- Run this ONCE, AFTER every client has been deployed with the 2-argument RPC
+-- calls (i.e. no traffic still targets the 5-argument signature). Confirm via
+-- logs/metrics that the 5-arg overload is no longer invoked before dropping it.
+-- This file is intentionally NOT included from init.sql; it is a one-off
+-- forward migration to apply after client rollover:
+--   psql "$DATABASE_URL" -f sql/cleanup_legacy_feedback_shims.sql
+--
+-- AFTER RUNNING
+-- Also remove the shim definitions and their GRANTs from
+-- sql/problems/problem_functions.sql, sql/contests/contest_functions.sql and
+-- sql/permissions.sql, and update sql/verify_permissions.sql check 12 to once
+-- again forbid any non-2-argument feedback overload, so a fresh init.sql matches
+-- the post-cleanup state.
+DROP FUNCTION IF EXISTS update_problem_feedback(UUID, UUID, BOOLEAN, BOOLEAN, TEXT);
+DROP FUNCTION IF EXISTS update_contest_feedback(UUID, UUID, BOOLEAN, BOOLEAN, TEXT);

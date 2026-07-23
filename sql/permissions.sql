@@ -78,7 +78,16 @@ GRANT EXECUTE ON FUNCTION get_leaderboard() TO anon,
   authenticated;
 GRANT EXECUTE ON FUNCTION get_user_solved_problems(UUID) TO anon,
   authenticated;
--- authenticated-only feedback RPCs (SECURITY DEFINER; write behind checks):
+-- authenticated-only feedback RPCs (SECURITY DEFINER; identity from auth.uid(),
+-- counter deltas derived from the locked current feedback row):
+GRANT EXECUTE ON FUNCTION update_problem_feedback(UUID, BOOLEAN) TO authenticated;
+GRANT EXECUTE ON FUNCTION update_contest_feedback(UUID, BOOLEAN) TO authenticated;
+-- TEMPORARY: legacy 5-argument feedback shims kept for backward compatibility
+-- during a non-atomic DB/client rollout. They ignore the caller-supplied
+-- identity/state and delegate to the 2-argument functions, so they carry the
+-- same authenticated-only, impersonation-/drift-resistant guarantees. Remove
+-- these grants together with the shims once all clients send the 2-arg form
+-- (see the cleanup migration sql/cleanup_legacy_feedback_shims.sql).
 GRANT EXECUTE ON FUNCTION update_problem_feedback(UUID, UUID, BOOLEAN, BOOLEAN, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION update_contest_feedback(UUID, UUID, BOOLEAN, BOOLEAN, TEXT) TO authenticated;
 -- Internal functions get NO client EXECUTE and are intentionally omitted:

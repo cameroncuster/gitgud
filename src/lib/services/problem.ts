@@ -355,18 +355,18 @@ export async function toggleProblemSolved(problemId: string, isSolved: boolean):
 }
 
 /**
- * Updates a problem's likes or dislikes in the database
+ * Updates the current user's like/dislike for a problem.
+ *
+ * The server derives the user's identity from the authenticated session and
+ * reads the actual current feedback to decide between new/switch/undo, so the
+ * client only needs to send the target problem and the requested reaction.
  * @param problemId - Problem ID
  * @param isLike - Whether it's a like (true) or dislike (false)
- * @param isUndo - Whether this is an undo operation
- * @param previousFeedback - The user's previous feedback (if any)
  * @returns Promise with the updated problem
  */
 export async function updateProblemFeedback(
   problemId: string,
-  isLike: boolean,
-  isUndo: boolean = false,
-  previousFeedback: 'like' | 'dislike' | null = null
+  isLike: boolean
 ): Promise<Problem | null> {
   const currentUser = get(user);
 
@@ -379,10 +379,7 @@ export async function updateProblemFeedback(
     // Call the stored procedure to handle the transaction
     const { data, error } = await supabase.rpc('update_problem_feedback', {
       p_problem_id: problemId,
-      p_user_id: currentUser.id,
-      p_is_like: isLike,
-      p_is_undo: isUndo,
-      p_previous_feedback: previousFeedback
+      p_is_like: isLike
     });
 
     if (error) {
