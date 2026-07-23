@@ -25,10 +25,14 @@
 --             directly executable by anon or authenticated
 --           * grant-level: no internal function grants EXECUTE to
 --             PUBLIC/anon/authenticated
+--           * feedback RPCs (update_problem_feedback, update_contest_feedback),
+--             both the 2-arg and the temporary legacy 5-arg shim, are
+--             EXECUTE-able by authenticated but NOT by anon/PUBLIC
 DO $$
 DECLARE
   anon_write_grants INT;
   leaky_func_grants INT;
+  leaky_feedback_grants INT;
   read_ok BOOLEAN;
   blocked BOOLEAN;
   probe_id UUID;
@@ -176,6 +180,45 @@ BEGIN
   END;
   IF NOT blocked THEN
     RAISE EXCEPTION 'authenticated could directly EXECUTE update_updated_at_column (expected denial)';
+  END IF;
+
+  -- 11. Grant-level: every feedback RPC overload -- the canonical 2-arg form and
+  --     the temporary legacy 5-arg shim -- must be EXECUTE-able by authenticated
+  --     but NOT by anon or PUBLIC. These are SECURITY DEFINER writers, so a
+  --     leaked anon/PUBLIC grant on either signature would let an
+  --     unauthenticated caller reach them.
+  SELECT COUNT(*) INTO leaky_feedback_grants
+  FROM (VALUES
+    ('update_problem_feedback(uuid, boolean)'),
+    ('update_contest_feedback(uuid, boolean)'),
+    ('update_problem_feedback(uuid, uuid, boolean, boolean, text)'),
+    ('update_contest_feedback(uuid, uuid, boolean, boolean, text)')
+  ) AS f(sig)
+  WHERE has_function_privilege('anon', 'public.' || f.sig, 'EXECUTE')
+     OR has_function_privilege('public', 'public.' || f.sig, 'EXECUTE');
+  IF leaky_feedback_grants <> 0 THEN
+    RAISE EXCEPTION '% feedback RPC overload(s) are EXECUTE-able by anon or PUBLIC (expected authenticated-only)', leaky_feedback_grants;
+  END IF;
+  IF NOT has_function_privilege('authenticated', 'public.update_problem_feedback(uuid, boolean)', 'EXECUTE')
+     OR NOT has_function_privilege('authenticated', 'public.update_contest_feedback(uuid, boolean)', 'EXECUTE')
+     OR NOT has_function_privilege('authenticated', 'public.update_problem_feedback(uuid, uuid, boolean, boolean, text)', 'EXECUTE')
+     OR NOT has_function_privilege('authenticated', 'public.update_contest_feedback(uuid, uuid, boolean, boolean, text)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'a feedback RPC overload is not EXECUTE-able by authenticated (expected grant present)';
+  END IF;
+
+  -- 12. Only the two expected feedback-RPC signatures may exist: the canonical
+  --     2-argument form and the temporary legacy 5-argument shim. Any OTHER
+  --     argument count would be an unexpected overload. That the 5-arg form is
+  --     itself a secured shim (ignoring its identity/state arguments and
+  --     delegating to the 2-arg form) is confirmed behaviorally in
+  --     verify_feedback_integrity.sql.
+  IF EXISTS (
+    SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname IN ('update_problem_feedback', 'update_contest_feedback')
+      AND p.pronargs NOT IN (2, 5)
+  ) THEN
+    RAISE EXCEPTION 'an unexpected feedback RPC overload exists (only the 2-arg and legacy 5-arg signatures are allowed)';
   END IF;
 
   RAISE NOTICE 'ALL PERMISSION CHECKS PASSED';

@@ -221,18 +221,18 @@ export async function fetchUserFeedback(): Promise<Record<string, 'like' | 'disl
 }
 
 /**
- * Updates a contest's likes or dislikes in the database
+ * Updates the current user's like/dislike for a contest.
+ *
+ * The server derives the user's identity from the authenticated session and
+ * reads the actual current feedback to decide between new/switch/undo, so the
+ * client only needs to send the target contest and the requested reaction.
  * @param contestId - Contest ID
  * @param isLike - Whether it's a like (true) or dislike (false)
- * @param isUndo - Whether this is an undo operation
- * @param previousFeedback - The user's previous feedback (if any)
  * @returns Promise with the updated contest
  */
 export async function updateContestFeedback(
   contestId: string,
-  isLike: boolean,
-  isUndo: boolean = false,
-  previousFeedback: 'like' | 'dislike' | null = null
+  isLike: boolean
 ): Promise<Contest | null> {
   const currentUser = get(user);
 
@@ -245,10 +245,7 @@ export async function updateContestFeedback(
     // Call the stored procedure to handle the transaction
     const { data, error } = await supabase.rpc('update_contest_feedback', {
       p_contest_id: contestId,
-      p_user_id: currentUser.id,
-      p_is_like: isLike,
-      p_is_undo: isUndo,
-      p_previous_feedback: previousFeedback
+      p_is_like: isLike
     });
 
     if (error) {

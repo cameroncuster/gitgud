@@ -221,8 +221,8 @@ async function handleLike(problemId: string, isLike: boolean): Promise<void> {
         [problemId]: null
       };
 
-      // Update the database
-      await updateProblemFeedback(problemId, isLike, true);
+      // Update the database (server derives the undo from actual state)
+      await updateProblemFeedback(problemId, isLike);
 
       // Update filtered problems
       filterProblems();
@@ -259,8 +259,8 @@ async function handleLike(problemId: string, isLike: boolean): Promise<void> {
         [problemId]: isLike ? 'like' : 'dislike'
       };
 
-      // Update the database
-      await updateProblemFeedback(problemId, isLike, false, currentFeedback);
+      // Update the database (server derives the switch from actual state)
+      await updateProblemFeedback(problemId, isLike);
 
       // Update filtered problems
       filterProblems();
