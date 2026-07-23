@@ -22,7 +22,10 @@ let contests: Contest[] = [];
 let filteredContests: Contest[] = [];
 let userParticipation: SvelteSet<string> = new SvelteSet();
 let userFeedback: Record<string, 'like' | 'dislike' | null> = {};
-let loading = true;
+// Starts false so a server-seeded list renders rows on the initial (SSR) render
+// instead of a spinner. The unseeded fallback path in loadContests sets it true
+// on mount before fetching.
+let loading = false;
 let error: string | null = null;
 let isAuthenticated = false;
 let availableAuthors: string[] = [];
