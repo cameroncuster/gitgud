@@ -83,9 +83,23 @@ test.describe('admin authorization gate', () => {
     await seedMemberSession(page);
     await gotoSubmit(page);
 
-    await expect(page.getByText(/Only admins can submit/i)).toBeVisible();
+    await expect(page.getByText('Only admins can submit problems.', { exact: true })).toBeVisible();
     await expect(page.getByLabel(/Problem URLs/i)).toHaveCount(0);
     await expect(previewButton(page)).toHaveCount(0);
+  });
+
+  test('an admin lookup failure is distinct from a non-admin result', async ({ page }) => {
+    await setScenario('error');
+    await seedAdminSession(page);
+    await gotoSubmit(page);
+
+    await expect(
+      page.getByText('Failed to verify your permissions. Please try again later.', { exact: true })
+    ).toBeVisible();
+    await expect(page.getByText('Only admins can submit problems.', { exact: true })).toHaveCount(
+      0
+    );
+    await expect(page.getByLabel(/Problem URLs/i)).toHaveCount(0);
   });
 
   test('an anonymous visitor is redirected home', async ({ page }) => {

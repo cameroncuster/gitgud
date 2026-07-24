@@ -3,8 +3,8 @@
  */
 import { browser } from '$app/environment';
 import { writable, get } from 'svelte/store';
+import { getCurrentActor } from '$lib/auth/currentActor';
 import { fetchUserPreferences, updateUserPreferences } from './user';
-import { user } from './auth';
 
 // Theme store
 export const currentTheme = writable<string>('light');
@@ -34,7 +34,7 @@ export async function saveThemePreference(theme: string): Promise<boolean> {
   if (!browser) return false;
 
   // Check if user is authenticated
-  const currentUser = get(user);
+  const currentUser = getCurrentActor().user;
   if (!currentUser) return false;
 
   try {

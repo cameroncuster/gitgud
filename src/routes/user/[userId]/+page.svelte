@@ -1,7 +1,12 @@
 <script lang="ts">
 import ProblemDisplay from '$lib/components/ProblemDisplay.svelte';
+import type { PageData } from './$types';
 
-// The userId will be extracted from the URL in the ProblemDisplay component
+export let data: PageData;
 </script>
 
-<ProblemDisplay pageTitle="User Problems" defaultSolvedFilterState="solved" />
+<ProblemDisplay
+  pageTitle="User Problems"
+  targetUserId={data.userId}
+  defaultSolvedFilterState="solved"
+/>

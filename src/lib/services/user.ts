@@ -1,9 +1,8 @@
 /**
  * Service for user operations
  */
+import { getCurrentActor } from '$lib/auth/currentActor';
 import { supabase } from './database';
-import { user } from './auth';
-import { get } from 'svelte/store';
 
 /**
  * User preferences interface
@@ -30,20 +29,7 @@ export type UserPreferencesRecord = {
  * @returns User preferences or null if not found
  */
 export async function fetchUserPreferences(): Promise<UserPreferences | null> {
-  // First try to get the user from the store
-  let currentUser = get(user);
-
-  // If no user in the store, try to get it directly from Supabase
-  if (!currentUser) {
-    try {
-      const { data } = await supabase.auth.getSession();
-      if (data.session?.user) {
-        currentUser = data.session.user;
-      }
-    } catch (err) {
-      console.error('fetchUserPreferences: Error getting session', err);
-    }
-  }
+  const currentUser = getCurrentActor().user;
 
   if (!currentUser) {
     return null;
@@ -96,20 +82,7 @@ export async function fetchUserPreferences(): Promise<UserPreferences | null> {
  * @returns True if successful, false otherwise
  */
 export async function updateUserPreferences(preferences: UserPreferences): Promise<boolean> {
-  // First try to get the user from the store
-  let currentUser = get(user);
-
-  // If no user in the store, try to get it directly from Supabase
-  if (!currentUser) {
-    try {
-      const { data } = await supabase.auth.getSession();
-      if (data.session?.user) {
-        currentUser = data.session.user;
-      }
-    } catch (err) {
-      console.error('updateUserPreferences: Error getting session', err);
-    }
-  }
+  const currentUser = getCurrentActor().user;
 
   if (!currentUser) {
     return false;

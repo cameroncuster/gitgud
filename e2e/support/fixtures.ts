@@ -1,7 +1,7 @@
 // Representative Supabase fixtures for the deterministic Playwright suite.
 //
 // These rows mirror the exact snake_case shape the app's data services read
-// from Supabase (see src/lib/services/{problem,contest,leaderboard}.ts) and are
+// from Supabase (see src/lib/queries/*Queries.ts) and are
 // served by the mock Supabase server (mock-supabase.ts) so the suite can assert
 // real rendered rows, links, filters, and sorts without touching production
 // data. Each fixture maps 1:1 to a Supabase endpoint:
@@ -15,7 +15,7 @@
 // scores (drives the default score sort and the difficulty sort), and multiple
 // recommenders (drives the author filter).
 
-// Column shape matches PROBLEM_COLUMNS in src/lib/services/problem.ts.
+// Column shape matches PROBLEM_COLUMNS in src/lib/queries/problemQueries.ts.
 export type ProblemRow = {
   id: string;
   name: string;
@@ -31,7 +31,7 @@ export type ProblemRow = {
   type: string | null;
 };
 
-// Column shape matches CONTEST_COLUMNS in src/lib/services/contest.ts.
+// Column shape matches CONTEST_COLUMNS in src/lib/queries/contestQueries.ts.
 export type ContestRow = {
   id: string;
   name: string;
@@ -46,7 +46,7 @@ export type ContestRow = {
   type: string | null;
 };
 
-// Shape matches LeaderboardRecord in src/lib/services/leaderboard.ts (the
+// Shape matches the record in src/lib/queries/leaderboardQueries.ts (the
 // get_leaderboard RPC return rows).
 export type LeaderboardRow = {
   user_id: string;

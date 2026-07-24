@@ -1,7 +1,9 @@
 <script lang="ts">
 import { browser } from '$app/environment';
-import { fetchLeaderboard } from '$lib/services/leaderboard';
-import type { LeaderboardEntry } from '$lib/services/leaderboard';
+import {
+  fetchLeaderboard,
+  type LeaderboardEntry
+} from '$lib/queries/leaderboardQueries';
 import type { PageData } from './$types';
 import LeaderboardTable from '$lib/components/LeaderboardTable.svelte';
 

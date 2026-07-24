@@ -1,13 +1,8 @@
 <script lang="ts">
-import type { Problem } from '$lib/services/problem';
-import { user } from '$lib/services/auth';
-import { createEventDispatcher } from 'svelte';
+import type { Problem } from '$lib/queries/problemQueries';
 import {
-  cycleTableState,
   getDifficultyAriaSort,
   getDifficultySortLabel,
-  getSortedAuthors,
-  nextSortDirection,
   type SortDirection
 } from '$lib/utils/table';
 import RecommendersFilter from './RecommendersFilter.svelte';
@@ -17,52 +12,22 @@ import TableFeedbackButtons from './TableFeedbackButtons.svelte';
 const codeforcesLogo = '/images/codeforces.png';
 const kattisLogo = '/images/kattis.png';
 
-// Event dispatcher
-const dispatch = createEventDispatcher();
-
 // Props
 export let problems: Problem[] = [];
 export let userFeedback: Record<string, 'like' | 'dislike' | null> = {};
 export let userSolvedProblems: Set<string> = new Set();
+export let isAuthenticated = false;
+export let allAuthors: string[] = [];
+export let difficultySortDirection: SortDirection = null;
+export let solvedFilterState: 'all' | 'solved' | 'unsolved' = 'all';
+export let authorFilterValue: string | null = null;
+export let sourceFilterValue: 'all' | 'codeforces' | 'kattis' = 'all';
 export let onLike: (problemId: string, isLike: boolean) => Promise<void>;
 export let onToggleSolved: (problemId: string, isSolved: boolean) => Promise<void>;
-
-// State
-let isAuthenticated = false;
-let difficultySortDirection: SortDirection = null;
-let solvedFilterState: 'all' | 'solved' | 'unsolved' = 'all';
-let authorFilterValue: string | null = null;
-let sourceFilterValue: 'all' | 'codeforces' | 'kattis' = 'all';
-let uniqueAuthors: string[];
-
-const SOLVED_FILTER_STATES = ['all', 'solved', 'unsolved'] as const;
-const SOURCE_FILTER_STATES = ['all', 'codeforces', 'kattis'] as const;
-
-// Subscribe to auth state
-user.subscribe((value) => {
-  isAuthenticated = !!value;
-});
-
-// We need to get all authors from the parent component
-export let allAuthors: string[] = [];
-
-// If allAuthors is not provided, fall back to extracting from current problems
-$: uniqueAuthors = getSortedAuthors(problems, allAuthors);
-
-function handleDifficultySort() {
-  difficultySortDirection = nextSortDirection(difficultySortDirection);
-  dispatch('sortDifficulty', { direction: difficultySortDirection });
-}
-
-function handleSolvedFilter() {
-  solvedFilterState = cycleTableState(solvedFilterState, SOLVED_FILTER_STATES);
-  dispatch('filterSolved', { state: solvedFilterState });
-}
-
-function handleSourceFilter() {
-  sourceFilterValue = cycleTableState(sourceFilterValue, SOURCE_FILTER_STATES);
-  dispatch('filterSource', { source: sourceFilterValue === 'all' ? null : sourceFilterValue });
-}
+export let onDifficultySort: () => void;
+export let onSolvedFilter: () => void;
+export let onSourceFilter: () => void;
+export let onAuthorFilter: (author: string | null) => void;
 
 // Define common tiers
 const TIERS = [
@@ -131,7 +96,7 @@ function getDifficultyTooltip(problem: Problem): string {
             <button
               type="button"
               class="flex w-full cursor-pointer items-center justify-center gap-1 p-3 font-bold transition-colors duration-200 hover:bg-[color-mix(in_oklab,var(--color-tertiary)_90%,var(--color-accent)_10%,transparent)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-accent)]"
-              on:click={handleSolvedFilter}
+              on:click={onSolvedFilter}
               aria-label={solvedFilterLabel}
               title={solvedFilterLabel}
             >
@@ -196,7 +161,7 @@ function getDifficultyTooltip(problem: Problem): string {
             <button
               type="button"
               class="flex w-full cursor-pointer items-center justify-center gap-1 p-3 font-bold transition-colors duration-200 hover:bg-[color-mix(in_oklab,var(--color-tertiary)_90%,var(--color-accent)_10%,transparent)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-accent)]"
-              on:click={handleSourceFilter}
+              on:click={onSourceFilter}
               aria-label={sourceFilterLabel}
               title={sourceFilterLabel}
             >
@@ -250,7 +215,7 @@ function getDifficultyTooltip(problem: Problem): string {
             <button
               type="button"
               class="flex w-full cursor-pointer items-center justify-center gap-2 p-3 py-4 font-bold transition-colors duration-200 hover:bg-[color-mix(in_oklab,var(--color-tertiary)_90%,var(--color-accent)_10%,transparent)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-accent)]"
-              on:click={handleDifficultySort}
+              on:click={onDifficultySort}
               aria-label={difficultySortLabel}
               title={difficultySortLabel}
             >
@@ -279,13 +244,10 @@ function getDifficultyTooltip(problem: Problem): string {
           >
             <div class="flex w-full items-center gap-2">
               <RecommendersFilter
-                authors={uniqueAuthors}
+                authors={allAuthors}
                 selectedAuthor={authorFilterValue}
                 width="w-full"
-                onAuthorChange={(author) => {
-                  authorFilterValue = author;
-                  dispatch('filterAuthor', { author: authorFilterValue });
-                }}
+                onAuthorChange={onAuthorFilter}
               />
             </div>
           </th>

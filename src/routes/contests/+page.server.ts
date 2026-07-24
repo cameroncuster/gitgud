@@ -1,4 +1,4 @@
-import { fetchContests } from '$lib/services/contest';
+import { fetchContests } from '$lib/queries/contestQueries';
 import type { PageServerLoad } from './$types';
 
 // Server-only load: SSR ships the initial contests in the HTML and the

@@ -2,8 +2,7 @@
 import { page } from '$app/state';
 import { afterNavigate } from '$app/navigation';
 import { resolve } from '$app/paths';
-import { user, authInitialized } from '$lib/services/auth';
-import { signInWithGithub, signOut, isAdmin } from '$lib/services/auth';
+import { currentActor, signInWithGithub, signOut } from '$lib/auth/currentActor';
 import { onMount } from 'svelte';
 
 // Use a flag to ensure we've fully mounted before showing anything
@@ -13,9 +12,6 @@ let isMounted = false;
 let mobileMenuOpen = false;
 let mobileMenuButton: HTMLButtonElement | null = null;
 
-// Track admin status
-let isUserAdmin = false;
-
 // User information from GitHub OAuth
 let username = '';
 let githubUrl = '';
@@ -24,14 +20,10 @@ onMount(() => {
   // Mark component as mounted
   isMounted = true;
 
-  // Set up a subscription to the user store
-  const unsubscribe = user.subscribe(async (value) => {
-    // Only update user data if we're mounted
+  const unsubscribe = currentActor.subscribe((actor) => {
+    const value = actor.user;
     if (isMounted) {
-      // Check if the user is an admin
       if (value) {
-        isUserAdmin = await isAdmin(value.id);
-
         // Get username and GitHub URL from user metadata
         if (value.user_metadata) {
           // Get username with priority order
@@ -71,7 +63,6 @@ onMount(() => {
           githubUrl = '';
         }
       } else {
-        isUserAdmin = false;
         username = '';
         githubUrl = '';
       }
@@ -219,7 +210,7 @@ afterNavigate(() => {
             >About</a
           >
         </li>
-        {#if $user && isUserAdmin}
+        {#if $currentActor.user && $currentActor.isAdmin}
           <li
             class="relative {page.url.pathname === '/submit'
               ? "after:absolute after:-bottom-2 after:left-0 after:h-0.5 after:w-full after:rounded-sm after:bg-[var(--color-accent)] after:content-['']"
@@ -234,12 +225,12 @@ afterNavigate(() => {
         {/if}
       </ul>
       <div
-        class="mr-4 flex min-w-[70px] items-center justify-end gap-3 transition-opacity duration-300 sm:mr-2 md:mr-0 {$authInitialized
+        class="mr-4 flex min-w-[70px] items-center justify-end gap-3 transition-opacity duration-300 sm:mr-2 md:mr-0 {$currentActor.initialized
           ? 'visible opacity-100'
           : 'invisible opacity-0'}"
         style="will-change: opacity;"
       >
-        {#if $user}
+        {#if $currentActor.user}
           <div class="flex items-center gap-3">
             <a
               href={githubUrl}
@@ -328,7 +319,7 @@ afterNavigate(() => {
               >About</a
             >
           </li>
-          {#if $user && isUserAdmin}
+          {#if $currentActor.user && $currentActor.isAdmin}
             <li>
               <a
                 href={resolve('/submit')}
@@ -339,10 +330,10 @@ afterNavigate(() => {
           {/if}
         </ul>
         <div
-          class="mt-2 flex flex-col items-start justify-start gap-3 px-1 transition-opacity duration-300 {$authInitialized ? 'visible opacity-100' : 'invisible opacity-0'}"
+          class="mt-2 flex flex-col items-start justify-start gap-3 px-1 transition-opacity duration-300 {$currentActor.initialized ? 'visible opacity-100' : 'invisible opacity-0'}"
           style="will-change: opacity;"
         >
-          {#if $user}
+          {#if $currentActor.user}
             <div class="flex items-center gap-3">
               <a
                 href={githubUrl}

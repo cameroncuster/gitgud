@@ -1,4 +1,4 @@
-import { fetchLeaderboard } from '$lib/services/leaderboard';
+import { fetchLeaderboard } from '$lib/queries/leaderboardQueries';
 import type { PageServerLoad } from './$types';
 
 // Server-only load: SSR ships the initial leaderboard rows in the HTML and the

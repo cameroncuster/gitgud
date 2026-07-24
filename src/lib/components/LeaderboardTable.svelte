@@ -1,6 +1,6 @@
 <script lang="ts">
 import { resolve } from '$app/paths';
-import type { LeaderboardEntry } from '$lib/services/leaderboard';
+import type { LeaderboardEntry } from '$lib/queries/leaderboardQueries';
 
 // Props
 export let leaderboardEntries: LeaderboardEntry[] = [];

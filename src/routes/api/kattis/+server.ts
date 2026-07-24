@@ -1,6 +1,9 @@
 import { env as publicEnv } from '$env/dynamic/public';
 import { json } from '@sveltejs/kit';
-import { buildCanonicalKattisProblemUrl, parseKattisProblemId } from '$lib/services/kattisUrl';
+import {
+  buildCanonicalKattisProblemUrl,
+  parseKattisProblemId
+} from '$lib/providers/kattis/ingestion';
 import type { RequestHandler } from './$types';
 
 const FETCH_TIMEOUT_MS = 10_000;

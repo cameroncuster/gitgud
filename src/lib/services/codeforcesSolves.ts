@@ -67,7 +67,7 @@ export function codeforcesUserStatusUrl(handle: string, apiBase?: string): strin
 
 /**
  * Canonical problem URL for a submission, matching the URLs produced elsewhere
- * in the app (see parseProblemUrl in codeforcesProblemset.ts). Returns null when
+ * in the app. Returns null when
  * the submission cannot be mapped to a tracked-problem URL (missing/invalid
  * contestId or index). Gym submissions are intentionally excluded because gym
  * problems are not part of the trackable problemset.

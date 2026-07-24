@@ -1,4 +1,4 @@
-import { fetchProblems } from '$lib/services/problem';
+import { fetchProblems } from '$lib/queries/problemQueries';
 import type { PageServerLoad } from './$types';
 
 // Server-only load: SSR ships the initial problems in the HTML and the

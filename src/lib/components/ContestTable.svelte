@@ -1,22 +1,14 @@
 <script lang="ts">
-import type { Contest } from '$lib/services/contest';
-import { formatDuration } from '$lib/services/contest';
-import { user } from '$lib/services/auth';
-import { createEventDispatcher } from 'svelte';
+import type { Contest } from '$lib/queries/contestQueries';
+import { formatDuration } from '$lib/contests/formatDuration';
 import {
-  cycleTableState,
   getDifficultyAriaSort,
   getDifficultySortLabel,
-  getSortedAuthors,
-  nextSortDirection,
   type SortDirection
 } from '$lib/utils/table';
 import RecommendersFilter from './RecommendersFilter.svelte';
 import ResponsiveTableContainer from './ResponsiveTableContainer.svelte';
 import TableFeedbackButtons from './TableFeedbackButtons.svelte';
-
-// Event dispatcher
-const dispatch = createEventDispatcher();
 
 // Use static image paths for logos
 const codeforcesLogo = '/images/codeforces.png';
@@ -26,65 +18,18 @@ const icpcLogo = '/images/icpc.svg';
 export let contests: Contest[] = [];
 export let userParticipation: Set<string> = new Set();
 export let userFeedback: Record<string, 'like' | 'dislike' | null> = {};
+export let isAuthenticated = false;
+export let allAuthors: string[] = [];
+export let difficultySortDirection: SortDirection = null;
+export let participatedFilterState: 'participated' | 'not-participated' | 'all' = 'all';
+export let authorFilter: string | null = null;
+export let typeFilterState: 'all' | 'icpc' | 'codeforces' = 'all';
 export let onToggleParticipation: (contestId: string, hasParticipated: boolean) => Promise<void>;
 export let onLike: (contestId: string, isLike: boolean) => Promise<void>;
-export let allAuthors: string[] = []; // New prop for filtered authors
-
-// Computed
-$: isAuthenticated = !!$user;
-
-// Filter states
-let difficultyFilter: number | null = null;
-let difficultySortDirection: SortDirection = null;
-let participatedFilterState: 'participated' | 'not-participated' | 'all' = 'all';
-let authorFilter: string | null = null;
-let typeFilterState: 'all' | 'icpc' | 'codeforces' = 'all';
-
-const PARTICIPATION_FILTER_STATES = ['all', 'participated', 'not-participated'] as const;
-const TYPE_FILTER_STATES = ['all', 'icpc', 'codeforces'] as const;
-
-// Get unique authors for filter dropdown
-// If allAuthors is provided, use it; otherwise, fall back to extracting from current contests
-$: uniqueAuthors = getSortedAuthors(contests, allAuthors);
-
-// Apply filters to contests
-$: filteredContests = contests.filter((contest) => {
-  // Filter by difficulty
-  if (difficultyFilter !== null && contest.difficulty !== difficultyFilter) {
-    return false;
-  }
-
-  // Filter by participation status
-  if (
-    participatedFilterState === 'participated' &&
-    contest.id &&
-    !userParticipation.has(contest.id)
-  ) {
-    return false;
-  }
-  if (
-    participatedFilterState === 'not-participated' &&
-    contest.id &&
-    userParticipation.has(contest.id)
-  ) {
-    return false;
-  }
-
-  // Filter by author
-  if (authorFilter && contest.addedBy !== authorFilter) {
-    return false;
-  }
-
-  // Filter by contest type
-  if (typeFilterState === 'icpc' && contest.type !== 'ICPC') {
-    return false;
-  }
-  if (typeFilterState === 'codeforces' && contest.type === 'ICPC') {
-    return false;
-  }
-
-  return true;
-});
+export let onDifficultySort: () => void;
+export let onParticipatedFilter: () => void;
+export let onTypeFilter: () => void;
+export let onAuthorFilter: (author: string | null) => void;
 
 // Accessible names / state for the interactive column headers.
 $: participatedFilterLabel =
@@ -103,24 +48,6 @@ $: typeFilterLabel =
 
 $: difficultyAriaSort = getDifficultyAriaSort(difficultySortDirection);
 $: difficultySortLabel = getDifficultySortLabel(difficultySortDirection);
-
-function handleParticipatedFilter() {
-  participatedFilterState = cycleTableState(
-    participatedFilterState,
-    PARTICIPATION_FILTER_STATES
-  );
-  dispatch('filterParticipated', { state: participatedFilterState });
-}
-
-function handleTypeFilter() {
-  typeFilterState = cycleTableState(typeFilterState, TYPE_FILTER_STATES);
-  dispatch('filterType', { type: typeFilterState });
-}
-
-function handleDifficultySort() {
-  difficultySortDirection = nextSortDirection(difficultySortDirection);
-  dispatch('sortDifficulty', { direction: difficultySortDirection });
-}
 
 // Generate star rating display
 function getDifficultyStars(difficulty: number | undefined): string {
@@ -169,7 +96,7 @@ function getDifficultyLabel(difficulty: number | undefined): string {
             <button
               type="button"
               class="flex w-full cursor-pointer items-center justify-center gap-1 p-3 font-bold transition-colors duration-200 hover:bg-[color-mix(in_oklab,var(--color-tertiary)_90%,var(--color-accent)_10%,transparent)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-accent)]"
-              on:click={handleParticipatedFilter}
+              on:click={onParticipatedFilter}
               aria-label={participatedFilterLabel}
               title={participatedFilterLabel}
             >
@@ -233,7 +160,7 @@ function getDifficultyLabel(difficulty: number | undefined): string {
             <button
               type="button"
               class="flex w-full cursor-pointer items-center justify-center gap-1 p-3 font-bold transition-colors duration-200 hover:bg-[color-mix(in_oklab,var(--color-tertiary)_90%,var(--color-accent)_10%,transparent)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-accent)]"
-              on:click={handleTypeFilter}
+              on:click={onTypeFilter}
               aria-label={typeFilterLabel}
               title={typeFilterLabel}
             >
@@ -293,7 +220,7 @@ function getDifficultyLabel(difficulty: number | undefined): string {
             <button
               type="button"
               class="flex w-full cursor-pointer items-center justify-center gap-2 p-3 font-bold transition-colors duration-200 hover:bg-[color-mix(in_oklab,var(--color-tertiary)_90%,var(--color-accent)_10%,transparent)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-accent)]"
-              on:click={handleDifficultySort}
+              on:click={onDifficultySort}
               aria-label={difficultySortLabel}
               title={difficultySortLabel}
             >
@@ -318,13 +245,10 @@ function getDifficultyLabel(difficulty: number | undefined): string {
           >
             <div class="flex items-center gap-2">
               <RecommendersFilter
-                authors={uniqueAuthors}
+                authors={allAuthors}
                 selectedAuthor={authorFilter}
                 width="w-auto min-w-[160px]"
-                onAuthorChange={(author) => {
-                  authorFilter = author;
-                  dispatch('filterAuthor', { author: authorFilter });
-                }}
+                onAuthorChange={onAuthorFilter}
               />
             </div>
           </th>
@@ -334,7 +258,7 @@ function getDifficultyLabel(difficulty: number | undefined): string {
         </tr>
       </thead>
       <tbody>
-        {#each filteredContests as contest (contest.url)}
+        {#each contests as contest (contest.url)}
           <tr
             class={`relative border-b border-[var(--color-border)] transition-colors duration-200 last:border-b-0
             ${

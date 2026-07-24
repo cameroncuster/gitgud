@@ -3,7 +3,7 @@
  * `/api/kattis` proxy against SSRF / open-proxy abuse. Run with:
  * `node --test tests/`
  *
- * These tests exercise the pure, dependency-free helpers in `kattisUrl.ts`
+ * These tests exercise the pure, dependency-free Kattis ingestion helpers
  * only. They never hit the network, a browser, Supabase, or any production
  * data. Their purpose is to lock in exactly which inputs the proxy will treat
  * as a canonical Kattis problem reference (and therefore fetch) and which it
@@ -16,7 +16,7 @@ import {
   parseKattisProblemId,
   buildCanonicalKattisProblemUrl,
   KATTIS_HOST
-} from '../src/lib/services/kattisUrl.ts';
+} from '../src/lib/providers/kattis/ingestion.ts';
 
 // --- valid inputs: bare ids and canonical / submitter-friendly URLs ----------
 // Each maps to a problem id; the proxy rebuilds the canonical URL from it.

@@ -1,26 +1,25 @@
 <script lang="ts">
 import { onMount } from 'svelte';
 import { browser } from '$app/environment';
+import { currentActor } from '$lib/auth/currentActor';
+import {
+  fetchLeaderboard,
+  type LeaderboardEntry
+} from '$lib/queries/leaderboardQueries';
 import {
   fetchProblems,
-  updateProblemFeedback,
-  fetchUserFeedback,
-  fetchUserSolvedProblems,
-  fetchUserSolvedProblemsByUserId,
-  toggleProblemSolved
-} from '$lib/services/problem';
-import type { Problem } from '$lib/services/problem';
-import { fetchLeaderboard } from '$lib/services/leaderboard';
-import type { LeaderboardEntry } from '$lib/services/leaderboard';
-import { user } from '$lib/services/auth';
+  fetchSolvedProblemsForUser,
+  type Problem
+} from '$lib/queries/problemQueries';
+import { createProblemEngagementController } from '$lib/problems/problemEngagementController';
+import { problemEngagementGateway } from '$lib/problems/problemEngagementGateway.supabase';
 import ProblemTable from '$lib/components/ProblemTable.svelte';
 import TopicSidebar from '$lib/components/TopicSidebar.svelte';
 import {
-  getSortedAuthors,
-  sortByDifficulty,
-  sortByScore,
-  type SortDirection
-} from '$lib/utils/table';
+  NEW_PROBLEM_TOPIC,
+  ProblemCollection,
+  type ProblemTopic
+} from '$lib/collections/problemCollection';
 
 // Props
 export let pageTitle = 'Problems';
@@ -31,111 +30,30 @@ export let defaultSolvedFilterState: 'all' | 'solved' | 'unsolved' = 'all';
 export let initialProblems: Problem[] | null = null;
 
 // State variables
-let problems: Problem[] = [];
-let filteredProblems: Problem[] = [];
+let collection = new ProblemCollection({ defaultSolvedFilter: defaultSolvedFilterState });
 let loading: boolean = false;
 let error: string | null = null;
 let userFeedback: Record<string, 'like' | 'dislike' | null> = {};
 let userSolvedProblems: Set<string> = new Set();
-let selectedTopic: string | null = null;
-let selectedAuthor: string | null = null;
-let selectedSource: 'codeforces' | 'kattis' | null = null;
-let solvedFilterState: 'all' | 'solved' | 'unsolved' = defaultSolvedFilterState;
 let sidebarOpen = false; // Default closed on mobile
 let isMobile = false;
 let isAuthenticated = false;
-let availableAuthors: string[] = [];
 let leaderboardEntries: LeaderboardEntry[] = [];
 let targetUserSolvedProblems: Set<string> = new Set();
 let targetUser: LeaderboardEntry | null = null;
 
-// Problem types
-const PROBLEM_TYPES = ['graph', 'array', 'string', 'math', 'tree', 'queries', 'geometry', 'misc'];
+const engagement = createProblemEngagementController({
+  actor: currentActor,
+  gateway: problemEngagementGateway,
+  getCollection: () => collection,
+  setCollection: (nextCollection) => (collection = nextCollection),
+  applySolvedToCollection: !targetUserId,
+  reportError: (message) => (error = message)
+});
 
-function sortProblemsByScore(problemsToSort: readonly Problem[]): Problem[] {
-  return sortByScore(problemsToSort, 'desc');
-}
-
-function sortProblemsByDifficulty(
-  problemsToSort: readonly Problem[],
-  direction: SortDirection
-): Problem[] {
-  return sortByDifficulty(problemsToSort, direction, sortProblemsByScore);
-}
-
-// Special topic value for NEW problems
-const NEW_TOPIC = 'NEW';
-
-// Function to get problems filtered by everything except author
-function getProblemsWithoutAuthorFilter(): Problem[] {
-  let filtered = [...problems];
-
-  // Apply topic filter if selected
-  if (selectedTopic) {
-    if (selectedTopic === NEW_TOPIC) {
-      // For NEW topic, filter problems with null or undefined type
-      filtered = filtered.filter((problem) => !problem.type);
-    } else {
-      filtered = filtered.filter((problem) => {
-        // If topic is "misc", include problems with no type or with "misc" type
-        if (selectedTopic === 'misc') {
-          return !problem.type || problem.type === 'misc';
-        }
-        return problem.type === selectedTopic;
-      });
-    }
-  }
-
-  // Apply solved filter based on the appropriate solved problems set
-  if (solvedFilterState !== 'all') {
-    filtered = filtered.filter((problem) => {
-      // If we're viewing a specific user's page, use their solved problems
-      // Otherwise use the current user's solved problems
-      const solvedProblemsSet = targetUserId ? targetUserSolvedProblems : userSolvedProblems;
-      const isSolved = problem.id && solvedProblemsSet.has(problem.id);
-      return solvedFilterState === 'solved' ? isSolved : !isSolved;
-    });
-  }
-
-  // Apply source filter if selected
-  if (selectedSource) {
-    filtered = filtered.filter((problem) => problem.source === selectedSource);
-  }
-
-  return filtered;
-}
-
-// Function to filter problems by topic, solved status, and author
-function filterProblems(): void {
-  // Get problems filtered by everything except author
-  let filtered = getProblemsWithoutAuthorFilter();
-
-  // Update available authors based on current filters (except author filter)
-  availableAuthors = getSortedAuthors(filtered);
-
-  // Apply author filter if selected
-  if (selectedAuthor) {
-    filtered = filtered.filter((problem) => problem.addedBy === selectedAuthor);
-  }
-
-  // Update filtered problems
-  filteredProblems = filtered;
-
-  // Auto-close sidebar on mobile after selection
-  if (isMobile) {
-    sidebarOpen = false;
-  }
-}
-
-// Function to filter problems by topic
-function filterProblemsByTopic(topic: string | null): void {
-  selectedTopic = topic;
-  filterProblems();
-}
-
-// Function to handle topic selection
 function handleTopicSelect(topic: string | null): void {
-  filterProblemsByTopic(topic);
+  collection = collection.selectTopic(topic as ProblemTopic | null);
+  if (isMobile) sidebarOpen = false;
 }
 
 // Function to toggle sidebar visibility
@@ -149,184 +67,19 @@ function checkMobile(): void {
   isMobile = window.innerWidth < 768;
 }
 
-// Function to handle like/dislike actions
 async function handleLike(problemId: string, isLike: boolean): Promise<void> {
-  try {
-    // Check if user is authenticated
-    if (!isAuthenticated) {
-      error = 'You must be signed in to like or dislike problems';
-      return;
-    }
-
-    // Check if user has already provided feedback for this problem
-    const currentFeedback = userFeedback[problemId];
-
-    // If user already gave the same feedback, treat as an "undo"
-    if ((isLike && currentFeedback === 'like') || (!isLike && currentFeedback === 'dislike')) {
-      // Update UI optimistically
-      problems = problems.map((problem) => {
-        if (problem.id === problemId) {
-          if (isLike) {
-            return { ...problem, likes: problem.likes - 1 };
-          } else {
-            return { ...problem, dislikes: problem.dislikes - 1 };
-          }
-        }
-        return problem;
-      });
-
-      // Remove the user's feedback
-      userFeedback = {
-        ...userFeedback,
-        [problemId]: null
-      };
-
-      // Update the database (server derives the undo from actual state)
-      await updateProblemFeedback(problemId, isLike);
-
-      // Update filtered problems
-      filterProblems();
-      return;
-    }
-
-    // Handle switching feedback (like to dislike or vice versa)
-    if (currentFeedback) {
-      // Update UI optimistically
-      problems = problems.map((problem) => {
-        if (problem.id === problemId) {
-          if (isLike) {
-            // Switching from dislike to like
-            return {
-              ...problem,
-              likes: problem.likes + 1,
-              dislikes: problem.dislikes - 1
-            };
-          } else {
-            // Switching from like to dislike
-            return {
-              ...problem,
-              likes: problem.likes - 1,
-              dislikes: problem.dislikes + 1
-            };
-          }
-        }
-        return problem;
-      });
-
-      // Update user feedback - create a new object to ensure reactivity
-      userFeedback = {
-        ...userFeedback,
-        [problemId]: isLike ? 'like' : 'dislike'
-      };
-
-      // Update the database (server derives the switch from actual state)
-      await updateProblemFeedback(problemId, isLike);
-
-      // Update filtered problems
-      filterProblems();
-      return;
-    }
-
-    // Handle new feedback
-    // Update UI optimistically
-    problems = problems.map((problem) => {
-      if (problem.id === problemId) {
-        if (isLike) {
-          return { ...problem, likes: problem.likes + 1 };
-        } else {
-          return { ...problem, dislikes: problem.dislikes + 1 };
-        }
-      }
-      return problem;
-    });
-
-    // Update user feedback - create a new object to ensure reactivity
-    userFeedback = {
-      ...userFeedback,
-      [problemId]: isLike ? 'like' : 'dislike'
-    };
-
-    // Update the database
-    await updateProblemFeedback(problemId, isLike);
-
-    // Update filtered problems
-    filterProblems();
-  } catch (err) {
-    console.error('Error updating feedback:', err);
-    // If there's an error, reload problems to ensure UI is in sync with server
-    loadProblems();
-  }
+  await engagement.react(problemId, isLike);
 }
 
-// Function to handle marking problems as solved/unsolved
 async function handleToggleSolved(problemId: string, isSolved: boolean): Promise<void> {
-  try {
-    // Check if user is authenticated
-    if (!isAuthenticated) {
-      error = 'You must be signed in to mark problems as solved';
-      return;
-    }
-
-    // Update UI optimistically
-    if (isSolved) {
-      userSolvedProblems = new Set([...userSolvedProblems, problemId]);
-    } else {
-      userSolvedProblems = new Set([...userSolvedProblems].filter((id) => id !== problemId));
-    }
-
-    // Update the database
-    const success = await toggleProblemSolved(problemId, isSolved);
-
-    if (!success) {
-      // If there's an error, reload solved problems to ensure UI is in sync with server
-      if (isAuthenticated) {
-        userSolvedProblems = await fetchUserSolvedProblems();
-      }
-    }
-  } catch (err) {
-    console.error('Error updating solved status:', err);
-    // If there's an error, reload solved problems to ensure UI is in sync with server
-    if (isAuthenticated) {
-      userSolvedProblems = await fetchUserSolvedProblems();
-    }
-  }
-}
-
-// Function to handle difficulty sorting
-function handleDifficultySort({ detail }: CustomEvent<{ direction: 'asc' | 'desc' | null }>) {
-  // Get problems with all filters except author
-  const problemsWithoutAuthorFilter = getProblemsWithoutAuthorFilter();
-
-  // Update available authors
-  availableAuthors = getSortedAuthors(problemsWithoutAuthorFilter);
-
-  // Sort the problems by difficulty
-  filteredProblems = sortProblemsByDifficulty(filteredProblems, detail.direction);
-}
-
-// Function to handle solved filter
-function handleSolvedFilter({ detail }: CustomEvent<{ state: 'all' | 'solved' | 'unsolved' }>) {
-  solvedFilterState = detail.state;
-  filterProblems();
-}
-
-// Function to handle author filter
-function handleAuthorFilter({ detail }: CustomEvent<{ author: string | null }>) {
-  selectedAuthor = detail.author;
-  filterProblems();
-}
-
-// Function to handle source filter
-function handleSourceFilter({ detail }: CustomEvent<{ source: 'codeforces' | 'kattis' | null }>) {
-  selectedSource = detail.source;
-  filterProblems();
+  await engagement.setSolved(problemId, isSolved);
 }
 
 // Function to load problems
 async function loadProblems() {
   // Skip the loading spinner when the list is already seeded from a server-side
   // load; the initial render is already showing data.
-  const alreadySeeded = problems.length > 0;
+  const alreadySeeded = collection.sourceItems.length > 0;
   loading = !alreadySeeded;
   error = null;
 
@@ -335,8 +88,7 @@ async function loadProblems() {
       // Use problems from the server-side load when available; otherwise fetch them.
       const fetchedProblems = initialProblems ?? (await fetchProblems());
 
-      // Sort by score only on initial load
-      problems = sortProblemsByScore(fetchedProblems);
+      collection = collection.withSourceItems(fetchedProblems);
     }
 
     // If we're viewing a specific user's page
@@ -354,22 +106,10 @@ async function loadProblems() {
       }
 
       // Fetch the target user's solved problems
-      targetUserSolvedProblems = await fetchUserSolvedProblemsByUserId(targetUserId);
+      targetUserSolvedProblems = await fetchSolvedProblemsForUser(targetUserId);
+      collection = collection.withSolvedProblemIds(targetUserSolvedProblems);
     }
 
-    // Initialize available authors with all authors
-    availableAuthors = getSortedAuthors(problems);
-
-    // Initialize filtered problems using our filter function
-    if (!alreadySeeded) {
-      filterProblems();
-    }
-
-    // Load user feedback and solved problems from database if authenticated
-    if (isAuthenticated) {
-      userFeedback = await fetchUserFeedback();
-      userSolvedProblems = await fetchUserSolvedProblems();
-    }
   } catch (e) {
     console.error('Error loading problems:', e);
     error = 'Failed to load problems. Please try again later.';
@@ -380,40 +120,19 @@ async function loadProblems() {
 
 // Seed the initial list from server-provided problems so the first render
 // (including SSR) shows data without waiting for a client-side fetch.
-if (initialProblems && problems.length === 0) {
-  problems = sortProblemsByScore(initialProblems);
-  availableAuthors = getSortedAuthors(problems);
-  filterProblems();
+if (initialProblems && collection.sourceItems.length === 0) {
+  collection = collection.withSourceItems(initialProblems);
 }
 
 // Initialize component
 onMount(() => {
-  // If we're viewing a specific user's page and targetUserId wasn't provided as a prop
-  if (!targetUserId && window.location.pathname.includes('/user/')) {
-    // Get the userId from the URL
-    const pathParts = window.location.pathname.split('/');
-    targetUserId = pathParts[pathParts.length - 1];
-  }
-
-  loadProblems();
-
-  // Subscribe to auth state changes
-  const unsubscribe = user.subscribe((value) => {
-    isAuthenticated = !!value;
-
-    // Reload user feedback and solved problems when auth state changes
-    if (isAuthenticated) {
-      fetchUserFeedback().then((feedback) => {
-        userFeedback = feedback;
-      });
-      fetchUserSolvedProblems().then((solved) => {
-        userSolvedProblems = solved;
-      });
-    } else {
-      userFeedback = {};
-      userSolvedProblems = new Set();
-    }
+  const unsubscribeEngagement = engagement.subscribe((state) => {
+    isAuthenticated = state.isAuthenticated;
+    userFeedback = state.feedback;
+    userSolvedProblems = state.solvedProblemIds;
   });
+  engagement.start();
+  loadProblems();
 
   // Check if mobile
   checkMobile();
@@ -423,7 +142,8 @@ onMount(() => {
 
   // Cleanup function
   return () => {
-    unsubscribe();
+    unsubscribeEngagement();
+    engagement.dispose();
     window.removeEventListener('resize', checkMobile);
   };
 });
@@ -463,8 +183,9 @@ onMount(() => {
     <div class="relative flex min-h-[calc(100vh-2rem)]">
       <!-- Topic Sidebar Component -->
       <TopicSidebar
-        topics={PROBLEM_TYPES}
-        selectedTopic={selectedTopic}
+        topics={[...collection.topicOptions]}
+        newTopic={NEW_PROBLEM_TOPIC}
+        selectedTopic={collection.selectedTopic}
         onSelectTopic={handleTopicSelect}
         isMobile={isMobile}
         isOpen={sidebarOpen}
@@ -476,16 +197,21 @@ onMount(() => {
         <div class="w-full min-w-0 px-0 py-2 pb-6">
           <div class="problem-table-container w-full">
             <ProblemTable
-              problems={filteredProblems}
+              problems={collection.rows}
               userFeedback={userFeedback}
               userSolvedProblems={userSolvedProblems}
-              allAuthors={availableAuthors}
+              {isAuthenticated}
+              allAuthors={collection.availableAuthors}
+              difficultySortDirection={collection.difficultySortDirection}
+              solvedFilterState={collection.solvedFilter}
+              authorFilterValue={collection.selectedAuthor}
+              sourceFilterValue={collection.sourceFilter}
               onLike={handleLike}
               onToggleSolved={handleToggleSolved}
-              on:sortDifficulty={handleDifficultySort}
-              on:filterSolved={handleSolvedFilter}
-              on:filterAuthor={handleAuthorFilter}
-              on:filterSource={handleSourceFilter}
+              onDifficultySort={() => (collection = collection.cycleDifficultySort())}
+              onSolvedFilter={() => (collection = collection.cycleSolvedFilter())}
+              onAuthorFilter={(author) => (collection = collection.selectAuthor(author))}
+              onSourceFilter={() => (collection = collection.cycleSourceFilter())}
             />
           </div>
         </div>

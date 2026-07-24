@@ -2,11 +2,10 @@
 import { onMount } from 'svelte';
 import { goto } from '$app/navigation';
 import { resolve } from '$app/paths';
-import { user } from '$lib/services/auth';
+import { currentActor, resolveCurrentActor } from '$lib/auth/currentActor';
 import { fetchUserPreferences, updateUserPreferences } from '$lib/services/user';
 import type { UserPreferences } from '$lib/services/user';
 import type { Unsubscriber } from 'svelte/store';
-import { supabase } from '$lib/services/database';
 import { applyTheme } from '$lib/services/theme';
 import {
   previewCodeforcesImport,
@@ -172,40 +171,26 @@ function toggleTheme(): void {
   savePreferences();
 }
 
-// Initialize auth state and load preferences. This gates on the resolved
-// session rather than an arbitrary delay: we wait for getSession() to settle,
-// redirect anonymous visitors home, and load preferences for a real session.
-// A user-store subscription then redirects home on sign-out. No fixed timeout.
+// Gate on the resolved current actor rather than an arbitrary delay, then
+// redirect anonymous visitors and watch for a later sign-out.
 onMount(() => {
   const initAuth = async () => {
-    let currentUser;
-    try {
-      const { data } = await supabase.auth.getSession();
-      currentUser = data.session?.user ?? null;
-    } catch (err) {
-      console.error('Error checking session:', err);
-      currentUser = null;
-    }
-
-    if (!currentUser) {
+    const actor = await resolveCurrentActor();
+    if (!actor.user) {
       // No session — redirect home, leaving the loading state in place.
       goto(resolve('/'));
       return;
     }
 
-    // Session resolved: load preferences (fetchUserPreferences resolves the
-    // user from the store or session and creates defaults if none exist).
+    // Actor resolved: load preferences and create defaults if none exist.
     await loadPreferences();
 
-    // Redirect home if the user later signs out. The store may not have
-    // populated yet when this fires immediately, so ignore that initial null
-    // (the session check above already confirmed we're authenticated) and only
-    // act on a real sign-out transition.
+    // Ignore the subscription's initial state and act on a real sign-out.
     let seenUser = false;
-    userUnsubscribe = user.subscribe((value) => {
-      if (value) {
+    userUnsubscribe = currentActor.subscribe((value) => {
+      if (value.user) {
         seenUser = true;
-      } else if (seenUser) {
+      } else if (value.initialized && seenUser) {
         goto(resolve('/'));
       }
     });
