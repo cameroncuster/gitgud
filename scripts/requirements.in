@@ -1,0 +1,5 @@
+beautifulsoup4==4.15.0
+google-genai==2.14.0
+psycopg[binary]==3.3.4
+python-dotenv==1.2.2
+requests==2.34.2

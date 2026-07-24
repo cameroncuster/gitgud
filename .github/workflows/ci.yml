@@ -7,6 +7,28 @@ on:
     branches: [main, master]
 
 jobs:
+  python:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: scripts/requirements.txt
+
+      - name: Install Python dependencies
+        run: python -m pip install --require-hashes -r scripts/requirements.txt
+
+      - name: Validate classifier
+        run: |
+          python -m compileall -q scripts
+          PYTHONPATH=scripts python -m unittest scripts/test_classify_problems.py
+          python scripts/classify_problems.py --help > /dev/null
+
   build:
     runs-on: ubuntu-latest
 
