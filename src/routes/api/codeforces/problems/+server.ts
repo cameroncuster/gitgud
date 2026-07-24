@@ -14,9 +14,8 @@ import type { RequestHandler } from './$types';
 // In-memory cache of the Codeforces problemset catalog. The catalog is large
 // (~11k problems) and rarely changes, so a single fetch is reused across
 // requests within its TTL instead of downloading it per problem or per batch.
-// The cache dedupes concurrent misses onto one in-flight fetch and does not
-// cache a rejected load. The loader is set on first use so the request-scoped
-// fetch is threaded through rather than the global one.
+// The loader is bound on first use so the request-scoped fetch is threaded
+// through rather than the global one.
 const CATALOG_TTL_MS = 5 * 60 * 1000;
 let catalogCache: ReturnType<typeof createCatalogCache> | null = null;
 
