@@ -120,6 +120,62 @@ export async function fetchProblemsetCatalog(
   return problems;
 }
 
+// A resolved catalog together with the wall-clock time it was cached at.
+interface CachedCatalog {
+  problems: CodeforcesProblemsetProblem[];
+  cachedAt: number;
+}
+
+// Loads the catalog on demand. Injected so the endpoint can thread its
+// request-scoped fetch through and tests can count invocations.
+export type CatalogLoader = () => Promise<CodeforcesProblemsetProblem[]>;
+
+// A cache of the problemset catalog. get() returns the cached catalog within
+// its TTL and otherwise loads a fresh one.
+export interface CatalogCache {
+  get(): Promise<CodeforcesProblemsetProblem[]>;
+}
+
+/**
+ * Build a TTL cache around a catalog loader. The catalog is large (~11k
+ * problems) and rarely changes, so a single load is reused across requests
+ * within the TTL.
+ *
+ * Concurrent callers that miss the cache share one in-flight load rather than
+ * each triggering their own (avoiding a stampede against the upstream API), and
+ * a rejected load is not cached so a transient failure does not persist for the
+ * whole TTL. An optional clock is injectable so tests can advance time without
+ * real delays.
+ */
+export function createCatalogCache(
+  load: CatalogLoader,
+  ttlMs: number,
+  now: () => number = Date.now
+): CatalogCache {
+  let cached: CachedCatalog | null = null;
+  let inflight: Promise<CodeforcesProblemsetProblem[]> | null = null;
+
+  return {
+    get(): Promise<CodeforcesProblemsetProblem[]> {
+      if (cached && now() - cached.cachedAt < ttlMs) {
+        return Promise.resolve(cached.problems);
+      }
+      if (inflight) {
+        return inflight;
+      }
+      inflight = load()
+        .then((problems) => {
+          cached = { problems, cachedAt: now() };
+          return problems;
+        })
+        .finally(() => {
+          inflight = null;
+        });
+      return inflight;
+    }
+  };
+}
+
 /**
  * Resolve requested problems against an already-fetched catalog. Each requested
  * ref maps to either resolved metadata or an error, preserving input order.
