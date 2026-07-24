@@ -14,19 +14,15 @@ import type { RequestHandler } from './$types';
 // In-memory cache of the Codeforces problemset catalog. The catalog is large
 // (~11k problems) and rarely changes, so a single fetch is reused across
 // requests within its TTL instead of downloading it per problem or per batch.
-// The loader is bound on first use so the request-scoped fetch is threaded
-// through rather than the global one.
+// The loader is passed per request so each refresh runs through the current
+// request's fetch rather than the global one or a stale captured request.
 const CATALOG_TTL_MS = 5 * 60 * 1000;
-let catalogCache: ReturnType<typeof createCatalogCache> | null = null;
+const catalogCache = createCatalogCache(CATALOG_TTL_MS);
 
 function getCatalog(fetchFn: FetchLike) {
-  if (!catalogCache) {
-    catalogCache = createCatalogCache(
-      () => fetchProblemsetCatalog(fetchFn, problemsetApiUrl(publicEnv.PUBLIC_CODEFORCES_API_BASE)),
-      CATALOG_TTL_MS
-    );
-  }
-  return catalogCache.get();
+  return catalogCache.get(() =>
+    fetchProblemsetCatalog(fetchFn, problemsetApiUrl(publicEnv.PUBLIC_CODEFORCES_API_BASE))
+  );
 }
 
 /**
