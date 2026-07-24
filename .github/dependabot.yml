@@ -21,12 +21,25 @@ updates:
           - minor
           - patch
 
+  - package-ecosystem: pip
+    directory: /scripts
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:30'
+      timezone: Etc/UTC
+    open-pull-requests-limit: 2
+    groups:
+      python-dependencies:
+        patterns:
+          - '*'
+
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
       day: monday
-      time: '06:30'
+      time: '07:00'
       timezone: Etc/UTC
     open-pull-requests-limit: 2
     groups:

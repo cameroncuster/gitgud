@@ -1,22 +1,21 @@
 #!/usr/bin/env python3
-import os
 import argparse
+import os
+import re
+import time
+
 import psycopg
 import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
-import google.generativeai as genai
-import re
-import time
+from google import genai
 
 # Load environment variables
 load_dotenv()
 SUPABASE_CONN = os.getenv("SUPABASE_CONN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# Configure Gemini API
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel("gemini-2.0-flash-lite")
+GEMINI_MODEL = "gemini-2.0-flash-lite"
 
 # Problem types
 PROBLEM_TYPES = [
@@ -275,7 +274,7 @@ class ProblemFetcher:
         return None
 
 
-def classify_problem(name, tags, statement=""):
+def classify_problem(name, tags, statement="", client=None):
     """Use Gemini to classify a problem based on its name, tags, and statement."""
     # Truncate statement if it's too long (Gemini has context limits)
     max_statement_length = 10000
@@ -284,13 +283,13 @@ def classify_problem(name, tags, statement=""):
 
     prompt = f"""
     Given the following competitive programming problem, classify it into ONE of these types:
-    {', '.join(PROBLEM_TYPES)}
+    {", ".join(PROBLEM_TYPES)}
     
     Problem name: {name}
-    Problem tags: {', '.join(tags) if tags else 'None'}
+    Problem tags: {", ".join(tags) if tags else "None"}
     
     Problem statement:
-    {statement if statement else 'Not available'}
+    {statement if statement else "Not available"}
     
     IMPORTANT: Choose the FIRST category in the list that applies to this problem.
     For example, if a problem could be both "geometry" and "math", choose "geometry" 
@@ -300,7 +299,10 @@ def classify_problem(name, tags, statement=""):
     """
 
     try:
-        response = model.generate_content(prompt)
+        gemini_client = client or genai.Client(api_key=GEMINI_API_KEY)
+        response = gemini_client.models.generate_content(
+            model=GEMINI_MODEL, contents=prompt
+        )
         problem_type = response.text.strip().lower()
 
         # Validate the response is one of our types
@@ -343,7 +345,10 @@ def main():
     args = parser.parse_args()
 
     # Connect to the database using psycopg3
-    with psycopg.connect(SUPABASE_CONN) as conn:
+    with (
+        genai.Client(api_key=GEMINI_API_KEY) as gemini_client,
+        psycopg.connect(SUPABASE_CONN) as conn,
+    ):
         # Create a cursor
         with conn.cursor() as cursor:
             try:
@@ -367,7 +372,7 @@ def main():
                 for i in range(0, len(problems), args.batch_size):
                     batch = problems[i : i + args.batch_size]
                     print(
-                        f"Processing batch {i//args.batch_size + 1}/{(len(problems)-1)//args.batch_size + 1} ({len(batch)} problems)"
+                        f"Processing batch {i // args.batch_size + 1}/{(len(problems) - 1) // args.batch_size + 1} ({len(batch)} problems)"
                     )
 
                     # Process each problem in the batch
@@ -393,7 +398,9 @@ def main():
                         time.sleep(args.delay)
 
                         # Classify the problem
-                        problem_type = classify_problem(name, tags, statement)
+                        problem_type = classify_problem(
+                            name, tags, statement, client=gemini_client
+                        )
                         print(f"  → Classified as: {problem_type}")
 
                         # Update the database
@@ -404,7 +411,7 @@ def main():
 
                     # Commit after each batch
                     conn.commit()
-                    print(f"Batch {i//args.batch_size + 1} completed and committed.")
+                    print(f"Batch {i // args.batch_size + 1} completed and committed.")
 
                 print(f"Successfully classified {len(problems)} problems.")
 
