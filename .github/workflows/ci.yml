@@ -155,10 +155,9 @@ jobs:
           path: playwright-report/
           retention-days: 7
 
-  # Non-blocking Node 26 compatibility probe. Runs in parallel with the required
-  # Node 24 job. A failure here is informational only — it cannot block merges,
-  # cancel the Node 24 job, or affect branch protection status. Artifact names
-  # are suffixed with the Node version to avoid upload collisions.
+  # Non-blocking Node 26 compatibility probe. Runs dependency installation,
+  # type-checking, unit tests, and a production build in parallel with the full
+  # required Node 24 validation. Failures are informational only.
   node26-compat:
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -193,12 +192,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check code formatting
-        run: pnpm run lint
-
-      - name: Lint
-        run: pnpm run lint:es
-
       - name: Sync SvelteKit
         run: pnpm exec svelte-kit sync
         env:
@@ -222,37 +215,3 @@ jobs:
         env:
           PUBLIC_SUPABASE_URL: http://localhost
           PUBLIC_SUPABASE_ANON_KEY: placeholder
-
-      - name: Get Playwright version
-        shell: bash
-        run: |
-          echo "PLAYWRIGHT_VERSION=$(pnpm exec playwright --version | sed 's/^Version //')" >> "$GITHUB_ENV"
-
-      - name: Cache Playwright browsers
-        id: playwright-cache
-        uses: actions/cache@v6
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-node26-${{ env.PLAYWRIGHT_VERSION }}
-
-      - name: Install Playwright browsers
-        run: pnpm exec playwright install --with-deps chromium
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-
-      - name: Install Playwright system deps
-        run: pnpm exec playwright install-deps chromium
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-
-      - name: Run Playwright mocked suite
-        run: pnpm run test:e2e
-        env:
-          PUBLIC_SUPABASE_URL: http://localhost
-          PUBLIC_SUPABASE_ANON_KEY: placeholder
-
-      - name: Upload Playwright report
-        uses: actions/upload-artifact@v7
-        if: ${{ !cancelled() }}
-        with:
-          name: playwright-report-node26
-          path: playwright-report/
-          retention-days: 7
