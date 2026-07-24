@@ -45,7 +45,6 @@ export async function fetchUserPreferences(): Promise<UserPreferences | null> {
     if (error) {
       // If the error is that no rows were returned, create default preferences
       if (error.code === 'PGRST116') {
-        // Create default preferences
         const result = await updateUserPreferences({
           hideFromLeaderboard: false,
           theme: 'light'
@@ -128,7 +127,6 @@ export async function updateUserPreferences(preferences: UserPreferences): Promi
       // If we still have an error and it's a duplicate key error,
       // try one more time with an update
       if (result.error.code === '23505') {
-        // Wait a moment before retrying
         await new Promise((resolve) => setTimeout(resolve, 100));
 
         result = await supabase

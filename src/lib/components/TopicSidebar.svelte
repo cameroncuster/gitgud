@@ -2,7 +2,6 @@
 import { browser } from '$app/environment';
 import { onMount } from 'svelte';
 
-// Props
 export let topics: string[] = [];
 export let newTopic: string;
 export let selectedTopic: string | null = null;
@@ -14,23 +13,19 @@ export let onToggle: () => void;
 let touchStartX = 0;
 let touchEndX = 0;
 
-// Format topic name for display
 function formatTopicName(topic: string): string {
   return topic.charAt(0).toUpperCase() + topic.slice(1);
 }
 
-// Handle touch start
 function handleTouchStart(e: TouchEvent) {
   touchStartX = e.touches[0].clientX;
 }
 
-// Handle touch end
 function handleTouchEnd(e: TouchEvent) {
   touchEndX = e.changedTouches[0].clientX;
   handleSwipe();
 }
 
-// Handle swipe
 function handleSwipe() {
   if (!isMobile) return;
 
@@ -47,7 +42,6 @@ function handleSwipe() {
   }
 }
 
-// Add touch event listeners
 onMount(() => {
   if (browser) {
     document.addEventListener('touchstart', handleTouchStart, { passive: true });

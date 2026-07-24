@@ -1,5 +1,4 @@
 <script lang="ts">
-// Props
 export let authors: string[] = [];
 export let selectedAuthor: string | null = null;
 export let onAuthorChange: (author: string | null) => void;

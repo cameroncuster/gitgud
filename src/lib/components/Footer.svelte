@@ -1,6 +1,4 @@
-<script>
-// Footer component
-</script>
+<script></script>
 
 <footer
   class="relative z-20 mt-auto border-t border-[color-mix(in_oklab,black_10%,transparent)] bg-[var(--color-secondary)] py-6"

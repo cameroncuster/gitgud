@@ -5,28 +5,22 @@ import { resolve } from '$app/paths';
 import { currentActor, signInWithGithub, signOut } from '$lib/auth/currentActor';
 import { onMount } from 'svelte';
 
-// Use a flag to ensure we've fully mounted before showing anything
 let isMounted = false;
 
-// Mobile menu state
 let mobileMenuOpen = false;
 let mobileMenuButton: HTMLButtonElement | null = null;
 
-// User information from GitHub OAuth
 let username = '';
 let githubUrl = '';
 
 onMount(() => {
-  // Mark component as mounted
   isMounted = true;
 
   const unsubscribe = currentActor.subscribe((actor) => {
     const value = actor.user;
     if (isMounted) {
       if (value) {
-        // Get username and GitHub URL from user metadata
         if (value.user_metadata) {
-          // Get username with priority order
           if (value.user_metadata.user_name) {
             username = value.user_metadata.user_name;
           } else if (value.user_metadata.preferred_username) {
@@ -34,13 +28,11 @@ onMount(() => {
           } else if (value.user_metadata.name) {
             username = value.user_metadata.name;
           } else if (value.email) {
-            // Fallback to email if no username is available
             username = value.email.split('@')[0];
           } else {
             username = 'User';
           }
 
-          // Get GitHub URL
           if (value.app_metadata && value.app_metadata.provider === 'github') {
             githubUrl = `https://github.com/${username}`;
           } else if (value.user_metadata.html_url) {
@@ -69,7 +61,6 @@ onMount(() => {
     }
   });
 
-  // Clean up subscription on component unmount
   return () => {
     isMounted = false;
     unsubscribe();
@@ -108,7 +99,6 @@ function handleMobileMenuKeydown(event: KeyboardEvent) {
   }
 }
 
-// Close mobile menu when navigating to a new page
 afterNavigate(() => {
   mobileMenuOpen = false;
 });

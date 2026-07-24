@@ -24,7 +24,6 @@ let error: string | null = null;
 let success: string | null = null;
 let userUnsubscribe: Unsubscriber | null = null;
 
-// Codeforces solved-problem import state
 let cfHandle: string = '';
 let importPreviewing: boolean = false;
 let importing: boolean = false;
@@ -86,7 +85,6 @@ async function runImport(): Promise<void> {
   }
 }
 
-// Load user preferences
 async function loadPreferences(): Promise<void> {
   loading = true;
   error = null;
@@ -96,17 +94,14 @@ async function loadPreferences(): Promise<void> {
     if (userPrefs) {
       preferences = userPrefs;
 
-      // Apply theme immediately
       applyTheme(preferences.theme);
     } else {
-      // If no preferences were returned, try to create them
       const result = await updateUserPreferences({
         hideFromLeaderboard: false,
         theme: 'light'
       });
 
       if (result) {
-        // Set the default preferences in the UI
         preferences = {
           hideFromLeaderboard: false,
           theme: 'light'
@@ -121,7 +116,6 @@ async function loadPreferences(): Promise<void> {
   }
 }
 
-// Save user preferences
 async function savePreferences(): Promise<void> {
   saving = true;
   error = null;
@@ -146,28 +140,22 @@ async function savePreferences(): Promise<void> {
   }
 }
 
-// Toggle the hide from leaderboard setting
 function toggleHideFromLeaderboard(): void {
   preferences.hideFromLeaderboard = !preferences.hideFromLeaderboard;
   savePreferences();
 }
 
-// Toggle the theme setting
 function toggleTheme(): void {
-  // Toggle the theme
   const newTheme = preferences.theme === 'light' ? 'dark' : 'light';
   preferences.theme = newTheme;
 
-  // Apply theme immediately for better UX
   applyTheme(newTheme);
 
-  // Save to localStorage for immediate persistence
   localStorage.setItem('gitgud-theme', newTheme);
 
   // Force a re-render by creating a new object
   preferences = { ...preferences };
 
-  // Save to database
   savePreferences();
 }
 

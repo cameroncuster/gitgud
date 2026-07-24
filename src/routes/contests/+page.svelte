@@ -12,7 +12,6 @@ import type { PageData } from './$types';
 // SSR) ships with data instead of waiting for a client-side fetch.
 export let data: PageData;
 
-// State
 let collection = new ContestCollection();
 let userParticipation: Set<string> = new Set();
 let userFeedback: Record<string, 'like' | 'dislike' | null> = {};
@@ -30,7 +29,6 @@ const engagement = createContestEngagementController({
   setCollection: (nextCollection) => (collection = nextCollection)
 });
 
-// Function to load contests
 async function loadContests() {
   // Skip the loading spinner and public fetch when the list is already seeded
   // from the server-side load; the initial render is already showing data.
@@ -79,10 +77,8 @@ onMount(() => {
   });
   engagement.start();
 
-  // Load contests
   loadContests();
 
-  // Cleanup function
   return () => {
     unsubscribeEngagement();
     engagement.dispose();

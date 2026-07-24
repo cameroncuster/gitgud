@@ -8,11 +8,9 @@ import {
 import RecommendersFilter from './RecommendersFilter.svelte';
 import ResponsiveTableContainer from './ResponsiveTableContainer.svelte';
 import TableFeedbackButtons from './TableFeedbackButtons.svelte';
-// Use static image paths instead of imports
 const codeforcesLogo = '/images/codeforces.png';
 const kattisLogo = '/images/kattis.png';
 
-// Props
 export let problems: Problem[] = [];
 export let userFeedback: Record<string, 'like' | 'dislike' | null> = {};
 export let userSolvedProblems: Set<string> = new Set();
@@ -29,7 +27,6 @@ export let onSolvedFilter: () => void;
 export let onSourceFilter: () => void;
 export let onAuthorFilter: (author: string | null) => void;
 
-// Define common tiers
 const TIERS = [
   [3000, 'Legendary Grandmaster'],
   [2600, 'International Grandmaster'],
@@ -42,7 +39,6 @@ const TIERS = [
   [1200, 'Pupil']
 ] as const;
 
-// Get rating color class
 function getRatingColor(rating: number | undefined): string {
   if (!rating) return 'unrated';
   const tier = TIERS.find(([min]) => rating >= min)?.[1];
@@ -50,7 +46,6 @@ function getRatingColor(rating: number | undefined): string {
   return tier.toLowerCase().replace(' ', '-');
 }
 
-// Get rating tier display name
 function getRatingTierName(rating: number | undefined): string {
   if (!rating) return 'Unrated';
   return TIERS.find(([min]) => rating >= min)?.[1] || 'Newbie';
@@ -73,7 +68,6 @@ $: sourceFilterLabel =
 $: difficultyAriaSort = getDifficultyAriaSort(difficultySortDirection);
 $: difficultySortLabel = getDifficultySortLabel(difficultySortDirection);
 
-// Function to get difficulty tooltip text
 function getDifficultyTooltip(problem: Problem): string {
   if (problem.source === 'kattis') {
     return `Kattis difficulty mapped from 1-10 scale to 800-3500 rating range`;
