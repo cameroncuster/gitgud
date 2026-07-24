@@ -157,7 +157,8 @@ jobs:
 
   # Non-blocking Node 26 compatibility probe. Runs dependency installation,
   # type-checking, unit tests, and a production build in parallel with the full
-  # required Node 24 validation. Failures are informational only.
+  # required Node 24 validation (the `build` job above). Failures here are
+  # informational only and do not gate the build.
   node26-compat:
     runs-on: ubuntu-latest
     continue-on-error: true
