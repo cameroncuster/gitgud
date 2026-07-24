@@ -1,2 +1,6 @@
+overrides:
+  cookie: 0.7.2
+  rollup: 4.59.0
+
 onlyBuiltDependencies:
   - esbuild
