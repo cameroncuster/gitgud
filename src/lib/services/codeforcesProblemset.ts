@@ -45,51 +45,6 @@ export function problemsetApiUrl(apiBase?: string): string {
   return `${apiBase.replace(/\/$/, '')}/problemset.problems`;
 }
 
-/**
- * Extract problem information from a Codeforces URL. Pure (regex-only) so it can
- * be shared by the client service and unit tests.
- * @param problemUrl - Codeforces problem URL
- * @returns Problem info or null if the URL is not a recognized problem URL
- */
-export function parseProblemUrl(problemUrl: string): {
-  contestId: string;
-  index: string;
-  problemId: string;
-  url: string;
-} | null {
-  // Normalize the URL: strip http/https/www.
-  const cleanUrl = problemUrl.trim().replace(/^(https?:\/\/)?(www\.)?/, '');
-
-  // Support both codeforces.com and mirror.codeforces.com
-  const contestPattern = /(?:mirror\.)?codeforces\.com\/contest\/(\d+)\/problem\/([A-Z\d]+)/;
-  const problemsetPattern = /(?:mirror\.)?codeforces\.com\/problemset\/problem\/(\d+)\/([A-Z\d]+)/;
-  const gymPattern = /(?:mirror\.)?codeforces\.com\/gym\/(\d+)\/problem\/([A-Z\d]+)/;
-
-  const contestMatch = cleanUrl.match(contestPattern);
-  const problemsetMatch = cleanUrl.match(problemsetPattern);
-  const gymMatch = cleanUrl.match(gymPattern);
-
-  const match = contestMatch || problemsetMatch || gymMatch;
-  if (!match) {
-    return null;
-  }
-
-  const isGym = !!gymMatch;
-
-  // Always normalize to the appropriate codeforces.com URL for consistency.
-  const normalizedFinalUrl = isGym
-    ? `https://codeforces.com/gym/${match[1]}/problem/${match[2]}`
-    : `https://codeforces.com/contest/${match[1]}/problem/${match[2]}`;
-
-  return {
-    contestId: match[1],
-    index: match[2],
-    // Prefix gym problems with 'G' to distinguish them.
-    problemId: `${isGym ? 'G' : ''}${match[1]}${match[2]}`,
-    url: normalizedFinalUrl
-  };
-}
-
 // A contestId is a positive integer; an index is a letter optionally followed
 // by digits (e.g. "A", "F", "B2"). Kept strict so malformed input is rejected
 // before hitting the upstream API.

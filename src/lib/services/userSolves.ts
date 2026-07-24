@@ -10,6 +10,7 @@
  * upserts exactly that set under the user's own session and RLS. Import never
  * creates problems.
  */
+import { getCurrentActor, resolveCurrentActor } from '$lib/auth/currentActor';
 import { supabase } from './database';
 import type { SolveMatchResult } from './codeforcesSolves';
 
@@ -18,10 +19,8 @@ import type { SolveMatchResult } from './codeforcesSolves';
 async function fetchMatches(
   handle: string
 ): Promise<{ success: true; result: SolveMatchResult } | { success: false; message: string }> {
-  const {
-    data: { session }
-  } = await supabase.auth.getSession();
-  const accessToken = session?.access_token;
+  await resolveCurrentActor();
+  const accessToken = getCurrentActor().session?.access_token;
   if (!accessToken) {
     return { success: false, message: 'You must be signed in to import solves' };
   }
@@ -83,10 +82,8 @@ export async function confirmCodeforcesImport(handle: string): Promise<{
   imported: number;
   message?: string;
 }> {
-  const {
-    data: { session }
-  } = await supabase.auth.getSession();
-  const currentUser = session?.user;
+  await resolveCurrentActor();
+  const currentUser = getCurrentActor().user;
   if (!currentUser) {
     return { success: false, imported: 0, message: 'You must be signed in to import solves' };
   }

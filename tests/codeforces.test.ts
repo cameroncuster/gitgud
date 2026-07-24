@@ -1,5 +1,5 @@
 /**
- * Unit tests for Codeforces problem URL parsing and problemset-based metadata
+ * Unit tests for Codeforces ingestion URL parsing and problemset metadata
  * resolution. Run with: `node --test tests/`
  *
  * These tests exercise the pure, dependency-free helpers only. They use a
@@ -13,10 +13,10 @@ import {
   PROBLEMSET_API_URL,
   resolveFromCatalog,
   validateProblemRef,
-  parseProblemUrl,
   type CodeforcesProblemsetProblem,
   type FetchLike
 } from '../src/lib/services/codeforcesProblemset.ts';
+import { parseCodeforcesProblemUrl as parseProblemUrl } from '../src/lib/providers/codeforces/ingestion.ts';
 
 // The five problems from the user repro report.
 const REPRO = [

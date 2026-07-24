@@ -89,6 +89,18 @@ export async function setProviderMode(mode: ProviderMode): Promise<void> {
   }
 }
 
+export type MutationMode = 'success' | 'null' | 'error' | 'delayed-success' | 'delayed-error';
+export async function setMutationMode(mode: MutationMode): Promise<void> {
+  const res = await fetch(`${MOCK_URL}/__control/mutation`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode })
+  });
+  if (!res.ok) {
+    throw new Error(`failed to set mutation mode '${mode}': HTTP ${res.status}`);
+  }
+}
+
 // Read the number of user_solved_problems write attempts the mock has seen this
 // run. Used to assert that a read-only preview performs ZERO writes.
 export async function getSolvedWriteAttempts(): Promise<number> {

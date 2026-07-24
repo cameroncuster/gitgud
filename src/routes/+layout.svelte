@@ -3,45 +3,37 @@ import Footer from '$lib/components/Footer.svelte';
 import Header from '$lib/components/Header.svelte';
 import '../app.css';
 import { onMount } from 'svelte';
-import { initAuth, user } from '$lib/services/auth';
+import { currentActor, startCurrentActor } from '$lib/auth/currentActor';
 import { loadThemePreference, applyTheme } from '$lib/services/theme';
 import { browser } from '$app/environment';
 
-let authSubscription: { subscription: { unsubscribe: () => void } } | null = null;
-
 onMount(() => {
-  // Initialize authentication
-  const initializeAuth = async () => {
-    authSubscription = await initAuth();
+  let mounted = true;
+  let themedUserId: string | null = null;
+  let stopActor: (() => void) | null = null;
+  const actorUnsubscribe = currentActor.subscribe(async (actor) => {
+    if (actor.user && actor.user.id !== themedUserId) {
+      themedUserId = actor.user.id;
+      await loadThemePreference();
+    } else if (!actor.user) {
+      themedUserId = null;
+    }
+  });
 
-    // Apply theme immediately to prevent flashing
+  const initialize = async () => {
     if (browser) {
-      // Try to get theme from localStorage first for immediate application
-      // This prevents flashing while we wait for the database
-      const storedTheme = localStorage.getItem('gitgud-theme');
-      if (storedTheme) {
-        applyTheme(storedTheme);
-      } else {
-        // Default to light theme if nothing in localStorage
-        applyTheme('light');
-      }
-
-      // Load user's theme preference from database once authenticated
-      user.subscribe(async (currentUser) => {
-        if (currentUser) {
-          await loadThemePreference();
-        }
-      });
+      applyTheme(localStorage.getItem('gitgud-theme') || 'light');
     }
+    const stop = await startCurrentActor();
+    if (mounted) stopActor = stop;
+    else stop();
   };
+  void initialize();
 
-  initializeAuth();
-
-  // Clean up on component unmount
   return () => {
-    if (authSubscription?.subscription) {
-      authSubscription.subscription.unsubscribe();
-    }
+    mounted = false;
+    actorUnsubscribe();
+    stopActor?.();
   };
 });
 </script>

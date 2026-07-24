@@ -1,80 +1,60 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
   import { goto } from '$app/navigation';
   import { resolve as resolvePath } from '$app/paths';
   import { page } from '$app/stores';
-  import { user, isAdmin } from '$lib/services/auth';
-  import { supabase } from '$lib/services/database';
-  import { createProviderAdapters } from '$lib/components/submitProviders';
-  import type { ProviderId, PreviewRow, Stage } from '$lib/components/submitForm';
-  import type { Unsubscriber } from 'svelte/store';
+  import { currentActor, resolveCurrentActor } from '$lib/auth/currentActor';
+  import { createProviderAdapters, providerOrder } from '$lib/submit/providers';
+  import type { ProviderId, WorkflowStage } from '$lib/submit/types';
+  import { createSubmissionWorkflow, providerFromUrl } from '$lib/submit/workflow';
+  import { get, type Unsubscriber } from 'svelte/store';
 
-  // Provider adapters are created once per mount so the Codeforces per-paste
-  // batch memoization never leaks across navigations.
   const adapters = createProviderAdapters();
-  const providerOrder: ProviderId[] = ['codeforces', 'kattis'];
+  const workflow = createSubmissionWorkflow(adapters, providerFromUrl(get(page).url));
+  let workflowState = workflow.getState();
+  const workflowUnsubscribe = workflow.subscribe((state) => (workflowState = state));
+  onDestroy(workflowUnsubscribe);
 
-  // --- Auth gate state -------------------------------------------------------
   let isAdminUser = false;
   let checkingAdmin = true;
   let authError: string | null = null;
   let userUnsubscribe: Unsubscriber | null = null;
 
-  // --- Workspace state -------------------------------------------------------
-  let provider: ProviderId = 'codeforces';
-  let handle = '';
-  let pasted = '';
-  let rows: PreviewRow[] = [];
-  let resolving = false;
-  let committing = false;
-  let done = false;
-  let inlineError: string | null = null;
-  let rowSeq = 0;
-
-  // The optional handle must match the shared handle shape when non-empty.
-  const handlePattern = /^[a-zA-Z0-9._-]{2,24}$/;
-
-  // Elements captured for focus management.
   let pasteInput: HTMLTextAreaElement | null = null;
   let reviewHeading: HTMLHeadingElement | null = null;
 
+  $: provider = workflowState.provider;
+  $: handle = workflowState.handle;
+  $: pasted = workflowState.pasted;
+  $: rows = workflowState.rows;
+  $: resolving = workflowState.resolving;
+  $: committing = workflowState.committing;
+  $: done = workflowState.done;
+  $: inlineError = workflowState.inlineError;
+  $: validCount = workflowState.validCount;
+  $: invalidCount = workflowState.invalidCount;
+  $: addedCount = workflowState.addedCount;
+  $: committedFailures = workflowState.committedFailures;
   $: adapter = adapters[provider];
-
-  // Which of the three visible stages is active. Source until text is pasted,
-  // Links while typing, Review once rows are staged.
-  $: stage = ((): Stage => {
-    if (rows.length > 0) return 'review';
-    if (pasted.trim().length > 0) return 'links';
-    return 'source';
-  })();
-
-  // Preview tallies. Only still-present valid rows are committable.
-  $: validCount = rows.filter((r) => r.item.valid).length;
-  $: invalidCount = rows.length - validCount;
-  $: addedCount = rows.filter((r) => r.status === 'added').length;
-  $: committedFailures = rows.filter((r) => r.status === 'failed').length;
+  $: stage = workflowState.stage === 'complete' ? 'review' : workflowState.stage;
 
   onMount(() => {
     const initAuth = async () => {
-      const { data } = await supabase.auth.getSession();
-      const currentUser = data.session?.user || null;
-      if (!currentUser) {
+      const actor = await resolveCurrentActor();
+      if (!actor.user) {
         goto(resolvePath('/'));
         return;
       }
       checkingAdmin = true;
-      try {
-        isAdminUser = await isAdmin(currentUser.id);
-        if (!isAdminUser) {
-          authError = 'Only admins can submit problems.';
-        }
-      } catch {
+      isAdminUser = actor.isAdmin;
+      if (actor.adminCheckFailed) {
         authError = 'Failed to verify your permissions. Please try again later.';
-      } finally {
-        checkingAdmin = false;
+      } else if (!isAdminUser) {
+        authError = 'Only admins can submit problems.';
       }
-      userUnsubscribe = user.subscribe((value) => {
-        if (value === null && currentUser !== null) {
+      checkingAdmin = false;
+      userUnsubscribe = currentActor.subscribe((value) => {
+        if (value.initialized && !value.user) {
           goto(resolvePath('/'));
         }
       });
@@ -83,139 +63,53 @@
     return () => userUnsubscribe?.();
   });
 
-  // Preselect the provider from ?provider=… so the deep-link routes
-  // (/submit/codeforces, /submit/kattis) land on the right selection.
   $: {
-    const q = $page.url.searchParams.get('provider');
-    if (q === 'codeforces' || q === 'kattis') {
-      provider = q;
-    }
+    const selected = providerFromUrl($page.url);
+    if (selected) workflow.syncProviderFromRoute(selected);
   }
 
-  // Switching providers or editing the paste discards any staged preview so the
-  // Review stage never mixes providers or shows stale rows.
   function selectProvider(next: ProviderId) {
-    if (next === provider) return;
-    provider = next;
-    resetPreview();
+    workflow.selectProvider(next);
   }
 
-  function resetPreview() {
-    rows = [];
-    done = false;
-    inlineError = null;
+  function onHandleInput(event: Event) {
+    workflow.setHandle((event.currentTarget as HTMLInputElement).value);
   }
 
-  function onPasteInput() {
-    if (rows.length > 0 || done) {
-      resetPreview();
-    }
+  function onPasteInput(event: Event) {
+    workflow.setPasted((event.currentTarget as HTMLTextAreaElement).value);
   }
 
-  // Phase 1: resolve. Parse the paste, then fetch metadata + duplicate check for
-  // each URL. READ-ONLY — this never inserts. Produces the staged preview rows.
   async function resolveEntries() {
-    inlineError = null;
-    if (!isAdminUser) {
+    const outcome = await workflow.resolveEntries({
+      authorized: isAdminUser,
+      onReviewReady: async () => {
+        await tick();
+        reviewHeading?.focus();
+      }
+    });
+    if (outcome === 'unauthorized') {
       authError = 'Only admins can submit problems.';
-      return;
-    }
-    if (handle && !handle.match(handlePattern)) {
-      inlineError = `Invalid ${adapter.name} handle format.`;
-      return;
-    }
-    const urls = adapter.extract(pasted);
-    if (urls.length === 0) {
-      inlineError = `No valid ${adapter.name} URLs found. Enter at least one valid URL.`;
+    } else if (outcome === 'no-entries') {
       pasteInput?.focus();
-      return;
-    }
-
-    resolving = true;
-    done = false;
-    rows = urls.map((url) => ({
-      id: ++rowSeq,
-      status: 'staged' as const,
-      item: { valid: false, kind: 'problem', label: url, url, reason: 'Resolving…' }
-    }));
-
-    // Move focus to the Review region so keyboard/screen-reader users follow.
-    await tick();
-    reviewHeading?.focus();
-
-    try {
-      for (let i = 0; i < urls.length; i++) {
-        let resolved;
-        try {
-          resolved = await adapter.resolve(urls[i], handle);
-        } catch (err) {
-          resolved = {
-            valid: false as const,
-            kind: 'problem' as const,
-            label: urls[i],
-            url: urls[i],
-            reason: err instanceof Error ? err.message : 'Failed to resolve URL'
-          };
-        }
-        rows[i] = { ...rows[i], item: resolved };
-        rows = [...rows];
-      }
-    } finally {
-      resolving = false;
     }
   }
 
-  // Remove a staged row so it is excluded from the write set entirely.
   function removeRow(id: number) {
-    rows = rows.filter((r) => r.id !== id);
-    if (rows.length === 0) {
-      resetPreview();
-    }
+    workflow.removeRow(id);
   }
 
-  // Phase 2: confirm. Insert only the still-present, valid rows. This is the one
-  // and only place the workspace writes to the database.
-  async function confirmAdd() {
-    if (committing || validCount === 0) return;
-    committing = true;
-    inlineError = null;
-    try {
-      for (let i = 0; i < rows.length; i++) {
-        const row = rows[i];
-        if (!row.item.valid) continue;
-        rows[i] = { ...row, status: 'committing' };
-        rows = [...rows];
-        let result;
-        try {
-          result = await adapter.commit(row.item);
-        } catch (err) {
-          result = {
-            success: false,
-            message: err instanceof Error ? err.message : 'Failed to add entry'
-          };
-        }
-        rows[i] = {
-          ...rows[i],
-          status: result.success ? 'added' : 'failed',
-          message: result.message
-        };
-        rows = [...rows];
-      }
-      done = true;
-    } finally {
-      committing = false;
-    }
+  function confirmAdd() {
+    return workflow.confirmAdd();
   }
 
-  // Start over: clear the paste and preview to return to the Source stage.
   function startAnother() {
-    pasted = '';
-    resetPreview();
+    workflow.startAnother();
     pasteInput?.focus();
   }
 
   $: stageIndex = stage === 'source' ? 0 : stage === 'links' ? 1 : 2;
-  const stageLabels: { id: Stage; label: string }[] = [
+  const stageLabels: { id: Exclude<WorkflowStage, 'complete'>; label: string }[] = [
     { id: 'source', label: 'Source' },
     { id: 'links', label: 'Links' },
     { id: 'review', label: 'Review' }
@@ -299,7 +193,8 @@
       <input
         type="text"
         id="handle"
-        bind:value={handle}
+        value={handle}
+        on:input={onHandleInput}
         placeholder={`Your ${adapter.name} handle (optional)`}
         disabled={resolving || committing}
         autocomplete="off"
@@ -314,7 +209,7 @@
       <textarea
         id="paste"
         bind:this={pasteInput}
-        bind:value={pasted}
+        value={pasted}
         on:input={onPasteInput}
         placeholder={adapter.placeholder}
         rows="6"

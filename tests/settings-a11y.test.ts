@@ -214,16 +214,16 @@ test('the settings init has no fixed timeout / artificial delay', () => {
   );
 });
 
-test('the settings init gates on the resolved session (getSession) and redirects anonymous visitors', () => {
+test('the settings init gates on the resolved current actor and redirects anonymous visitors', () => {
   assert.match(
     SETTINGS,
-    /supabase\.auth\.getSession\(\)/,
-    'init must resolve the session via getSession()'
+    /import\s*\{[^}]*resolveCurrentActor[^}]*\}\s*from '\$lib\/auth\/currentActor';/,
+    'init must resolve auth through the currentActor module'
   );
-  // Anonymous visitors are redirected home once the session resolves.
+  // Anonymous visitors are redirected home once the actor resolves.
   assert.match(
     SETTINGS,
-    /if \(!currentUser\)\s*\{\s*\/\/[\s\S]*?goto\(resolve\('\/'\)\)/,
-    'init must redirect home when no session is present'
+    /const actor = await resolveCurrentActor\(\);[\s\S]*?if \(!actor\.user\)\s*\{\s*\/\/[\s\S]*?goto\(resolve\('\/'\)\)/,
+    'init must await the current actor and redirect home when no user is present'
   );
 });

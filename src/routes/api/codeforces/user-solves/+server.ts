@@ -10,6 +10,7 @@ import {
   normalizeHandle,
   type TrackedProblem
 } from '$lib/services/codeforcesSolves';
+import { requireUser } from '$lib/server/authorization';
 import type { RequestHandler } from './$types';
 
 // Bound the upstream fetch so a slow or hostile Codeforces cannot pin a server
@@ -20,35 +21,6 @@ const FETCH_TIMEOUT_MS = 15_000;
 // prolific account's user.status is a few MB of JSON; this leaves generous
 // headroom while refusing pathological payloads.
 const MAX_RESPONSE_BYTES = 25 * 1024 * 1024;
-
-/**
- * Verify the request carries a valid Supabase session for an authenticated app
- * user (any signed-in user, not just admins). Uses the caller's own access
- * token — never a service-role secret — so all downstream work runs as that
- * user under RLS. Returns the user id when authorized, or an error response.
- */
-async function requireUser(request: Request): Promise<{ userId: string } | Response> {
-  const authHeader = request.headers.get('authorization') || '';
-  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
-  if (!token) {
-    return json({ error: 'Authentication required' }, { status: 401 });
-  }
-
-  const supabase = createClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
-    auth: { persistSession: false, autoRefreshToken: false }
-  });
-
-  const {
-    data: { user },
-    error: userError
-  } = await supabase.auth.getUser(token);
-  if (userError || !user) {
-    return json({ error: 'Invalid or expired session' }, { status: 401 });
-  }
-
-  return { userId: user.id };
-}
 
 /**
  * Read the raw body of an upstream response with a hard byte cap so an oversized
@@ -86,9 +58,7 @@ async function readBounded(response: Response): Promise<string | null> {
  */
 export const GET: RequestHandler = async ({ url, request, fetch }) => {
   const auth = await requireUser(request);
-  if (auth instanceof Response) {
-    return auth;
-  }
+  if (!auth.authorized) return auth.response;
 
   const handle = normalizeHandle(url.searchParams.get('handle') || '');
   if (!handle) {

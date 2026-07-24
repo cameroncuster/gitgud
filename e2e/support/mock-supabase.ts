@@ -42,7 +42,8 @@
 //   POST /__control/scenario  body {"scenario":"data"|"empty"|"error"}
 //   POST /__control/reset     resets the in-memory insert store + provider mode
 //   POST /__control/provider  body {"mode":"ok"|"fail"|"notfound", ...fixtures}
-//   GET  /__control/scenario  -> {"scenario","inserted":{...},"provider":"..."}
+//   POST /__control/mutation  selects success/null/delayed/error writes
+//   GET  /__control/scenario  returns current mode and isolated write counts
 //
 // Every write lands ONLY in this process's in-memory maps and is wiped by
 // /__control/reset (called per scenario), so tests never touch a real store and
@@ -54,6 +55,7 @@ import { ADMIN_USER, MEMBER_USER } from './constants.ts';
 
 type Scenario = 'data' | 'empty' | 'error';
 type ProviderMode = 'ok' | 'fail' | 'notfound' | 'malformed' | 'ratelimited';
+type MutationMode = 'success' | 'null' | 'error' | 'delayed-success' | 'delayed-error';
 
 // Server-wide current scenario, switched via the control endpoint.
 let scenario: Scenario = (process.env.MOCK_SCENARIO as Scenario) || 'data';
@@ -66,10 +68,9 @@ const USERS = [ADMIN_USER, MEMBER_USER];
 const userByToken = new Map(USERS.map((u) => [u.accessToken, u]));
 const roleByUserId = new Map(USERS.map((u) => [u.id, u.role]));
 
-// --- In-memory insert store (isolated, reset per scenario) -------------------
-// Only URLs written during a run live here; existence checks and inserts read
-// and write these, never the read fixtures, so a submit test's writes are fully
-// isolated and deterministic.
+// --- In-memory stores (isolated, reset per scenario) ------------------------
+// Submission and interaction writes live only here, so tests never mutate the
+// read fixtures or any external data.
 let insertedProblems: { id: string; url: string; name: string }[] = [];
 let insertedContests: { id: string; url: string; name: string }[] = [];
 let insertSeq = 0;
@@ -78,9 +79,15 @@ let insertSeq = 0;
 // Idempotent (a repeat insert of an existing pair is a unique violation the app
 // treats as already-solved) and reset per scenario so imports never leak.
 let solvedByUser = new Map<string, Set<string>>();
+let participationByUser = new Map<string, Set<string>>();
+let problemFeedbackByUser = new Map<string, Map<string, 'like' | 'dislike'>>();
+let contestFeedbackByUser = new Map<string, Map<string, 'like' | 'dislike'>>();
+let problemRows = PROBLEMS.map((row) => ({ ...row }));
+let contestRows = CONTESTS.map((row) => ({ ...row }));
 // Total user_solved_problems write attempts (POST) seen this run, so a spec can
 // assert that preview performs ZERO writes.
 let solvedWriteAttempts = 0;
+let mutationMode: MutationMode = 'success';
 
 // --- Provider (Codeforces/Kattis) stub mode ----------------------------------
 // The server-side app endpoints (/api/codeforces/problems, /api/kattis) fetch
@@ -95,22 +102,35 @@ function resetState(): void {
   insertedContests = [];
   insertSeq = 0;
   solvedByUser = new Map();
+  participationByUser = new Map();
+  problemFeedbackByUser = new Map();
+  contestFeedbackByUser = new Map();
+  problemRows = PROBLEMS.map((row) => ({ ...row }));
+  contestRows = CONTESTS.map((row) => ({ ...row }));
   solvedWriteAttempts = 0;
+  mutationMode = 'success';
   provider = 'ok';
 }
+
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': '*',
+  'Access-Control-Allow-Methods': 'GET,POST,DELETE,PATCH,OPTIONS'
+};
 
 function sendJson(res: http.ServerResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body);
   res.writeHead(status, {
     'Content-Type': 'application/json',
     'Content-Length': Buffer.byteLength(payload),
-    // The Supabase JS client sends these on every request; echoing permissive
-    // CORS keeps any (non-SSR) client-side call from failing on preflight.
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': '*',
-    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS'
+    ...CORS_HEADERS
   });
   res.end(payload);
+}
+
+function sendNoContent(res: http.ServerResponse): void {
+  res.writeHead(204, CORS_HEADERS);
+  res.end();
 }
 
 // A PostgREST-style error body. The data services read `error.message`, so a
@@ -138,8 +158,8 @@ function bearerToken(req: http.IncomingMessage): string {
 }
 
 function payloadFor(pathname: string): unknown[] | null {
-  if (pathname === '/rest/v1/problems') return PROBLEMS;
-  if (pathname === '/rest/v1/contests') return CONTESTS;
+  if (pathname === '/rest/v1/problems') return problemRows;
+  if (pathname === '/rest/v1/contests') return contestRows;
   if (pathname === '/rest/v1/rpc/get_leaderboard') return LEADERBOARD;
   return null;
 }
@@ -382,12 +402,24 @@ function handleSolvedRead(req: http.IncomingMessage, res: http.ServerResponse, u
   sendJson(res, 200, rows);
 }
 
+async function waitForMutation(res: http.ServerResponse): Promise<boolean> {
+  if (mutationMode === 'delayed-success' || mutationMode === 'delayed-error') {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  if (mutationMode === 'error' || mutationMode === 'delayed-error') {
+    sendError(res);
+    return false;
+  }
+  return true;
+}
+
 async function handleSolvedInsert(
   req: http.IncomingMessage,
   res: http.ServerResponse,
   body: string
 ): Promise<void> {
   solvedWriteAttempts++;
+  if (!(await waitForMutation(res))) return;
   const caller = userByToken.get(bearerToken(req));
   if (!caller) {
     sendJson(res, 401, { code: 401, msg: 'invalid claim: missing sub claim' });
@@ -424,6 +456,120 @@ async function handleSolvedInsert(
   // upsert(...).select('problem_id') returns only the newly-inserted rows when
   // ignoreDuplicates is set.
   sendJson(res, 201, inserted);
+}
+
+async function handleSolvedDelete(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  url: URL
+): Promise<void> {
+  if (!(await waitForMutation(res))) return;
+  const caller = userByToken.get(bearerToken(req));
+  if (!caller) {
+    sendJson(res, 401, { code: 401, msg: 'invalid claim: missing sub claim' });
+    return;
+  }
+  solvedByUser.get(caller.id)?.delete(eqFilter(url, 'problem_id') || '');
+  sendNoContent(res);
+}
+
+function handleActorRows(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  url: URL,
+  kind: 'problem-feedback' | 'contest-feedback' | 'participation'
+): void {
+  const userId = eqFilter(url, 'user_id') || userByToken.get(bearerToken(req))?.id;
+  if (!userId) {
+    sendJson(res, 200, []);
+    return;
+  }
+  if (kind === 'participation') {
+    const rows = Array.from(participationByUser.get(userId) || []).map((contest_id) => ({
+      contest_id
+    }));
+    sendJson(res, 200, rows);
+    return;
+  }
+  const feedback =
+    kind === 'problem-feedback'
+      ? problemFeedbackByUser.get(userId)
+      : contestFeedbackByUser.get(userId);
+  const idKey = kind === 'problem-feedback' ? 'problem_id' : 'contest_id';
+  const entries = feedback ? Array.from(feedback.entries()) : [];
+  sendJson(
+    res,
+    200,
+    entries.map(([id, feedback_type]) => ({ [idKey]: id, feedback_type }))
+  );
+}
+
+async function handleParticipationWrite(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  url: URL,
+  body: string
+): Promise<void> {
+  if (!(await waitForMutation(res))) return;
+  const caller = userByToken.get(bearerToken(req));
+  if (!caller) {
+    sendJson(res, 401, { code: 401, msg: 'invalid claim: missing sub claim' });
+    return;
+  }
+  const set = participationByUser.get(caller.id) || new Set<string>();
+  if (req.method === 'DELETE') {
+    set.delete(eqFilter(url, 'contest_id') || '');
+  } else {
+    const record = JSON.parse(body || '{}') as { contest_id?: string };
+    if (record.contest_id) set.add(record.contest_id);
+  }
+  participationByUser.set(caller.id, set);
+  if (req.method === 'DELETE') sendNoContent(res);
+  else sendJson(res, 201, []);
+}
+
+async function handleFeedbackRpc(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  body: string,
+  kind: 'problem' | 'contest'
+): Promise<void> {
+  if (!(await waitForMutation(res))) return;
+  if (mutationMode === 'null') {
+    sendJson(res, 200, null);
+    return;
+  }
+  const caller = userByToken.get(bearerToken(req));
+  if (!caller) {
+    sendJson(res, 401, { code: 401, msg: 'invalid claim: missing sub claim' });
+    return;
+  }
+  const input = JSON.parse(body || '{}') as {
+    p_problem_id?: string;
+    p_contest_id?: string;
+    p_is_like?: boolean;
+  };
+  const id = kind === 'problem' ? input.p_problem_id : input.p_contest_id;
+  const next = input.p_is_like ? 'like' : 'dislike';
+  const byUser = kind === 'problem' ? problemFeedbackByUser : contestFeedbackByUser;
+  const feedback = byUser.get(caller.id) || new Map<string, 'like' | 'dislike'>();
+  const previous = id ? feedback.get(id) : undefined;
+  const rows = kind === 'problem' ? problemRows : contestRows;
+  const row = rows.find((candidate) => candidate.id === id);
+  if (!id || !row) {
+    sendJson(res, 200, []);
+    return;
+  }
+  if (previous === next) {
+    feedback.delete(id);
+    row[next === 'like' ? 'likes' : 'dislikes']--;
+  } else {
+    if (previous) row[previous === 'like' ? 'likes' : 'dislikes']--;
+    feedback.set(id, next);
+    row[next === 'like' ? 'likes' : 'dislikes']++;
+  }
+  byUser.set(caller.id, feedback);
+  sendJson(res, 200, [{ ...row }]);
 }
 
 function handleKattisPage(res: http.ServerResponse): void {
@@ -463,6 +609,7 @@ const server = http.createServer(async (req, res) => {
     sendJson(res, 200, {
       scenario,
       provider,
+      mutationMode,
       inserted: { problems: insertedProblems.length, contests: insertedContests.length },
       solvedWriteAttempts
     });
@@ -490,9 +637,29 @@ const server = http.createServer(async (req, res) => {
         provider = next;
       }
     } catch {
-      // Ignore malformed payloads; keep current provider mode.
+      // Ignore malformed control payloads.
     }
     sendJson(res, 200, { provider });
+    return;
+  }
+
+  if (url.pathname === '/__control/mutation') {
+    const body = await readBody(req);
+    try {
+      const next = (JSON.parse(body || '{}') as { mode?: MutationMode }).mode;
+      if (
+        next === 'success' ||
+        next === 'null' ||
+        next === 'error' ||
+        next === 'delayed-success' ||
+        next === 'delayed-error'
+      ) {
+        mutationMode = next;
+      }
+    } catch {
+      // Ignore malformed control payloads.
+    }
+    sendJson(res, 200, { mutationMode });
     return;
   }
 
@@ -537,11 +704,16 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // user_solved_problems: read (GET) and idempotent user-scoped insert (POST).
+  // Current-actor interaction reads and isolated writes.
   if (url.pathname === '/rest/v1/user_solved_problems') {
     if (req.method === 'POST') {
       const body = await readBody(req);
       await handleSolvedInsert(req, res, body);
+      return;
+    }
+    if (req.method === 'DELETE') {
+      await readBody(req);
+      await handleSolvedDelete(req, res, url);
       return;
     }
     await readBody(req);
@@ -550,6 +722,45 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     handleSolvedRead(req, res, url);
+    return;
+  }
+  if (url.pathname === '/rest/v1/user_problem_feedback') {
+    await readBody(req);
+    if (scenario === 'error') {
+      sendError(res);
+      return;
+    }
+    handleActorRows(req, res, url, 'problem-feedback');
+    return;
+  }
+  if (url.pathname === '/rest/v1/user_contest_feedback') {
+    await readBody(req);
+    if (scenario === 'error') {
+      sendError(res);
+      return;
+    }
+    handleActorRows(req, res, url, 'contest-feedback');
+    return;
+  }
+  if (url.pathname === '/rest/v1/user_contest_participation') {
+    const body = await readBody(req);
+    if (req.method === 'POST' || req.method === 'DELETE') {
+      await handleParticipationWrite(req, res, url, body);
+    } else if (scenario === 'error') {
+      sendError(res);
+    } else {
+      handleActorRows(req, res, url, 'participation');
+    }
+    return;
+  }
+  if (url.pathname === '/rest/v1/rpc/update_problem_feedback') {
+    const body = await readBody(req);
+    await handleFeedbackRpc(req, res, body, 'problem');
+    return;
+  }
+  if (url.pathname === '/rest/v1/rpc/update_contest_feedback') {
+    const body = await readBody(req);
+    await handleFeedbackRpc(req, res, body, 'contest');
     return;
   }
   if (url.pathname.startsWith('/problems/')) {

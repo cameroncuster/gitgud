@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { MOCK_URL } from './support/constants.ts';
 import { waitForShell } from './support/harness.ts';
 import { setScenario } from './support/scenario.ts';
 
@@ -9,7 +10,7 @@ test.beforeEach(async () => {
 // Explicit backend-failure coverage (the `error` scenario: every Supabase read
 // replies 500).
 //
-// Observed product behavior: the data services (fetchProblems / fetchContests /
+// Observed product behavior: the domain queries (fetchProblems / fetchContests /
 // fetchLeaderboard) catch the backend error, log it server-side, and return an
 // empty result, so the SSR page degrades to a safe empty shell rather than
 // crashing or blanking. There is no user-facing error banner on the initial
@@ -44,4 +45,19 @@ test('leaderboard backend failure renders the table shell with no rows', async (
   // Column headers still render from the shell.
   await expect(page.getByRole('columnheader', { name: /Rank/i })).toBeVisible();
   await expect(page.locator('table tbody tr')).toHaveCount(0);
+});
+
+test('actor feedback and participation reads honor the error scenario', async ({ request }) => {
+  for (const table of [
+    'user_problem_feedback',
+    'user_contest_feedback',
+    'user_contest_participation'
+  ]) {
+    const response = await request.get(`${MOCK_URL}/rest/v1/${table}`);
+    expect(response.status()).toBe(500);
+    expect(await response.json()).toMatchObject({
+      code: 'PGRST500',
+      message: 'mock backend failure'
+    });
+  }
 });

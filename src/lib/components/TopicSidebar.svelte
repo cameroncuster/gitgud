@@ -4,14 +4,12 @@ import { onMount } from 'svelte';
 
 // Props
 export let topics: string[] = [];
+export let newTopic: string;
 export let selectedTopic: string | null = null;
 export let onSelectTopic: (topic: string | null) => void;
 export let isMobile: boolean = false;
 export let isOpen: boolean = false;
 export let onToggle: () => void;
-
-// Special topic value for NEW problems
-const NEW_TOPIC = 'NEW';
 
 let touchStartX = 0;
 let touchEndX = 0;
@@ -120,11 +118,11 @@ onMount(() => {
       <!-- Special NEW button with different styling -->
       <button
         class={`w-full rounded-md px-3 py-2 text-left transition-colors duration-200 ${
-          selectedTopic === NEW_TOPIC
+          selectedTopic === newTopic
             ? 'bg-[var(--color-accent)] text-white'
             : 'text-[var(--color-heading)] hover:bg-[var(--color-tertiary)] hover:text-[var(--color-heading)]'
         } border-2 border-dashed border-[var(--color-accent)] font-bold`}
-        on:click={() => onSelectTopic(NEW_TOPIC)}
+        on:click={() => onSelectTopic(newTopic)}
       >
         NEW
       </button>
@@ -166,11 +164,11 @@ onMount(() => {
       <!-- Special NEW button with different styling for mobile -->
       <button
         class={`w-full rounded-md px-3 py-2 text-left transition-colors duration-200 ${
-          selectedTopic === NEW_TOPIC
+          selectedTopic === newTopic
             ? 'bg-[var(--color-accent)] text-white'
             : 'text-[var(--color-heading)] hover:bg-[var(--color-tertiary)] hover:text-[var(--color-heading)]'
         } border-2 border-dashed border-[var(--color-accent)] font-bold`}
-        on:click={() => onSelectTopic(NEW_TOPIC)}
+        on:click={() => onSelectTopic(newTopic)}
       >
         NEW
       </button>
