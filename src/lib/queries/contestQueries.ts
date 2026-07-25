@@ -102,7 +102,9 @@ export async function fetchContestFeedback(): Promise<Record<string, 'like' | 'd
       console.error('Error fetching user contest feedback:', error);
       return {};
     }
-    return Object.fromEntries(data.map((item) => [item.contest_id, item.feedback_type]));
+    return Object.fromEntries(
+      data.map((item) => [item.contest_id, item.feedback_type as 'like' | 'dislike' | null])
+    );
   } catch (error) {
     console.error('Failed to fetch user contest feedback:', error);
     return {};
