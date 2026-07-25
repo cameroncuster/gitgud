@@ -12,9 +12,6 @@ pnpm-lock.yaml
 package-lock.json
 yarn.lock
 
-# Ignore scripts folder
-scripts/
-
 # Generated Supabase types (kept byte-identical to `supabase gen types` output)
 src/lib/types/database.ts
 

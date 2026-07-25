@@ -43,10 +43,7 @@ function problem(likes = 2, dislikes = 1): Problem {
   return {
     id: 'p',
     name: 'Problem',
-    tags: [],
     url: 'https://example.com/p',
-    solved: 0,
-    dateAdded: '',
     addedBy: 'author',
     addedByUrl: '',
     likes,
@@ -135,6 +132,40 @@ test('problem controller loads, clears, and reloads on actor changes', async () 
   assert.deepEqual([...context.controller.state.solvedProblemIds], ['two']);
 });
 
+test('problem controller start is idempotent and subscriptions can unsubscribe', () => {
+  const context = setup();
+  context.controller.start();
+  assert.equal(context.actor.listenerCount, 1);
+  const unsubscribe = context.controller.subscribe(() => {});
+  unsubscribe();
+  context.controller.dispose();
+  context.controller.dispose();
+  context.controller.start();
+  assert.equal(context.actor.listenerCount, 0);
+});
+
+test('problem load failures are contained without changing empty state', async () => {
+  const context = setup({
+    loadFeedback: async () => Promise.reject(new Error('feedback failed')),
+    loadSolvedProblemIds: async () => Promise.reject(new Error('solved failed'))
+  });
+  context.actor.set({ user: { id: 'actor' } });
+  await settle();
+  assert.deepEqual(context.controller.state.feedback, {});
+  assert.deepEqual([...context.controller.state.solvedProblemIds], []);
+});
+
+test('problem reactions ignore unknown IDs without writes', async () => {
+  let writes = 0;
+  const context = setup(
+    { updateFeedback: async () => ((writes += 1), null) },
+    { user: { id: 'actor' } }
+  );
+  await settle();
+  await context.controller.react('missing', true);
+  assert.equal(writes, 0);
+});
+
 test('problem reactions update before RPC and null preserves optimism', async () => {
   const pending = deferred<Problem | null>();
   const context = setup({ updateFeedback: () => pending.promise }, { user: { id: 'actor' } });
@@ -214,6 +245,36 @@ test('problem solved changes optimistically and failed writes reconcile', async 
 
   await context.controller.setSolved('p', false);
   assert.equal(context.controller.state.solvedProblemIds.has('p'), false);
+});
+
+test('problem solved thrown writes reconcile unless the actor changed', async () => {
+  let loads = 0;
+  const context = setup(
+    {
+      loadSolvedProblemIds: async () => (++loads === 1 ? new Set() : new Set(['server'])),
+      setSolved: async () => Promise.reject(new Error('write failed'))
+    },
+    { user: { id: 'actor' } }
+  );
+  await settle();
+  await context.controller.setSolved('p', true);
+  assert.deepEqual([...context.controller.state.solvedProblemIds], ['server']);
+
+  const pending = deferred<boolean>();
+  let reloads = 0;
+  const stale = setup(
+    {
+      loadSolvedProblemIds: async () => ((reloads += 1), new Set()),
+      setSolved: () => pending.promise
+    },
+    { user: { id: 'one' } }
+  );
+  await settle();
+  const write = stale.controller.setSolved('p', true);
+  stale.actor.set({ user: { id: 'two' } });
+  pending.resolve(false);
+  await write;
+  assert.equal(reloads, 2);
 });
 
 test('problem controller ignores stale actor loads and all loads after dispose', async () => {

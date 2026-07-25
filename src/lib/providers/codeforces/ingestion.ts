@@ -61,12 +61,14 @@ type CodeforcesApiResponse = {
 export function parseCodeforcesProblemUrl(problemUrl: string): CodeforcesProblemInfo | null {
   const cleanUrl = problemUrl.trim().replace(/^(https?:\/\/)?(www\.)?/, '');
   const contestMatch = cleanUrl.match(
-    /(?:mirror\.)?codeforces\.com\/contest\/(\d+)\/problem\/([A-Z\d]+)/
+    /^(?:mirror\.)?codeforces\.com\/contest\/(\d+)\/problem\/([A-Z\d]+)\/?(?:[?#].*)?$/
   );
   const problemsetMatch = cleanUrl.match(
-    /(?:mirror\.)?codeforces\.com\/problemset\/problem\/(\d+)\/([A-Z\d]+)/
+    /^(?:mirror\.)?codeforces\.com\/problemset\/problem\/(\d+)\/([A-Z\d]+)\/?(?:[?#].*)?$/
   );
-  const gymMatch = cleanUrl.match(/(?:mirror\.)?codeforces\.com\/gym\/(\d+)\/problem\/([A-Z\d]+)/);
+  const gymMatch = cleanUrl.match(
+    /^(?:mirror\.)?codeforces\.com\/gym\/(\d+)\/problem\/([A-Z\d]+)\/?(?:[?#].*)?$/
+  );
   const match = contestMatch || problemsetMatch || gymMatch;
   if (!match) return null;
 
@@ -84,9 +86,9 @@ export function parseCodeforcesProblemUrl(problemUrl: string): CodeforcesProblem
 export function parseCodeforcesContestUrl(contestUrl: string): CodeforcesContestInfo | null {
   const cleanUrl = contestUrl.trim().replace(/^(https?:\/\/)?(www\.)?/, '');
   const contestMatch = cleanUrl.match(
-    /(?:mirror\.)?codeforces\.com\/contest\/(\d+)(?!\/problem\/)/
+    /^(?:mirror\.)?codeforces\.com\/contest\/(\d+)\/?(?:[?#].*)?$/
   );
-  const gymMatch = cleanUrl.match(/(?:mirror\.)?codeforces\.com\/gym\/(\d+)(?!\/problem\/)/);
+  const gymMatch = cleanUrl.match(/^(?:mirror\.)?codeforces\.com\/gym\/(\d+)\/?(?:[?#].*)?$/);
 
   if (contestMatch) {
     return {

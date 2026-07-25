@@ -7,62 +7,83 @@ import {
 import type { ResolvedProblem } from '$lib/services/codeforcesProblemset';
 import type { ProviderAdapter, SubmissionPersistence } from '$lib/submit/types';
 
-const resolveProblemBatch: ProblemBatchResolver = async (refs) => {
-  const results = new Map<string, ProblemResolution>();
-  if (refs.length === 0) return results;
-
-  await resolveCurrentActor();
-  const accessToken = getCurrentActor().session?.access_token;
-  if (!accessToken) {
-    for (const ref of refs) {
-      results.set(`${ref.contestId}:${ref.index}`, { error: 'Authentication required' });
-    }
-    return results;
-  }
-
-  const response = await fetch('/api/codeforces/problems', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`
-    },
-    body: JSON.stringify({ problems: refs })
-  });
-
-  if (!response.ok) {
-    let message = `Failed to resolve problems (HTTP ${response.status})`;
-    try {
-      const body = (await response.json()) as { error?: string };
-      if (body.error) message = body.error;
-    } catch {
-      // Preserve the HTTP fallback message.
-    }
-    for (const ref of refs) results.set(`${ref.contestId}:${ref.index}`, { error: message });
-    return results;
-  }
-
-  const body = (await response.json()) as {
-    results: Array<{
-      contestId: string;
-      index: string;
-      problem?: ResolvedProblem;
-      error?: string;
-    }>;
-  };
-  for (const result of body.results) {
-    results.set(`${result.contestId}:${result.index}`, {
-      problem: result.problem,
-      error: result.error
-    });
-  }
-  return results;
+type CodeforcesSubmitDependencies = {
+  fetchProblems: typeof fetch;
+  resolveActor: typeof resolveCurrentActor;
+  getActor: typeof getCurrentActor;
 };
 
-export function createCodeforcesSubmitAdapter(persistence: SubmissionPersistence): ProviderAdapter {
+function createProblemBatchResolver({
+  fetchProblems,
+  resolveActor,
+  getActor
+}: CodeforcesSubmitDependencies): ProblemBatchResolver {
+  return async (refs) => {
+    const results = new Map<string, ProblemResolution>();
+    if (refs.length === 0) return results;
+
+    await resolveActor();
+    const accessToken = getActor().session?.access_token;
+    if (!accessToken) {
+      for (const ref of refs) {
+        results.set(`${ref.contestId}:${ref.index}`, { error: 'Authentication required' });
+      }
+      return results;
+    }
+
+    const response = await fetchProblems('/api/codeforces/problems', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`
+      },
+      body: JSON.stringify({ problems: refs })
+    });
+
+    if (!response.ok) {
+      let message = `Failed to resolve problems (HTTP ${response.status})`;
+      try {
+        const body = (await response.json()) as { error?: string };
+        if (body.error) message = body.error;
+      } catch {
+        // Preserve the HTTP fallback message.
+      }
+      for (const ref of refs) results.set(`${ref.contestId}:${ref.index}`, { error: message });
+      return results;
+    }
+
+    const body = (await response.json()) as {
+      results: Array<{
+        contestId: string;
+        index: string;
+        problem?: ResolvedProblem;
+        error?: string;
+      }>;
+    };
+    for (const result of body.results) {
+      results.set(`${result.contestId}:${result.index}`, {
+        problem: result.problem,
+        error: result.error
+      });
+    }
+    return results;
+  };
+}
+
+export function createCodeforcesSubmitAdapter(
+  persistence: SubmissionPersistence,
+  dependencies: Partial<CodeforcesSubmitDependencies> | typeof fetch = {}
+): ProviderAdapter {
+  const options =
+    typeof dependencies === 'function' ? { fetchProblems: dependencies } : dependencies;
   const ingestion = createCodeforcesIngestion({
     checkProblem: persistence.checkEquivalentProblemUrls,
     checkContest: persistence.checkContest,
-    resolveProblemBatch
+    resolveProblemBatch: createProblemBatchResolver({
+      fetchProblems: options.fetchProblems ?? fetch,
+      resolveActor: options.resolveActor ?? resolveCurrentActor,
+      getActor: options.getActor ?? getCurrentActor
+    })
   });
 
   return {

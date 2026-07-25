@@ -53,10 +53,7 @@ test('problem gateway preserves RPC params and solved persistence', async () => 
     mapProblemRecord: (record) => ({
       id: record.id,
       name: 'mapped',
-      tags: [],
       url: '',
-      solved: 0,
-      dateAdded: '',
       addedBy: '',
       addedByUrl: '',
       likes: 0,
@@ -80,6 +77,64 @@ test('problem gateway preserves RPC params and solved persistence', async () => 
   assert.equal(await gateway.setSolved('p', true), true);
   insertError = { code: 'write-failed' };
   assert.equal(await gateway.setSolved('p', true), false);
+});
+
+test('problem gateway rejects anonymous writes before touching the client', async () => {
+  let calls = 0;
+  const client: ProblemEngagementClient = {
+    from: () => {
+      calls++;
+      throw new Error('must not query');
+    },
+    rpc: async () => {
+      calls++;
+      return { data: [], error: null };
+    }
+  };
+  const gateway = createProblemEngagementGateway({
+    client,
+    getCurrentUser: () => null,
+    loadFeedback: async () => ({}),
+    loadSolvedProblemIds: async () => new Set(),
+    mapProblemRecord: () => {
+      throw new Error('must not map');
+    }
+  });
+  assert.equal(await gateway.setSolved('p', true), false);
+  assert.equal(await gateway.updateFeedback('p', true), null);
+  assert.equal(calls, 0);
+});
+
+test('problem gateway contains delete, RPC, and thrown client failures', async () => {
+  let mode: 'delete' | 'rpc' | 'throw' = 'delete';
+  const client: ProblemEngagementClient = {
+    from: () => {
+      if (mode === 'throw') throw new Error('offline');
+      return {
+        insert: async () => ({ data: null, error: null }),
+        delete: () => deleteQuery([], { code: 'delete-failed' })
+      };
+    },
+    rpc: async () => {
+      if (mode === 'throw') throw new Error('offline');
+      return { data: [{ id: 'p' }], error: mode === 'rpc' ? { code: 'rpc-failed' } : null };
+    }
+  };
+  const gateway = createProblemEngagementGateway({
+    client,
+    getCurrentUser: () => ({ id: 'actor' }),
+    loadFeedback: async () => ({}),
+    loadSolvedProblemIds: async () => new Set(),
+    mapProblemRecord: () => {
+      throw new Error('mapping failed');
+    }
+  });
+  assert.equal(await gateway.setSolved('p', false), false);
+  mode = 'rpc';
+  assert.equal(await gateway.updateFeedback('p', true), null);
+  mode = 'throw';
+  assert.equal(await gateway.setSolved('p', true), false);
+  assert.equal(await gateway.updateFeedback('p', true), null);
 });
 
 test('problem gateway maps null/error RPC to null', async () => {
@@ -157,4 +212,48 @@ test('contest gateway preserves RPC params and participation persistence', async
   assert.equal(await gateway.setParticipation('c', true), true);
   insertError = { code: 'write-failed' };
   assert.equal(await gateway.setParticipation('c', true), false);
+});
+
+test('contest gateway rejects anonymous writes and contains all persistence failures', async () => {
+  let currentUser: { id: string } | null = null;
+  let mode: 'delete' | 'rpc' | 'empty' | 'throw' = 'delete';
+  let calls = 0;
+  const client: ContestEngagementClient = {
+    from: () => {
+      calls++;
+      if (mode === 'throw') throw new Error('offline');
+      return {
+        insert: async () => ({ data: null, error: null }),
+        delete: () => deleteQuery([], { code: 'delete-failed' })
+      };
+    },
+    rpc: async () => {
+      calls++;
+      if (mode === 'throw') throw new Error('offline');
+      if (mode === 'empty') return { data: [], error: null };
+      return { data: [{ id: 'c' }], error: mode === 'rpc' ? { code: 'rpc-failed' } : null };
+    }
+  };
+  const gateway = createContestEngagementGateway({
+    client,
+    getCurrentUser: () => currentUser,
+    loadFeedback: async () => ({}),
+    loadParticipatedContestIds: async () => new Set(),
+    mapContestRecord: () => {
+      throw new Error('mapping failed');
+    }
+  });
+  assert.equal(await gateway.setParticipation('c', true), false);
+  assert.equal(await gateway.updateFeedback('c', true), null);
+  assert.equal(calls, 0);
+
+  currentUser = { id: 'actor' };
+  assert.equal(await gateway.setParticipation('c', false), false);
+  mode = 'rpc';
+  assert.equal(await gateway.updateFeedback('c', true), null);
+  mode = 'empty';
+  assert.equal(await gateway.updateFeedback('c', true), null);
+  mode = 'throw';
+  assert.equal(await gateway.setParticipation('c', true), false);
+  assert.equal(await gateway.updateFeedback('c', true), null);
 });

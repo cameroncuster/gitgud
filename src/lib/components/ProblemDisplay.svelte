@@ -1,141 +1,182 @@
 <script lang="ts">
-import { onMount } from 'svelte';
-import { browser } from '$app/environment';
-import { currentActor } from '$lib/auth/currentActor';
-import {
-  fetchLeaderboard,
-  type LeaderboardEntry
-} from '$lib/queries/leaderboardQueries';
-import {
-  fetchProblems,
-  fetchSolvedProblemsForUser,
-  type Problem
-} from '$lib/queries/problemQueries';
-import { createProblemEngagementController } from '$lib/problems/problemEngagementController';
-import { problemEngagementGateway } from '$lib/problems/problemEngagementGateway.supabase';
-import ProblemTable from '$lib/components/ProblemTable.svelte';
-import TopicSidebar from '$lib/components/TopicSidebar.svelte';
-import {
-  NEW_PROBLEM_TOPIC,
-  ProblemCollection,
-  type ProblemTopic
-} from '$lib/collections/problemCollection';
+  import { onMount } from 'svelte';
+  import { browser } from '$app/environment';
+  import { currentActor } from '$lib/auth/currentActor';
+  import { fetchLeaderboard, type LeaderboardEntry } from '$lib/queries/leaderboardQueries';
+  import {
+    fetchProblems,
+    fetchSolvedProblemsForUser,
+    type Problem
+  } from '$lib/queries/problemQueries';
+  import { createProblemEngagementController } from '$lib/problems/problemEngagementController';
+  import { problemEngagementGateway } from '$lib/problems/problemEngagementGateway.supabase';
+  import ProblemTable from '$lib/components/ProblemTable.svelte';
+  import {
+    initialProblemVisibleCount,
+    nextProblemBatchCount,
+    nextProblemVisibleCount
+  } from '$lib/components/problemPagination';
+  import TopicSidebar from '$lib/components/TopicSidebar.svelte';
+  import {
+    NEW_PROBLEM_TOPIC,
+    ProblemCollection,
+    type ProblemTopic
+  } from '$lib/collections/problemCollection';
 
-export let pageTitle = 'Problems';
-export let targetUserId: string | null = null;
-export let defaultSolvedFilterState: 'all' | 'solved' | 'unsolved' = 'all';
-// Problems provided by a server-side load (e.g. the homepage). When present, the
-// initial list renders without a client-side round-trip after hydration.
-export let initialProblems: Problem[] | null = null;
+  export let pageTitle = 'Problems';
+  export let targetUserId: string | null = null;
+  export let defaultSolvedFilterState: 'all' | 'solved' | 'unsolved' = 'all';
+  // Problems provided by a server-side load (e.g. the homepage). When present, the
+  // initial list renders without a client-side round-trip after hydration.
+  export let initialProblems: Problem[] | null = null;
+  export let rowBatchSize: number | null = null;
 
-// State variables
-let collection = new ProblemCollection({ defaultSolvedFilter: defaultSolvedFilterState });
-let loading: boolean = false;
-let error: string | null = null;
-let userFeedback: Record<string, 'like' | 'dislike' | null> = {};
-let userSolvedProblems: Set<string> = new Set();
-let sidebarOpen = false; // Default closed on mobile
-let isMobile = false;
-let isAuthenticated = false;
-let leaderboardEntries: LeaderboardEntry[] = [];
-let targetUserSolvedProblems: Set<string> = new Set();
-let targetUser: LeaderboardEntry | null = null;
+  let collection = new ProblemCollection({ defaultSolvedFilter: defaultSolvedFilterState });
+  let visibleRowCount = initialProblemVisibleCount(rowBatchSize);
+  let hasRevealedRows = false;
+  const problemTableBodyId = 'problem-table-body';
+  let loading: boolean = false;
+  let error: string | null = null;
+  let userFeedback: Record<string, 'like' | 'dislike' | null> = {};
+  let userSolvedProblems: Set<string> = new Set();
+  let sidebarOpen = false; // Default closed on mobile
+  let isMobile = false;
+  let isAuthenticated = false;
+  let leaderboardEntries: LeaderboardEntry[] = [];
+  let targetUserSolvedProblems: Set<string> = new Set();
+  let targetUser: LeaderboardEntry | null = null;
 
-const engagement = createProblemEngagementController({
-  actor: currentActor,
-  gateway: problemEngagementGateway,
-  getCollection: () => collection,
-  setCollection: (nextCollection) => (collection = nextCollection),
-  applySolvedToCollection: !targetUserId,
-  reportError: (message) => (error = message)
-});
+  const engagement = createProblemEngagementController({
+    actor: currentActor,
+    gateway: problemEngagementGateway,
+    getCollection: () => collection,
+    setCollection: (nextCollection) => (collection = nextCollection),
+    applySolvedToCollection: !targetUserId,
+    reportError: (message) => (error = message)
+  });
 
-function handleTopicSelect(topic: string | null): void {
-  collection = collection.selectTopic(topic as ProblemTopic | null);
-  if (isMobile) sidebarOpen = false;
-}
+  function resetVisibleRows(): void {
+    visibleRowCount = initialProblemVisibleCount(rowBatchSize);
+    hasRevealedRows = false;
+  }
 
-// Function to toggle sidebar visibility
-function toggleSidebar(): void {
-  sidebarOpen = !sidebarOpen;
-}
+  function handleTopicSelect(topic: string | null): void {
+    collection = collection.selectTopic(topic as ProblemTopic | null);
+    resetVisibleRows();
+    if (isMobile) sidebarOpen = false;
+  }
 
-// Check if mobile
-function checkMobile(): void {
-  if (!browser) return;
-  isMobile = window.innerWidth < 768;
-}
+  function handleDifficultySort(): void {
+    collection = collection.cycleDifficultySort();
+    resetVisibleRows();
+  }
 
-async function handleLike(problemId: string, isLike: boolean): Promise<void> {
-  await engagement.react(problemId, isLike);
-}
+  function handleSolvedFilter(): void {
+    collection = collection.cycleSolvedFilter();
+    resetVisibleRows();
+  }
 
-async function handleToggleSolved(problemId: string, isSolved: boolean): Promise<void> {
-  await engagement.setSolved(problemId, isSolved);
-}
+  function handleAuthorFilter(author: string | null): void {
+    collection = collection.selectAuthor(author);
+    resetVisibleRows();
+  }
 
-// Function to load problems
-async function loadProblems() {
-  // Skip the loading spinner when the list is already seeded from a server-side
-  // load; the initial render is already showing data.
-  const alreadySeeded = collection.sourceItems.length > 0;
-  loading = !alreadySeeded;
-  error = null;
+  function handleSourceFilter(): void {
+    collection = collection.cycleSourceFilter();
+    resetVisibleRows();
+  }
 
-  try {
-    if (!alreadySeeded) {
-      const fetchedProblems = initialProblems ?? (await fetchProblems());
+  function showMoreProblems(): void {
+    if (!rowBatchSize || nextBatchCount === 0) return;
+    visibleRowCount = nextProblemVisibleCount(visibleRowCount, fullRows.length, rowBatchSize);
+    hasRevealedRows = true;
+  }
 
-      collection = collection.withSourceItems(fetchedProblems);
-    }
+  function toggleSidebar(): void {
+    sidebarOpen = !sidebarOpen;
+  }
 
-    if (targetUserId) {
-      leaderboardEntries = await fetchLeaderboard();
+  function checkMobile(): void {
+    if (!browser) return;
+    isMobile = window.innerWidth < 768;
+  }
 
-      targetUser = leaderboardEntries.find((entry) => entry.userId === targetUserId) || null;
+  async function handleLike(problemId: string, isLike: boolean): Promise<void> {
+    await engagement.react(problemId, isLike);
+  }
 
-      if (!targetUser) {
-        error = 'User not found or is hidden from the leaderboard';
-        loading = false;
-        return;
+  async function handleToggleSolved(problemId: string, isSolved: boolean): Promise<void> {
+    await engagement.setSolved(problemId, isSolved);
+  }
+
+  async function loadProblems() {
+    // Skip the loading spinner when the list is already seeded from a server-side
+    // load; the initial render is already showing data.
+    const alreadySeeded = collection.sourceItems.length > 0;
+    loading = !alreadySeeded;
+    error = null;
+
+    try {
+      if (!alreadySeeded) {
+        const fetchedProblems = initialProblems ?? (await fetchProblems());
+
+        collection = collection.withSourceItems(fetchedProblems);
       }
 
-      targetUserSolvedProblems = await fetchSolvedProblemsForUser(targetUserId);
-      collection = collection.withSolvedProblemIds(targetUserSolvedProblems);
+      if (targetUserId) {
+        leaderboardEntries = await fetchLeaderboard();
+
+        targetUser = leaderboardEntries.find((entry) => entry.userId === targetUserId) || null;
+
+        if (!targetUser) {
+          error = 'User not found or is hidden from the leaderboard';
+          loading = false;
+          return;
+        }
+
+        targetUserSolvedProblems = await fetchSolvedProblemsForUser(targetUserId);
+        collection = collection.withSolvedProblemIds(targetUserSolvedProblems);
+      }
+    } catch (e) {
+      console.error('Error loading problems:', e);
+      error = 'Failed to load problems. Please try again later.';
+    } finally {
+      loading = false;
     }
-
-  } catch (e) {
-    console.error('Error loading problems:', e);
-    error = 'Failed to load problems. Please try again later.';
-  } finally {
-    loading = false;
   }
-}
 
-// Seed the initial list from server-provided problems so the first render
-// (including SSR) shows data without waiting for a client-side fetch.
-if (initialProblems && collection.sourceItems.length === 0) {
-  collection = collection.withSourceItems(initialProblems);
-}
+  // Seed the initial list from server-provided problems so the first render
+  // (including SSR) shows data without waiting for a client-side fetch.
+  if (initialProblems && collection.sourceItems.length === 0) {
+    collection = collection.withSourceItems(initialProblems);
+  }
 
-onMount(() => {
-  const unsubscribeEngagement = engagement.subscribe((state) => {
-    isAuthenticated = state.isAuthenticated;
-    userFeedback = state.feedback;
-    userSolvedProblems = state.solvedProblemIds;
+  $: fullRows = collection.rows;
+  $: visibleRows = fullRows.slice(0, visibleRowCount);
+  $: nextBatchCount = rowBatchSize
+    ? nextProblemBatchCount(visibleRowCount, fullRows.length, rowBatchSize)
+    : 0;
+  $: showPaginationControl =
+    !!rowBatchSize && fullRows.length > rowBatchSize && (nextBatchCount > 0 || hasRevealedRows);
+
+  onMount(() => {
+    const unsubscribeEngagement = engagement.subscribe((state) => {
+      isAuthenticated = state.isAuthenticated;
+      userFeedback = state.feedback;
+      userSolvedProblems = state.solvedProblemIds;
+    });
+    engagement.start();
+    loadProblems();
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+
+    return () => {
+      unsubscribeEngagement();
+      engagement.dispose();
+      window.removeEventListener('resize', checkMobile);
+    };
   });
-  engagement.start();
-  loadProblems();
-
-  checkMobile();
-  window.addEventListener('resize', checkMobile);
-
-  return () => {
-    unsubscribeEngagement();
-    engagement.dispose();
-    window.removeEventListener('resize', checkMobile);
-  };
-});
 </script>
 
 <svelte:head>
@@ -170,25 +211,24 @@ onMount(() => {
     </div>
   {:else}
     <div class="relative flex min-h-[calc(100vh-2rem)]">
-      <!-- Topic Sidebar Component -->
       <TopicSidebar
         topics={[...collection.topicOptions]}
         newTopic={NEW_PROBLEM_TOPIC}
         selectedTopic={collection.selectedTopic}
         onSelectTopic={handleTopicSelect}
-        isMobile={isMobile}
+        {isMobile}
         isOpen={sidebarOpen}
         onToggle={toggleSidebar}
       />
 
-      <!-- Main content -->
       <div class="flex w-full flex-1 md:pl-[14rem]">
         <div class="w-full min-w-0 px-0 py-2 pb-6">
           <div class="problem-table-container w-full">
             <ProblemTable
-              problems={collection.rows}
-              userFeedback={userFeedback}
-              userSolvedProblems={userSolvedProblems}
+              problems={visibleRows}
+              bodyId={problemTableBodyId}
+              {userFeedback}
+              {userSolvedProblems}
               {isAuthenticated}
               allAuthors={collection.availableAuthors}
               difficultySortDirection={collection.difficultySortDirection}
@@ -197,11 +237,30 @@ onMount(() => {
               sourceFilterValue={collection.sourceFilter}
               onLike={handleLike}
               onToggleSolved={handleToggleSolved}
-              onDifficultySort={() => (collection = collection.cycleDifficultySort())}
-              onSolvedFilter={() => (collection = collection.cycleSolvedFilter())}
-              onAuthorFilter={(author) => (collection = collection.selectAuthor(author))}
-              onSourceFilter={() => (collection = collection.cycleSourceFilter())}
+              onDifficultySort={handleDifficultySort}
+              onSolvedFilter={handleSolvedFilter}
+              onAuthorFilter={handleAuthorFilter}
+              onSourceFilter={handleSourceFilter}
             />
+            {#if showPaginationControl}
+              <div class="flex flex-col items-center gap-2 py-4">
+                <button
+                  type="button"
+                  class="rounded border-2 border-[var(--color-border)] bg-[var(--color-tertiary)] px-4 py-2 font-mono font-bold text-[var(--color-text)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)] aria-disabled:cursor-default aria-disabled:opacity-70"
+                  aria-controls={problemTableBodyId}
+                  aria-label={nextBatchCount > 0
+                    ? `Show ${nextBatchCount} more problems`
+                    : 'All problems shown'}
+                  aria-disabled={nextBatchCount === 0}
+                  on:click={showMoreProblems}
+                >
+                  {nextBatchCount > 0 ? `Show ${nextBatchCount} more` : 'All problems shown'}
+                </button>
+                <p class="text-sm text-[var(--color-text-muted)]" role="status" aria-live="polite">
+                  {visibleRows.length} of {fullRows.length} problems shown
+                </p>
+              </div>
+            {/if}
           </div>
         </div>
       </div>
@@ -210,21 +269,20 @@ onMount(() => {
 </div>
 
 <style>
-@media (max-width: 767px) {
-  :global(body) {
-    overflow-x: hidden;
+  @media (max-width: 767px) {
+    :global(body) {
+      overflow-x: hidden;
+    }
   }
-}
 
-/* Remove excess margin from table container */
-.problem-table-container {
-  width: 100%;
-  margin: 0;
-}
-
-@media (min-width: 768px) {
   .problem-table-container {
+    width: 100%;
     margin: 0;
   }
-}
+
+  @media (min-width: 768px) {
+    .problem-table-container {
+      margin: 0;
+    }
+  }
 </style>

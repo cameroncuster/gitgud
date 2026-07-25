@@ -1,6 +1,7 @@
 /**
  * Service for user operations
  */
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { getCurrentActor } from '$lib/auth/currentActor';
 import { supabase } from './database';
 
@@ -28,128 +29,116 @@ export type UserPreferencesRecord = {
  * Fetches user preferences from the database
  * @returns User preferences or null if not found
  */
-export async function fetchUserPreferences(): Promise<UserPreferences | null> {
-  const currentUser = getCurrentActor().user;
+type UserServiceDependencies = {
+  client: SupabaseClient;
+  getCurrentUser: () => { id: string } | null;
+  now?: () => string;
+  wait?: (milliseconds: number) => Promise<void>;
+};
 
-  if (!currentUser) {
-    return null;
-  }
+export function createUserService({
+  client,
+  getCurrentUser,
+  now = () => new Date().toISOString(),
+  wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds))
+}: UserServiceDependencies) {
+  async function fetchUserPreferences(): Promise<UserPreferences | null> {
+    const currentUser = getCurrentUser();
+    if (!currentUser) return null;
 
-  try {
-    const { data, error } = await supabase
-      .from('user_preferences')
-      .select('*')
-      .eq('user_id', currentUser.id)
-      .single();
-
-    if (error) {
-      // If the error is that no rows were returned, create default preferences
-      if (error.code === 'PGRST116') {
-        const result = await updateUserPreferences({
-          hideFromLeaderboard: false,
-          theme: 'light'
-        });
-
-        if (result) {
-          return {
-            hideFromLeaderboard: false,
-            theme: 'light'
-          };
-        }
-      }
-      return null;
-    }
-
-    if (!data) {
-      return null;
-    }
-
-    const record = data as UserPreferencesRecord;
-    return {
-      hideFromLeaderboard: record.hide_from_leaderboard,
-      theme: record.theme || 'light' // Provide default if not present
-    };
-  } catch (err) {
-    console.error('fetchUserPreferences: Exception', err);
-    return null;
-  }
-}
-
-/**
- * Updates user preferences in the database
- * @param preferences - User preferences to update
- * @returns True if successful, false otherwise
- */
-export async function updateUserPreferences(preferences: UserPreferences): Promise<boolean> {
-  const currentUser = getCurrentActor().user;
-
-  if (!currentUser) {
-    return false;
-  }
-
-  try {
-    // First check if a record exists
-    const { data: existingData, error: checkError } = await supabase
-      .from('user_preferences')
-      .select('id')
-      .eq('user_id', currentUser.id)
-      .single();
-
-    if (checkError && checkError.code !== 'PGRST116') {
-      console.error('updateUserPreferences: Error checking if preferences exist', checkError);
-    }
-
-    let result;
-
-    if (existingData) {
-      // Update existing record
-      result = await supabase
+    try {
+      const { data, error } = await client
         .from('user_preferences')
-        .update({
-          hide_from_leaderboard: preferences.hideFromLeaderboard,
-          theme: preferences.theme,
-          updated_at: new Date().toISOString()
-        })
-        .eq('user_id', currentUser.id);
-    } else {
-      // Insert new record
-      result = await supabase.from('user_preferences').insert({
-        user_id: currentUser.id,
-        hide_from_leaderboard: preferences.hideFromLeaderboard,
-        theme: preferences.theme,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      });
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          const defaults = { hideFromLeaderboard: false, theme: 'light' };
+          if (await updateUserPreferences(defaults)) return defaults;
+        }
+        return null;
+      }
+      if (!data) return null;
+
+      const record = data as UserPreferencesRecord;
+      return {
+        hideFromLeaderboard: record.hide_from_leaderboard,
+        theme: record.theme || 'light'
+      };
+    } catch (err) {
+      console.error('fetchUserPreferences: Exception', err);
+      return null;
     }
+  }
 
-    if (result.error) {
-      console.error('updateUserPreferences: Error updating/inserting preferences', result.error);
-      // If we still have an error and it's a duplicate key error,
-      // try one more time with an update
-      if (result.error.code === '23505') {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+  async function updateUserPreferences(preferences: UserPreferences): Promise<boolean> {
+    const currentUser = getCurrentUser();
+    if (!currentUser) return false;
 
-        result = await supabase
+    try {
+      const { data: existingData, error: checkError } = await client
+        .from('user_preferences')
+        .select('id')
+        .eq('user_id', currentUser.id)
+        .single();
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('updateUserPreferences: Error checking if preferences exist', checkError);
+      }
+
+      let result;
+      if (existingData) {
+        result = await client
           .from('user_preferences')
           .update({
             hide_from_leaderboard: preferences.hideFromLeaderboard,
             theme: preferences.theme,
-            updated_at: new Date().toISOString()
+            updated_at: now()
           })
           .eq('user_id', currentUser.id);
+      } else {
+        const timestamp = now();
+        result = await client.from('user_preferences').insert({
+          user_id: currentUser.id,
+          hide_from_leaderboard: preferences.hideFromLeaderboard,
+          theme: preferences.theme,
+          created_at: timestamp,
+          updated_at: timestamp
+        });
+      }
 
+      if (result.error) {
+        console.error('updateUserPreferences: Error updating/inserting preferences', result.error);
+        if (result.error.code !== '23505') return false;
+
+        await wait(100);
+        result = await client
+          .from('user_preferences')
+          .update({
+            hide_from_leaderboard: preferences.hideFromLeaderboard,
+            theme: preferences.theme,
+            updated_at: now()
+          })
+          .eq('user_id', currentUser.id);
         if (result.error) {
           console.error('updateUserPreferences: Error on retry', result.error);
           return false;
         }
-      } else {
-        return false;
       }
-    }
 
-    return true;
-  } catch (err) {
-    console.error('updateUserPreferences: Exception', err);
-    return false;
+      return true;
+    } catch (err) {
+      console.error('updateUserPreferences: Exception', err);
+      return false;
+    }
   }
+
+  return { fetchUserPreferences, updateUserPreferences };
 }
+
+export const { fetchUserPreferences, updateUserPreferences } = createUserService({
+  client: supabase,
+  getCurrentUser: () => getCurrentActor().user
+});

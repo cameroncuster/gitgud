@@ -29,14 +29,18 @@ async function typescriptFiles(path: string): Promise<string[]> {
   return nested.flat();
 }
 
-const databaseImport =
-  /(?:from\s*['"][^'"]*(?:supabase|services\/database)[^'"]*['"]|import\s*['"][^'"]*(?:supabase|services\/database)[^'"]*['"])/i;
+const databaseImport = new RegExp(
+  String.raw`(?:from|import)\s*['"][^'"]*(?:supabase|services/database)[^'"]*['"]`,
+  'i'
+);
 const directDatabaseAccess = /\.(?:from|insert|rpc)\s*\(/;
+const typeOnlyDatabaseImport =
+  /import\s+type\s*\{[^}]*SupabaseClient[^}]*\}\s+from\s+['"]@supabase\/supabase-js['"]/;
 
 async function assertNoDatabaseAccess(paths: string[]) {
   for (const path of paths) {
     const contents = await source(path);
-    assert.doesNotMatch(contents, databaseImport, path);
+    assert.doesNotMatch(contents.replace(typeOnlyDatabaseImport, ''), databaseImport, path);
     assert.doesNotMatch(contents, directDatabaseAccess, path);
   }
 }

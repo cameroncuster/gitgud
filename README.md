@@ -34,7 +34,7 @@ See [VISION.md](VISION.md) for the product direction.
 
 ## Run locally
 
-Requires Node.js 22 and pnpm 10.
+Requires Node.js 24 and pnpm 10.
 
 ```bash
 git clone https://github.com/cameroncuster/gitgud.git
@@ -57,9 +57,21 @@ pnpm run lint
 pnpm run lint:es
 pnpm run check
 pnpm run test
+pnpm run test:coverage
 pnpm run build
+pnpm run check:performance
+pnpm run test:performance
 pnpm run test:e2e
 ```
+
+CI runs the required quality, coverage, production build/performance, and desktop/mobile Playwright
+checks in parallel on Node.js 24. `test:coverage` measures every production TypeScript module under
+`src/`, including route modules, and enforces 98% lines, 95% branches, and 98% functions. It excludes
+only declaration files and does not claim execution coverage for Svelte components. After a
+production build, `check:performance` checks the existing Vercel output without rebuilding;
+`test:performance` performs both steps. The performance checks cover immutable JS/CSS and the
+deterministic 280-problem homepage HTML fixture budgets. Live read-only Supabase smoke tests run
+when CI has the required repository variable and secret; otherwise those optional jobs exit cleanly.
 
 ## Contributing
 

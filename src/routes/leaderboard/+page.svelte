@@ -1,37 +1,34 @@
 <script lang="ts">
-import { browser } from '$app/environment';
-import {
-  fetchLeaderboard,
-  type LeaderboardEntry
-} from '$lib/queries/leaderboardQueries';
-import type { PageData } from './$types';
-import LeaderboardTable from '$lib/components/LeaderboardTable.svelte';
+  import { browser } from '$app/environment';
+  import { fetchLeaderboard, type LeaderboardEntry } from '$lib/queries/leaderboardQueries';
+  import type { PageData } from './$types';
+  import LeaderboardTable from '$lib/components/LeaderboardTable.svelte';
 
-// Entries provided by the server-side load so the initial render (including
-// SSR) ships with rows instead of waiting for a client-side fetch.
-export let data: PageData;
+  // Entries provided by the server-side load so the initial render (including
+  // SSR) ships with rows instead of waiting for a client-side fetch.
+  export let data: PageData;
 
-let leaderboardEntries: LeaderboardEntry[] = data.entries ?? [];
-let loading: boolean = false;
-let error: string | null = null;
+  let leaderboardEntries: LeaderboardEntry[] = data.entries ?? [];
+  let loading: boolean = false;
+  let error: string | null = null;
 
-// Load leaderboard data. Used for the client-side retry path; the initial list
-// is seeded from the server-side load above.
-async function loadLeaderboard(): Promise<void> {
-  if (!browser) return;
+  // Load leaderboard data. Used for the client-side retry path; the initial list
+  // is seeded from the server-side load above.
+  async function loadLeaderboard(): Promise<void> {
+    if (!browser) return;
 
-  loading = true;
-  error = null;
+    loading = true;
+    error = null;
 
-  try {
-    leaderboardEntries = await fetchLeaderboard();
-  } catch (err) {
-    console.error('Error loading leaderboard:', err);
-    error = 'Failed to load leaderboard data. Please try again later.';
-  } finally {
-    loading = false;
+    try {
+      leaderboardEntries = await fetchLeaderboard();
+    } catch (err) {
+      console.error('Error loading leaderboard:', err);
+      error = 'Failed to load leaderboard data. Please try again later.';
+    } finally {
+      loading = false;
+    }
   }
-}
 </script>
 
 <svelte:head>
@@ -70,11 +67,10 @@ async function loadLeaderboard(): Promise<void> {
     </div>
   {:else}
     <div class="relative min-h-[calc(100vh-2rem)]">
-      <!-- Main content -->
       <div class="flex w-full flex-1">
         <div class="w-full min-w-0 px-0 py-2 pb-6">
           <div class="leaderboard-container w-full">
-            <LeaderboardTable leaderboardEntries={leaderboardEntries} />
+            <LeaderboardTable {leaderboardEntries} />
           </div>
         </div>
       </div>
@@ -83,15 +79,15 @@ async function loadLeaderboard(): Promise<void> {
 </div>
 
 <style>
-@media (max-width: 767px) {
-  :global(body) {
-    overflow-x: hidden;
+  @media (max-width: 767px) {
+    :global(body) {
+      overflow-x: hidden;
+    }
   }
-}
 
-/* Remove excess margin from table container */
-.leaderboard-container {
-  width: 100%;
-  margin: 0;
-}
+  /* Remove excess margin from table container */
+  .leaderboard-container {
+    width: 100%;
+    margin: 0;
+  }
 </style>

@@ -39,12 +39,11 @@
 </footer>
 
 <style>
-/* Ensure footer is positioned correctly */
-footer {
-  position: relative;
-  left: 0;
-  right: 0;
-  width: 100%;
-  margin-top: auto;
-}
+  footer {
+    position: relative;
+    left: 0;
+    right: 0;
+    width: 100%;
+    margin-top: auto;
+  }
 </style>

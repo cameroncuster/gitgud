@@ -56,6 +56,16 @@ test('initializes from a valid route provider and defaults invalid routes', () =
   assert.equal(createSubmissionWorkflow(adapters()).getState().provider, 'codeforces');
 });
 
+test('subscribe immediately publishes updates and unsubscribe detaches the listener', () => {
+  const workflow = createSubmissionWorkflow(adapters());
+  const states: string[] = [];
+  const unsubscribe = workflow.subscribe((state) => states.push(`${state.stage}:${state.handle}`));
+  workflow.setHandle('first');
+  unsubscribe();
+  workflow.setHandle('second');
+  assert.deepEqual(states, ['source:', 'source:first']);
+});
+
 test('owns source, links, review, complete stages and derived counts', async () => {
   const workflow = createSubmissionWorkflow(adapters());
   assert.equal(workflow.getState().stage, 'source');
@@ -203,6 +213,17 @@ test('removal changes the commit set', async () => {
   workflow.removeRow(workflow.getState().rows[0].id);
   await workflow.confirmAdd();
   assert.deepEqual(committed, ['two']);
+});
+
+test('removing the final preview row resets the workflow', async () => {
+  const workflow = createSubmissionWorkflow(adapters());
+  workflow.setPasted('only');
+  await workflow.resolveEntries({ authorized: true });
+  const sequence = workflow.getState().sequence;
+  workflow.removeRow(workflow.getState().rows[0].id);
+  assert.equal(workflow.getState().rows.length, 0);
+  assert.equal(workflow.getState().stage, 'links');
+  assert.equal(workflow.getState().sequence, sequence + 1);
 });
 
 test('thrown adapter errors become row failures without stopping the sequence', async () => {

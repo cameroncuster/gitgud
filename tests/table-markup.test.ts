@@ -8,11 +8,9 @@
  * that were live in production:
  *
  *   1. Row highlight/hover was written as a `${...}` interpolation inside a
- *      plain double-quoted `class="..."` attribute. Svelte only evaluates
- *      `${...}` inside a `class={`...`}` template-literal expression, so the
- *      conditional was emitted as a LITERAL string and the solved/participated
- *      highlight and the ordinary row hover never applied. These tests fail if
- *      any element reintroduces a `${` inside a static `class="..."`.
+ *      plain double-quoted `class="..."` attribute, so the conditional was
+ *      emitted literally. These tests require an evaluated class binding or
+ *      directive and fail if `${` returns inside a static class attribute.
  *   2. The like/dislike buttons announced only a bare count to assistive tech
  *      (the glyph was an unlabelled <svg>, the only text was the number). These
  *      tests require each such button to carry an aria-label and aria-pressed,
@@ -51,20 +49,17 @@ for (const [name, src] of Object.entries(COMPONENTS)) {
     );
   });
 
-  // The row highlight is conditional and MUST therefore be delivered via a
-  // template-literal class expression (the fix). Assert the highlight token the
-  // solved/participated row uses is reachable from a `class={`` binding.
-  test(`[${name}] row highlight uses a class={\`...\`} template-literal binding`, () => {
-    assert.match(
-      src,
-      /class=\{`relative border-b/,
-      'the row <tr> should bind class with a template literal so its ${...} highlight evaluates'
-    );
-    assert.match(
-      src,
-      /border-l-\[var\(--color-solved\)\] bg-\[var\(--color-solved-row\)\]/,
-      'the solved/participated highlight classes should be present in the row binding'
-    );
+  test(`[${name}] row highlight remains conditional and styled`, () => {
+    if (name === 'ProblemTable') {
+      assert.match(src, /class="problem-row"/);
+      assert.match(src, /class:problem-row-solved=/);
+      assert.match(src, /\.problem-row-solved\s*\{/);
+      assert.match(src, /border-left: 4px solid var\(--color-solved\)/);
+      assert.match(src, /background: var\(--color-solved-row\)/);
+      return;
+    }
+    assert.match(src, /class=\{`relative border-b/);
+    assert.match(src, /border-l-\[var\(--color-solved\)\] bg-\[var\(--color-solved-row\)\]/);
   });
 
   test(`[${name}] renders the shared feedback controls`, () => {

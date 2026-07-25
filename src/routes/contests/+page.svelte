@@ -1,89 +1,89 @@
 <script lang="ts">
-import { onMount } from 'svelte';
-import ContestTable from '$lib/components/ContestTable.svelte';
-import { currentActor } from '$lib/auth/currentActor';
-import { fetchContests } from '$lib/queries/contestQueries';
-import { ContestCollection } from '$lib/collections/contestCollection';
-import { createContestEngagementController } from '$lib/contests/contestEngagementController';
-import { contestEngagementGateway } from '$lib/contests/contestEngagementGateway.supabase';
-import type { PageData } from './$types';
+  import { onMount } from 'svelte';
+  import ContestTable from '$lib/components/ContestTable.svelte';
+  import { currentActor } from '$lib/auth/currentActor';
+  import { fetchContests } from '$lib/queries/contestQueries';
+  import { ContestCollection } from '$lib/collections/contestCollection';
+  import { createContestEngagementController } from '$lib/contests/contestEngagementController';
+  import { contestEngagementGateway } from '$lib/contests/contestEngagementGateway.supabase';
+  import type { PageData } from './$types';
 
-// Contests provided by the server-side load so the initial render (including
-// SSR) ships with data instead of waiting for a client-side fetch.
-export let data: PageData;
+  // Contests provided by the server-side load so the initial render (including
+  // SSR) ships with data instead of waiting for a client-side fetch.
+  export let data: PageData;
 
-let collection = new ContestCollection();
-let userParticipation: Set<string> = new Set();
-let userFeedback: Record<string, 'like' | 'dislike' | null> = {};
-// Starts false so a server-seeded list renders rows on the initial (SSR) render
-// instead of a spinner. The unseeded fallback path in loadContests sets it true
-// on mount before fetching.
-let loading = false;
-let error: string | null = null;
-let isAuthenticated = false;
+  let collection = new ContestCollection();
+  let userParticipation: Set<string> = new Set();
+  let userFeedback: Record<string, 'like' | 'dislike' | null> = {};
+  // Starts false so a server-seeded list renders rows on the initial (SSR) render
+  // instead of a spinner. The unseeded fallback path in loadContests sets it true
+  // on mount before fetching.
+  let loading = false;
+  let error: string | null = null;
+  let isAuthenticated = false;
 
-const engagement = createContestEngagementController({
-  actor: currentActor,
-  gateway: contestEngagementGateway,
-  getCollection: () => collection,
-  setCollection: (nextCollection) => (collection = nextCollection)
-});
-
-async function loadContests() {
-  // Skip the loading spinner and public fetch when the list is already seeded
-  // from the server-side load; the initial render is already showing data.
-  const alreadySeeded = collection.sourceItems.length > 0;
-  loading = !alreadySeeded;
-  error = null;
-
-  try {
-    if (!alreadySeeded) {
-      collection = collection.withSourceItems(await fetchContests());
-    }
-
-    // The engagement controller owns authenticated participation and feedback
-    // loading, so it is intentionally omitted here.
-  } catch (e) {
-    console.error('Error loading contests:', e);
-    error = 'Failed to load contests. Please try again later.';
-  } finally {
-    loading = false;
-  }
-}
-
-async function handleToggleParticipation(
-  contestId: string,
-  hasParticipated: boolean
-): Promise<void> {
-  await engagement.setParticipation(contestId, hasParticipated);
-}
-
-async function handleLike(contestId: string, isLike: boolean): Promise<void> {
-  await engagement.react(contestId, isLike);
-}
-
-// Seed the initial list from the server-provided contests so the first render
-// (including SSR) shows data without waiting for a client-side fetch.
-if (data?.contests && collection.sourceItems.length === 0) {
-  collection = collection.withSourceItems(data.contests);
-}
-
-// Load contests on mount
-onMount(() => {
-  const unsubscribeEngagement = engagement.subscribe((state) => {
-    isAuthenticated = state.isAuthenticated;
-    userParticipation = state.participatedContestIds;
-    userFeedback = state.feedback;
+  const engagement = createContestEngagementController({
+    actor: currentActor,
+    gateway: contestEngagementGateway,
+    getCollection: () => collection,
+    setCollection: (nextCollection) => (collection = nextCollection)
   });
-  engagement.start();
 
-  loadContests();
+  async function loadContests() {
+    // Skip the loading spinner and public fetch when the list is already seeded
+    // from the server-side load; the initial render is already showing data.
+    const alreadySeeded = collection.sourceItems.length > 0;
+    loading = !alreadySeeded;
+    error = null;
 
-  return () => {
-    unsubscribeEngagement();
-    engagement.dispose();
-  };
-});
+    try {
+      if (!alreadySeeded) {
+        collection = collection.withSourceItems(await fetchContests());
+      }
+
+      // The engagement controller owns authenticated participation and feedback
+      // loading, so it is intentionally omitted here.
+    } catch (e) {
+      console.error('Error loading contests:', e);
+      error = 'Failed to load contests. Please try again later.';
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function handleToggleParticipation(
+    contestId: string,
+    hasParticipated: boolean
+  ): Promise<void> {
+    await engagement.setParticipation(contestId, hasParticipated);
+  }
+
+  async function handleLike(contestId: string, isLike: boolean): Promise<void> {
+    await engagement.react(contestId, isLike);
+  }
+
+  // Seed the initial list from the server-provided contests so the first render
+  // (including SSR) shows data without waiting for a client-side fetch.
+  if (data?.contests && collection.sourceItems.length === 0) {
+    collection = collection.withSourceItems(data.contests);
+  }
+
+  // Load contests on mount
+  onMount(() => {
+    const unsubscribeEngagement = engagement.subscribe((state) => {
+      isAuthenticated = state.isAuthenticated;
+      userParticipation = state.participatedContestIds;
+      userFeedback = state.feedback;
+    });
+    engagement.start();
+
+    loadContests();
+
+    return () => {
+      unsubscribeEngagement();
+      engagement.dispose();
+    };
+  });
 </script>
 
 <svelte:head>
@@ -119,14 +119,13 @@ onMount(() => {
     </div>
   {:else}
     <div class="relative flex min-h-[calc(100vh-2rem)]">
-      <!-- Main content -->
       <div class="flex w-full flex-1">
         <div class="w-full min-w-0 px-0 py-2 pb-6">
           <div class="contest-table-container w-full">
             <ContestTable
               contests={collection.rows}
-              userParticipation={userParticipation}
-              userFeedback={userFeedback}
+              {userParticipation}
+              {userFeedback}
               {isAuthenticated}
               allAuthors={collection.availableAuthors}
               difficultySortDirection={collection.difficultySortDirection}
@@ -148,21 +147,21 @@ onMount(() => {
 </div>
 
 <style>
-@media (max-width: 767px) {
-  :global(body) {
-    overflow-x: hidden;
+  @media (max-width: 767px) {
+    :global(body) {
+      overflow-x: hidden;
+    }
   }
-}
 
-/* Remove excess margin from table container */
-.contest-table-container {
-  width: 100%;
-  margin: 0;
-}
-
-@media (min-width: 768px) {
+  /* Remove excess margin from table container */
   .contest-table-container {
+    width: 100%;
     margin: 0;
   }
-}
+
+  @media (min-width: 768px) {
+    .contest-table-container {
+      margin: 0;
+    }
+  }
 </style>

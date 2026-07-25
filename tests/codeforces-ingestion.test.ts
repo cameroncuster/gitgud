@@ -4,6 +4,7 @@ import {
   codeforcesProblemAliases,
   createCodeforcesIngestion,
   extractCodeforcesEntries,
+  parseCodeforcesContestUrl,
   parseCodeforcesProblemUrl,
   type CodeforcesIngestionDependencies
 } from '../src/lib/providers/codeforces/ingestion.ts';
@@ -34,6 +35,32 @@ function ingestion(overrides: Partial<CodeforcesIngestionDependencies> = {}) {
   });
 }
 
+test('default Codeforces metadata fetcher uses global fetch', async (t) => {
+  let requested = '';
+  t.mock.method(
+    globalThis,
+    'fetch',
+    async (input: string | URL | Request) => {
+      requested = String(input);
+      return Response.json({
+        status: 'OK',
+        result: [{ id: 9, name: 'Fetched Round', durationSeconds: 7200 }]
+      });
+    },
+    { times: 1 }
+  );
+  const service = createCodeforcesIngestion({
+    checkProblem: async () => ({ duplicate: false }),
+    checkContest: async () => ({ duplicate: false }),
+    resolveProblemBatch: async () => new Map(),
+    now: () => now
+  });
+  const [entry] = service.extract('https://codeforces.com/contest/9');
+  const resolved = await service.resolve(entry, '');
+  assert.equal(resolved.valid && resolved.payload.name, 'Fetched Round');
+  assert.equal(requested, 'https://codeforces.com/api/contest.list?gym=false');
+});
+
 test('extracts, canonicalizes, deduplicates, and orders problems before contests', () => {
   assert.deepEqual(
     extractCodeforcesEntries(
@@ -46,6 +73,21 @@ test('extracts, canonicalizes, deduplicates, and orders problems before contests
       { kind: 'contest', url: 'https://codeforces.com/contest/2' }
     ]
   );
+});
+
+test('parses contest and gym roots while rejecting problem and foreign URLs', () => {
+  assert.deepEqual(parseCodeforcesContestUrl('mirror.codeforces.com/contest/42'), {
+    contestId: '42',
+    isGym: false,
+    url: 'https://codeforces.com/contest/42'
+  });
+  assert.deepEqual(parseCodeforcesContestUrl('https://codeforces.com/gym/7'), {
+    contestId: '7',
+    isGym: true,
+    url: 'https://codeforces.com/gym/7'
+  });
+  assert.equal(parseCodeforcesContestUrl('https://codeforces.com/contest/42/problem/A'), null);
+  assert.equal(parseCodeforcesContestUrl('https://example.test/contest/42'), null);
 });
 
 test('per-paste regular problems use one catalog request and exact drafts', async () => {
@@ -154,6 +196,74 @@ test('gym fallback and contest drafts preserve defaults', async () => {
       type: 'Codeforces'
     }
   });
+});
+
+test('gym problem metadata preserves provider tags and rating', async () => {
+  const service = ingestion({
+    fetchJson: async () => ({
+      status: 'OK',
+      result: { problems: [{ index: 'A', name: 'Gym A', tags: ['graphs'], rating: 1900 }] }
+    })
+  });
+  const [entry] = service.extract('https://codeforces.com/gym/7/problem/A');
+  const row = await service.resolve(entry, 'alice');
+  assert.equal(row.valid, true);
+  assert.equal(row.valid && row.payload.name, 'Gym A');
+  assert.equal(row.valid && row.payload.difficulty, 1900);
+  assert.equal(row.valid && row.kind, 'problem');
+  if (row.valid && row.kind === 'problem') assert.deepEqual(row.payload.tags, ['graphs']);
+});
+
+test('contest duplicate errors prevent upstream fetches', async () => {
+  let fetches = 0;
+  const service = ingestion({
+    checkContest: async () => ({ duplicate: false, error: 'database unavailable' }),
+    fetchJson: async () => {
+      fetches++;
+      return { status: 'OK', result: [] };
+    }
+  });
+  const [entry] = service.extract('https://codeforces.com/contest/9');
+  const row = await service.resolve(entry, '');
+  assert.equal(row.valid, false);
+  assert.equal(row.valid ? '' : row.reason, 'database unavailable');
+  assert.equal(fetches, 0);
+});
+
+test('gym and ICPC contest metadata use the ICPC type', async () => {
+  const gym = ingestion({
+    fetchJson: async () => ({
+      status: 'OK',
+      result: { contest: { id: 7, name: 'Gym Round', durationSeconds: 18000 } }
+    })
+  });
+  const [gymEntry] = gym.extract('https://codeforces.com/gym/7');
+  const gymRow = await gym.resolve(gymEntry, '');
+  assert.equal(gymRow.valid && gymRow.payload.type, 'ICPC');
+
+  const icpc = ingestion({
+    fetchJson: async () => ({
+      status: 'OK',
+      result: [{ id: 9, name: 'Regional', durationSeconds: 18000, kind: 'ICPC' }]
+    })
+  });
+  const [contestEntry] = icpc.extract('https://codeforces.com/contest/9');
+  const contestRow = await icpc.resolve(contestEntry, '');
+  assert.equal(contestRow.valid && contestRow.payload.type, 'ICPC');
+});
+
+test('contest provider failures and missing metadata become invalid rows', async () => {
+  for (const fetchJson of [
+    async () => ({ status: 'FAILED' }),
+    async () => ({ status: 'OK', result: [] }),
+    async () => Promise.reject('unknown failure')
+  ]) {
+    const service = ingestion({ fetchJson });
+    const [entry] = service.extract('https://codeforces.com/contest/9');
+    const row = await service.resolve(entry, '');
+    assert.equal(row.valid, false);
+    assert.ok((row.valid ? '' : row.reason).length > 0);
+  }
 });
 
 test('thrown catalog failures become formatted invalid rows', async () => {

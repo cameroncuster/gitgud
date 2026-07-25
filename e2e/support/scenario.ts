@@ -6,7 +6,7 @@ import { MOCK_URL } from './constants.ts';
 //
 // The mocked specs run single-worker (see playwright.config.ts), so this
 // server-wide setting is deterministic for the test that set it.
-export type Scenario = 'data' | 'empty' | 'error';
+export type Scenario = 'data' | 'empty' | 'error' | 'large';
 
 export async function setScenario(scenario: Scenario): Promise<void> {
   const res = await fetch(`${MOCK_URL}/__control/scenario`, {

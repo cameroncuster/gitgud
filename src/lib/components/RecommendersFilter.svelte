@@ -1,8 +1,8 @@
 <script lang="ts">
-export let authors: string[] = [];
-export let selectedAuthor: string | null = null;
-export let onAuthorChange: (author: string | null) => void;
-export let width: string = 'w-full';
+  export let authors: string[] = [];
+  export let selectedAuthor: string | null = null;
+  export let onAuthorChange: (author: string | null) => void;
+  export let width: string = 'w-full';
 </script>
 
 <div class="relative {width}">
@@ -26,7 +26,9 @@ export let width: string = 'w-full';
     </svg>
   </div>
   <select
-    class="focus:ring-opacity-20 w-full appearance-none rounded-md border py-1.5 pr-8 pl-9 text-sm transition-colors duration-200 hover:border-[var(--color-accent-muted)] focus:border-[var(--color-accent)] focus:ring focus:ring-[var(--color-accent)] focus:outline-none {selectedAuthor ? 'border-[var(--color-accent)] bg-[color-mix(in_oklab,var(--color-accent)_10%,var(--color-tertiary))] text-[var(--color-accent)]' : 'border-[var(--color-border)] bg-[var(--color-tertiary)] text-[var(--color-text)]'}"
+    class="focus:ring-opacity-20 w-full appearance-none rounded-md border py-1.5 pr-8 pl-9 text-sm transition-colors duration-200 hover:border-[var(--color-accent-muted)] focus:border-[var(--color-accent)] focus:ring focus:ring-[var(--color-accent)] focus:outline-none {selectedAuthor
+      ? 'border-[var(--color-accent)] bg-[color-mix(in_oklab,var(--color-accent)_10%,var(--color-tertiary))] text-[var(--color-accent)]'
+      : 'border-[var(--color-border)] bg-[var(--color-tertiary)] text-[var(--color-text)]'}"
     on:change={(e) => {
       const select = e.target as HTMLSelectElement;
       onAuthorChange(select.value === 'all' ? null : select.value);
@@ -59,18 +61,18 @@ export let width: string = 'w-full';
 </div>
 
 <style>
-/* Custom select styling */
-select {
-  cursor: pointer;
-  background-image: none; /* Remove default arrow */
-}
+  /* Custom select styling */
+  select {
+    cursor: pointer;
+    background-image: none; /* Remove default arrow */
+  }
 
-select:focus + div svg {
-  color: var(--color-accent);
-}
+  select:focus + div svg {
+    color: var(--color-accent);
+  }
 
-/* Hover effect for select */
-select:hover {
-  border-color: var(--color-accent-muted);
-}
+  /* Hover effect for select */
+  select:hover {
+    border-color: var(--color-accent-muted);
+  }
 </style>

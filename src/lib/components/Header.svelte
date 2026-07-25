@@ -1,107 +1,105 @@
 <script lang="ts">
-import { page } from '$app/state';
-import { afterNavigate } from '$app/navigation';
-import { resolve } from '$app/paths';
-import { currentActor, signInWithGithub, signOut } from '$lib/auth/currentActor';
-import { onMount } from 'svelte';
+  import { page } from '$app/state';
+  import { afterNavigate } from '$app/navigation';
+  import { resolve } from '$app/paths';
+  import { currentActor, signInWithGithub, signOut } from '$lib/auth/currentActor';
+  import { onMount } from 'svelte';
 
-let isMounted = false;
+  let isMounted = false;
 
-let mobileMenuOpen = false;
-let mobileMenuButton: HTMLButtonElement | null = null;
+  let mobileMenuOpen = false;
+  let mobileMenuButton: HTMLButtonElement | null = null;
 
-let username = '';
-let githubUrl = '';
+  let username = '';
+  let githubUrl = '';
 
-onMount(() => {
-  isMounted = true;
+  onMount(() => {
+    isMounted = true;
 
-  const unsubscribe = currentActor.subscribe((actor) => {
-    const value = actor.user;
-    if (isMounted) {
-      if (value) {
-        if (value.user_metadata) {
-          if (value.user_metadata.user_name) {
-            username = value.user_metadata.user_name;
-          } else if (value.user_metadata.preferred_username) {
-            username = value.user_metadata.preferred_username;
-          } else if (value.user_metadata.name) {
-            username = value.user_metadata.name;
+    const unsubscribe = currentActor.subscribe((actor) => {
+      const value = actor.user;
+      if (isMounted) {
+        if (value) {
+          if (value.user_metadata) {
+            if (value.user_metadata.user_name) {
+              username = value.user_metadata.user_name;
+            } else if (value.user_metadata.preferred_username) {
+              username = value.user_metadata.preferred_username;
+            } else if (value.user_metadata.name) {
+              username = value.user_metadata.name;
+            } else if (value.email) {
+              username = value.email.split('@')[0];
+            } else {
+              username = 'User';
+            }
+
+            if (value.app_metadata && value.app_metadata.provider === 'github') {
+              githubUrl = `https://github.com/${username}`;
+            } else if (value.user_metadata.html_url) {
+              githubUrl = value.user_metadata.html_url;
+            } else if (
+              value.user_metadata.avatar_url &&
+              value.user_metadata.avatar_url.includes('github')
+            ) {
+              githubUrl = `https://github.com/${username}`;
+            } else {
+              githubUrl = `https://github.com/${username}`;
+            }
           } else if (value.email) {
             username = value.email.split('@')[0];
+            githubUrl = '';
           } else {
             username = 'User';
+            githubUrl = '';
           }
-
-          if (value.app_metadata && value.app_metadata.provider === 'github') {
-            githubUrl = `https://github.com/${username}`;
-          } else if (value.user_metadata.html_url) {
-            githubUrl = value.user_metadata.html_url;
-          } else if (
-            value.user_metadata.avatar_url &&
-            value.user_metadata.avatar_url.includes('github')
-          ) {
-            // Extract username from GitHub avatar URL if available
-            // Format is usually: https://avatars.githubusercontent.com/u/12345678?v=4
-            githubUrl = `https://github.com/${username}`;
-          } else {
-            githubUrl = `https://github.com/${username}`;
-          }
-        } else if (value.email) {
-          username = value.email.split('@')[0];
-          githubUrl = '';
         } else {
-          username = 'User';
+          username = '';
           githubUrl = '';
         }
-      } else {
-        username = '';
-        githubUrl = '';
       }
-    }
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   });
 
-  return () => {
-    isMounted = false;
-    unsubscribe();
-  };
-});
-
-async function handleLogin() {
-  try {
-    await signInWithGithub();
-    mobileMenuOpen = false;
-  } catch (error) {
-    console.error('Login error:', error);
+  async function handleLogin() {
+    try {
+      await signInWithGithub();
+      mobileMenuOpen = false;
+    } catch (error) {
+      console.error('Login error:', error);
+    }
   }
-}
 
-async function handleLogout() {
-  try {
-    await signOut();
-    mobileMenuOpen = false;
-  } catch (error) {
-    console.error('Logout error:', error);
+  async function handleLogout() {
+    try {
+      await signOut();
+      mobileMenuOpen = false;
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   }
-}
 
-function toggleMobileMenu() {
-  mobileMenuOpen = !mobileMenuOpen;
-}
-
-// The mobile menu is a disclosure, not a modal: no focus trap and the rest of
-// the page stays interactive. Escape closes it and returns focus to the toggle
-// so keyboard users are not stranded.
-function handleMobileMenuKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape' && mobileMenuOpen) {
-    mobileMenuOpen = false;
-    mobileMenuButton?.focus();
+  function toggleMobileMenu() {
+    mobileMenuOpen = !mobileMenuOpen;
   }
-}
 
-afterNavigate(() => {
-  mobileMenuOpen = false;
-});
+  // The mobile menu is a disclosure, not a modal: no focus trap and the rest of
+  // the page stays interactive. Escape closes it and returns focus to the toggle
+  // so keyboard users are not stranded.
+  function handleMobileMenuKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape' && mobileMenuOpen) {
+      mobileMenuOpen = false;
+      mobileMenuButton?.focus();
+    }
+  }
+
+  afterNavigate(() => {
+    mobileMenuOpen = false;
+  });
 </script>
 
 <svelte:window on:keydown={handleMobileMenuKeydown} />
@@ -284,43 +282,55 @@ afterNavigate(() => {
           <li>
             <a
               href={resolve('/')}
-              class="block py-2 text-base font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] {page.url.pathname === '/' ? 'text-[var(--color-accent)]' : ''}"
-              >Problems</a
+              class="block py-2 text-base font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] {page
+                .url.pathname === '/'
+                ? 'text-[var(--color-accent)]'
+                : ''}">Problems</a
             >
           </li>
           <li>
             <a
               href={resolve('/contests')}
-              class="block py-2 text-base font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] {page.url.pathname === '/contests' ? 'text-[var(--color-accent)]' : ''}"
-              >Contests</a
+              class="block py-2 text-base font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] {page
+                .url.pathname === '/contests'
+                ? 'text-[var(--color-accent)]'
+                : ''}">Contests</a
             >
           </li>
           <li>
             <a
               href={resolve('/leaderboard')}
-              class="block py-2 text-base font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] {page.url.pathname === '/leaderboard' ? 'text-[var(--color-accent)]' : ''}"
-              >Leaderboard</a
+              class="block py-2 text-base font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] {page
+                .url.pathname === '/leaderboard'
+                ? 'text-[var(--color-accent)]'
+                : ''}">Leaderboard</a
             >
           </li>
           <li>
             <a
               href={resolve('/about')}
-              class="block py-2 text-base font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] {page.url.pathname === '/about' ? 'text-[var(--color-accent)]' : ''}"
-              >About</a
+              class="block py-2 text-base font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] {page
+                .url.pathname === '/about'
+                ? 'text-[var(--color-accent)]'
+                : ''}">About</a
             >
           </li>
           {#if $currentActor.user && $currentActor.isAdmin}
             <li>
               <a
                 href={resolve('/submit')}
-                class="block py-2 text-base font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] {page.url.pathname === '/submit' ? 'text-[var(--color-accent)]' : ''}"
-                >Submit</a
+                class="block py-2 text-base font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] {page
+                  .url.pathname === '/submit'
+                  ? 'text-[var(--color-accent)]'
+                  : ''}">Submit</a
               >
             </li>
           {/if}
         </ul>
         <div
-          class="mt-2 flex flex-col items-start justify-start gap-3 px-1 transition-opacity duration-300 {$currentActor.initialized ? 'visible opacity-100' : 'invisible opacity-0'}"
+          class="mt-2 flex flex-col items-start justify-start gap-3 px-1 transition-opacity duration-300 {$currentActor.initialized
+            ? 'visible opacity-100'
+            : 'invisible opacity-0'}"
           style="will-change: opacity;"
         >
           {#if $currentActor.user}
@@ -379,42 +389,37 @@ afterNavigate(() => {
 </header>
 
 <style>
-/* Add smooth transitions for mobile menu */
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+
+  div.lg\:hidden {
+    animation: slideDown 0.2s ease-out;
   }
-}
 
-div.lg\:hidden {
-  animation: slideDown 0.2s ease-out;
-}
+  header {
+    left: 0;
+    right: 0;
+  }
 
-/* Ensure header is at the top */
-header {
-  left: 0;
-  right: 0;
-}
+  a[href*='github.com'] {
+    color: var(--color-username) !important;
+    text-decoration: none;
+    position: relative;
+  }
 
-/* Ensure username is always blue */
-a[href*='github.com'] {
-  color: var(--color-username) !important;
-  text-decoration: none;
-  position: relative;
-}
+  a[href*='github.com']:hover {
+    color: color-mix(in oklab, var(--color-username) 80%, white) !important;
+  }
 
-a[href*='github.com']:hover {
-  color: color-mix(in oklab, var(--color-username) 80%, white) !important;
-}
-
-/* Add retro underline effect to nav links */
-li.relative a:hover {
-  text-decoration: none;
-}
-
+  li.relative a:hover {
+    text-decoration: none;
+  }
 </style>

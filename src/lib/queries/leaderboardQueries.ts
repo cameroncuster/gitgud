@@ -1,3 +1,4 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '$lib/services/database';
 
 export type LeaderboardEntry = {
@@ -20,24 +21,30 @@ type LeaderboardRecord = {
   rank: number;
 };
 
-export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
-  try {
-    const { data, error } = await supabase.rpc('get_leaderboard');
-    if (error) {
-      console.error('Error fetching leaderboard:', error);
+export function createLeaderboardQueries(client: SupabaseClient) {
+  async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
+    try {
+      const { data, error } = await client.rpc('get_leaderboard');
+      if (error) {
+        console.error('Error fetching leaderboard:', error);
+        return [];
+      }
+      return (data as LeaderboardRecord[]).map((record) => ({
+        userId: record.user_id,
+        username: record.username,
+        avatarUrl: record.avatar_url,
+        githubUrl: record.github_url,
+        problemsSolved: record.problems_solved,
+        earliestSolvesSum: record.earliest_solves_sum,
+        rank: record.rank
+      }));
+    } catch (error) {
+      console.error('Failed to fetch leaderboard:', error);
       return [];
     }
-    return (data as LeaderboardRecord[]).map((record) => ({
-      userId: record.user_id,
-      username: record.username,
-      avatarUrl: record.avatar_url,
-      githubUrl: record.github_url,
-      problemsSolved: record.problems_solved,
-      earliestSolvesSum: record.earliest_solves_sum,
-      rank: record.rank
-    }));
-  } catch (error) {
-    console.error('Failed to fetch leaderboard:', error);
-    return [];
   }
+
+  return { fetchLeaderboard };
 }
+
+export const { fetchLeaderboard } = createLeaderboardQueries(supabase);

@@ -19,11 +19,8 @@
 export type ProblemRow = {
   id: string;
   name: string;
-  tags: string[];
   difficulty: number | null;
   url: string;
-  solved: number;
-  date_added: string;
   added_by: string;
   added_by_url: string;
   likes: number;
@@ -62,11 +59,8 @@ export const PROBLEMS: ProblemRow[] = [
   {
     id: '11111111-1111-1111-1111-111111111111',
     name: 'Fixture Alpha Problem',
-    tags: ['graph'],
     difficulty: 1500,
     url: 'https://codeforces.com/contest/1000/problem/A',
-    solved: 42,
-    date_added: '2024-01-01T00:00:00.000Z',
     added_by: 'alice',
     added_by_url: 'https://codeforces.com/profile/alice',
     likes: 10,
@@ -76,11 +70,8 @@ export const PROBLEMS: ProblemRow[] = [
   {
     id: '22222222-2222-2222-2222-222222222222',
     name: 'Fixture Beta Problem',
-    tags: ['math'],
     difficulty: 2100,
     url: 'https://codeforces.com/contest/1000/problem/B',
-    solved: 7,
-    date_added: '2024-02-01T00:00:00.000Z',
     added_by: 'bob',
     added_by_url: 'https://codeforces.com/profile/bob',
     likes: 3,
@@ -90,11 +81,8 @@ export const PROBLEMS: ProblemRow[] = [
   {
     id: '33333333-3333-3333-3333-333333333333',
     name: 'Fixture Gamma Kattis',
-    tags: [],
     difficulty: 800,
     url: 'https://open.kattis.com/problems/gamma',
-    solved: 99,
-    date_added: '2024-03-01T00:00:00.000Z',
     added_by: 'alice',
     added_by_url: 'https://codeforces.com/profile/alice',
     likes: 1,
@@ -103,6 +91,25 @@ export const PROBLEMS: ProblemRow[] = [
     type: null
   }
 ];
+
+export const LARGE_PROBLEMS: ProblemRow[] = Array.from({ length: 280 }, (_, index) => {
+  const number = index + 1;
+  const isLast = number === 280;
+  return {
+    id: `large-${String(number).padStart(3, '0')}`,
+    name: isLast ? 'Beyond First Batch' : `Large Fixture Problem ${number}`,
+    difficulty: isLast ? 700 : 1000 + number,
+    url:
+      number % 2 === 0
+        ? `https://open.kattis.com/problems/large-${number}`
+        : `https://codeforces.com/contest/2000/problem/${number}`,
+    added_by: isLast ? 'beyond-author' : `author-${number % 10}`,
+    added_by_url: `https://example.test/users/${isLast ? 'beyond-author' : `author-${number % 10}`}`,
+    likes: 281 - number,
+    dislikes: 0,
+    type: number % 3 === 0 ? 'graph' : 'math'
+  };
+});
 
 export const CONTESTS: ContestRow[] = [
   {

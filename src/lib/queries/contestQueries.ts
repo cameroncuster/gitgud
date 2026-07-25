@@ -1,5 +1,7 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { getCurrentActor } from '$lib/auth/currentActor';
 import { supabase } from '$lib/services/database';
+import type { Database } from '$lib/types/database';
 
 export type Contest = {
   id?: string;
@@ -55,58 +57,73 @@ export function mapContestRecord(record: ContestRecord): Contest {
   };
 }
 
-export async function fetchContests(): Promise<Contest[]> {
-  try {
-    const { data, error } = await supabase.from('contests').select(CONTEST_COLUMNS);
-    if (error) {
-      console.error('Error fetching contests:', error);
+type ContestQueryDependencies = {
+  client: SupabaseClient<Database>;
+  getCurrentUser: () => { id: string } | null;
+};
+
+export function createContestQueries({ client, getCurrentUser }: ContestQueryDependencies) {
+  async function fetchContests(): Promise<Contest[]> {
+    try {
+      const { data, error } = await client.from('contests').select(CONTEST_COLUMNS);
+      if (error) {
+        console.error('Error fetching contests:', error);
+        return [];
+      }
+      return (data as unknown as ContestRecord[]).map(mapContestRecord);
+    } catch (error) {
+      console.error('Failed to fetch contests:', error);
       return [];
     }
-    return (data as unknown as ContestRecord[]).map(mapContestRecord);
-  } catch (error) {
-    console.error('Failed to fetch contests:', error);
-    return [];
   }
-}
 
-export async function fetchContestParticipation(): Promise<Set<string>> {
-  const user = getCurrentActor().user;
-  if (!user) return new Set();
+  async function fetchContestParticipation(): Promise<Set<string>> {
+    const user = getCurrentUser();
+    if (!user) return new Set();
 
-  try {
-    const { data, error } = await supabase
-      .from('user_contest_participation')
-      .select('contest_id')
-      .eq('user_id', user.id);
-    if (error) {
-      console.error('Error fetching user participation:', error);
+    try {
+      const { data, error } = await client
+        .from('user_contest_participation')
+        .select('contest_id')
+        .eq('user_id', user.id);
+      if (error) {
+        console.error('Error fetching user participation:', error);
+        return new Set();
+      }
+      return new Set(data.map((item) => item.contest_id));
+    } catch (error) {
+      console.error('Failed to fetch user participation:', error);
       return new Set();
     }
-    return new Set(data.map((item) => item.contest_id));
-  } catch (error) {
-    console.error('Failed to fetch user participation:', error);
-    return new Set();
   }
-}
 
-export async function fetchContestFeedback(): Promise<Record<string, 'like' | 'dislike' | null>> {
-  const user = getCurrentActor().user;
-  if (!user) return {};
+  async function fetchContestFeedback(): Promise<Record<string, 'like' | 'dislike' | null>> {
+    const user = getCurrentUser();
+    if (!user) return {};
 
-  try {
-    const { data, error } = await supabase
-      .from('user_contest_feedback')
-      .select('contest_id, feedback_type')
-      .eq('user_id', user.id);
-    if (error) {
-      console.error('Error fetching user contest feedback:', error);
+    try {
+      const { data, error } = await client
+        .from('user_contest_feedback')
+        .select('contest_id, feedback_type')
+        .eq('user_id', user.id);
+      if (error) {
+        console.error('Error fetching user contest feedback:', error);
+        return {};
+      }
+      return Object.fromEntries(
+        data.map((item) => [item.contest_id, item.feedback_type as 'like' | 'dislike' | null])
+      );
+    } catch (error) {
+      console.error('Failed to fetch user contest feedback:', error);
       return {};
     }
-    return Object.fromEntries(
-      data.map((item) => [item.contest_id, item.feedback_type as 'like' | 'dislike' | null])
-    );
-  } catch (error) {
-    console.error('Failed to fetch user contest feedback:', error);
-    return {};
   }
+
+  return { fetchContests, fetchContestParticipation, fetchContestFeedback };
 }
+
+export const { fetchContests, fetchContestParticipation, fetchContestFeedback } =
+  createContestQueries({
+    client: supabase,
+    getCurrentUser: () => getCurrentActor().user
+  });

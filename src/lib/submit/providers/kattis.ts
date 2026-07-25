@@ -1,17 +1,20 @@
 import { createKattisIngestion } from '$lib/providers/kattis/ingestion';
 import type { ProviderAdapter, SubmissionPersistence } from '$lib/submit/types';
 
-async function fetchKattisPage(url: string): Promise<string> {
-  const response = await fetch(`/api/kattis?url=${encodeURIComponent(url)}`);
+async function fetchKattisPage(url: string, fetchPage: typeof fetch = fetch): Promise<string> {
+  const response = await fetchPage(`/api/kattis?url=${encodeURIComponent(url)}`);
   const data = (await response.json()) as { html?: string; error?: string };
   if (!response.ok) throw new Error(data.error || 'Failed to fetch problem');
   return data.html ?? '';
 }
 
-export function createKattisSubmitAdapter(persistence: SubmissionPersistence): ProviderAdapter {
+export function createKattisSubmitAdapter(
+  persistence: SubmissionPersistence,
+  fetchPage: typeof fetch = fetch
+): ProviderAdapter {
   const ingestion = createKattisIngestion({
     checkProblem: async (url) => persistence.checkEquivalentProblemUrls(url),
-    fetchPage: fetchKattisPage
+    fetchPage: (url) => fetchKattisPage(url, fetchPage)
   });
 
   return {
