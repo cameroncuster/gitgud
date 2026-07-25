@@ -39,7 +39,7 @@
 //   POST /rest/v1/contests                -> isolated insert (in-memory only)
 //
 // Control endpoint (test-only):
-//   POST /__control/scenario  body {"scenario":"data"|"empty"|"error"}
+//   POST /__control/scenario  body {"scenario":"data"|"empty"|"error"|"large"}
 //   POST /__control/reset     resets the in-memory insert store + provider mode
 //   POST /__control/provider  body {"mode":"ok"|"fail"|"notfound", ...fixtures}
 //   POST /__control/mutation  selects success/null/delayed/error writes
@@ -50,10 +50,10 @@
 // never leak state across scenarios. This is test-only infrastructure: no
 // credentials, never bundled into the app.
 import http from 'node:http';
-import { PROBLEMS, CONTESTS, LEADERBOARD } from './fixtures.ts';
+import { PROBLEMS, LARGE_PROBLEMS, CONTESTS, LEADERBOARD } from './fixtures.ts';
 import { ADMIN_USER, MEMBER_USER } from './constants.ts';
 
-type Scenario = 'data' | 'empty' | 'error';
+type Scenario = 'data' | 'empty' | 'error' | 'large';
 type ProviderMode = 'ok' | 'fail' | 'notfound' | 'malformed' | 'ratelimited';
 type MutationMode = 'success' | 'null' | 'error' | 'delayed-success' | 'delayed-error';
 
@@ -88,6 +88,8 @@ let contestRows = CONTESTS.map((row) => ({ ...row }));
 // assert that preview performs ZERO writes.
 let solvedWriteAttempts = 0;
 let mutationMode: MutationMode = 'success';
+let problemsReadCount = 0;
+let lastProblemsSelect: string | null = null;
 
 // --- Provider (Codeforces/Kattis) stub mode ----------------------------------
 // The server-side app endpoints (/api/codeforces/problems, /api/kattis) fetch
@@ -109,6 +111,8 @@ function resetState(): void {
   contestRows = CONTESTS.map((row) => ({ ...row }));
   solvedWriteAttempts = 0;
   mutationMode = 'success';
+  problemsReadCount = 0;
+  lastProblemsSelect = null;
   provider = 'ok';
 }
 
@@ -158,7 +162,7 @@ function bearerToken(req: http.IncomingMessage): string {
 }
 
 function payloadFor(pathname: string): unknown[] | null {
-  if (pathname === '/rest/v1/problems') return problemRows;
+  if (pathname === '/rest/v1/problems') return scenario === 'large' ? LARGE_PROBLEMS : problemRows;
   if (pathname === '/rest/v1/contests') return contestRows;
   if (pathname === '/rest/v1/rpc/get_leaderboard') return LEADERBOARD;
   return null;
@@ -402,6 +406,15 @@ function handleSolvedRead(req: http.IncomingMessage, res: http.ServerResponse, u
   sendJson(res, 200, rows);
 }
 
+function handleSolvedRpc(res: http.ServerResponse, body: string): void {
+  const userId = (JSON.parse(body || '{}') as { p_user_id?: string }).p_user_id;
+  const rows =
+    scenario === 'large' && userId === LEADERBOARD[0].user_id
+      ? LARGE_PROBLEMS.map(({ id }) => ({ problem_id: id }))
+      : [];
+  sendJson(res, 200, rows);
+}
+
 async function waitForMutation(res: http.ServerResponse): Promise<boolean> {
   if (mutationMode === 'delayed-success' || mutationMode === 'delayed-error') {
     await new Promise((resolve) => setTimeout(resolve, 500));
@@ -599,7 +612,7 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       try {
         const next = JSON.parse(body || '{}').scenario as Scenario;
-        if (next === 'data' || next === 'empty' || next === 'error') {
+        if (next === 'data' || next === 'empty' || next === 'error' || next === 'large') {
           scenario = next;
         }
       } catch {
@@ -611,7 +624,9 @@ const server = http.createServer(async (req, res) => {
       provider,
       mutationMode,
       inserted: { problems: insertedProblems.length, contests: insertedContests.length },
-      solvedWriteAttempts
+      solvedWriteAttempts,
+      problemsReadCount,
+      lastProblemsSelect
     });
     return;
   }
@@ -753,6 +768,12 @@ const server = http.createServer(async (req, res) => {
     }
     return;
   }
+  if (url.pathname === '/rest/v1/rpc/get_user_solved_problems') {
+    const body = await readBody(req);
+    if (scenario === 'error') sendError(res);
+    else handleSolvedRpc(res, body);
+    return;
+  }
   if (url.pathname === '/rest/v1/rpc/update_problem_feedback') {
     const body = await readBody(req);
     await handleFeedbackRpc(req, res, body, 'problem');
@@ -806,6 +827,10 @@ const server = http.createServer(async (req, res) => {
 
   // Plain list reads (display fixtures) --------------------------------------
   const data = payloadFor(url.pathname);
+  if (url.pathname === '/rest/v1/problems') {
+    problemsReadCount++;
+    lastProblemsSelect = url.searchParams.get('select');
+  }
   await readBody(req); // drain any request body (RPC calls POST JSON)
 
   if (data === null) {

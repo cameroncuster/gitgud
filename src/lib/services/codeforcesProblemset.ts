@@ -87,7 +87,7 @@ interface ProblemsetResponse {
  * caller can surface it to the user.
  */
 export async function fetchProblemsetCatalog(
-  fetchFn: FetchLike,
+  fetchFn: FetchLike = fetch,
   apiUrl: string = PROBLEMSET_API_URL
 ): Promise<CodeforcesProblemsetProblem[]> {
   let response;
@@ -181,7 +181,11 @@ export function resolveFromCatalog(
   return refs.map((ref) => {
     const invalid = validateProblemRef(ref);
     if (invalid) {
-      return { contestId: ref.contestId, index: ref.index, error: invalid };
+      return {
+        contestId: typeof ref?.contestId === 'string' ? ref.contestId : '',
+        index: typeof ref?.index === 'string' ? ref.index : '',
+        error: invalid
+      };
     }
 
     const match = byKey.get(`${ref.contestId}:${ref.index}`);

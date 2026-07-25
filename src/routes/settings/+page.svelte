@@ -1,197 +1,194 @@
 <script lang="ts">
-import { onMount } from 'svelte';
-import { goto } from '$app/navigation';
-import { resolve } from '$app/paths';
-import { currentActor, resolveCurrentActor } from '$lib/auth/currentActor';
-import { fetchUserPreferences, updateUserPreferences } from '$lib/services/user';
-import type { UserPreferences } from '$lib/services/user';
-import type { Unsubscriber } from 'svelte/store';
-import { applyTheme } from '$lib/services/theme';
-import {
-  previewCodeforcesImport,
-  confirmCodeforcesImport
-} from '$lib/services/userSolves';
-import type { SolveMatchResult } from '$lib/services/codeforcesSolves';
+  import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { resolve } from '$app/paths';
+  import { currentActor, resolveCurrentActor } from '$lib/auth/currentActor';
+  import { fetchUserPreferences, updateUserPreferences } from '$lib/services/user';
+  import type { UserPreferences } from '$lib/services/user';
+  import type { Unsubscriber } from 'svelte/store';
+  import { applyTheme } from '$lib/services/theme';
+  import { previewCodeforcesImport, confirmCodeforcesImport } from '$lib/services/userSolves';
+  import type { SolveMatchResult } from '$lib/services/codeforcesSolves';
 
-let preferences: UserPreferences = {
-  hideFromLeaderboard: false,
-  theme: 'light'
-};
+  let preferences: UserPreferences = {
+    hideFromLeaderboard: false,
+    theme: 'light'
+  };
 
-let loading: boolean = true;
-let saving: boolean = false;
-let error: string | null = null;
-let success: string | null = null;
-let userUnsubscribe: Unsubscriber | null = null;
+  let loading: boolean = true;
+  let saving: boolean = false;
+  let error: string | null = null;
+  let success: string | null = null;
+  let userUnsubscribe: Unsubscriber | null = null;
 
-let cfHandle: string = '';
-let importPreviewing: boolean = false;
-let importing: boolean = false;
-let importError: string | null = null;
-let importSuccess: string | null = null;
-let importPreview: SolveMatchResult | null = null;
+  let cfHandle: string = '';
+  let importPreviewing: boolean = false;
+  let importing: boolean = false;
+  let importError: string | null = null;
+  let importSuccess: string | null = null;
+  let importPreview: SolveMatchResult | null = null;
 
-// Preview the Codeforces solves that match problems tracked here. Read-only.
-async function runPreview(): Promise<void> {
-  if (!cfHandle.trim()) {
-    importError = 'Enter a Codeforces handle';
-    return;
-  }
-
-  importPreviewing = true;
-  importError = null;
-  importSuccess = null;
-  importPreview = null;
-
-  try {
-    const result = await previewCodeforcesImport(cfHandle);
-    if (!result.success) {
-      importError = result.message;
+  // Preview the Codeforces solves that match problems tracked here. Read-only.
+  async function runPreview(): Promise<void> {
+    if (!cfHandle.trim()) {
+      importError = 'Enter a Codeforces handle';
       return;
     }
-    importPreview = result.result;
-  } catch (err) {
-    console.error('runPreview: error', err);
-    importError = 'Failed to preview import';
-  } finally {
-    importPreviewing = false;
-  }
-}
 
-// Confirm the previewed import. The server re-derives the matched set, so only
-// server-derived tracked problems are imported for the current user.
-async function runImport(): Promise<void> {
-  if (!importPreview || importPreview.matched.length === 0) {
-    return;
-  }
-
-  importing = true;
-  importError = null;
-  importSuccess = null;
-
-  try {
-    const result = await confirmCodeforcesImport(cfHandle);
-    if (!result.success) {
-      importError = result.message || 'Import failed';
-      return;
-    }
-    importSuccess = `Imported ${result.imported} newly solved problem${result.imported === 1 ? '' : 's'}`;
+    importPreviewing = true;
+    importError = null;
+    importSuccess = null;
     importPreview = null;
-  } catch (err) {
-    console.error('runImport: error', err);
-    importError = 'Import failed';
-  } finally {
-    importing = false;
+
+    try {
+      const result = await previewCodeforcesImport(cfHandle);
+      if (!result.success) {
+        importError = result.message;
+        return;
+      }
+      importPreview = result.result;
+    } catch (err) {
+      console.error('runPreview: error', err);
+      importError = 'Failed to preview import';
+    } finally {
+      importPreviewing = false;
+    }
   }
-}
 
-async function loadPreferences(): Promise<void> {
-  loading = true;
-  error = null;
+  // Confirm the previewed import. The server re-derives the matched set, so only
+  // server-derived tracked problems are imported for the current user.
+  async function runImport(): Promise<void> {
+    if (!importPreview || importPreview.matched.length === 0) {
+      return;
+    }
 
-  try {
-    const userPrefs = await fetchUserPreferences();
-    if (userPrefs) {
-      preferences = userPrefs;
+    importing = true;
+    importError = null;
+    importSuccess = null;
 
-      applyTheme(preferences.theme);
-    } else {
-      const result = await updateUserPreferences({
-        hideFromLeaderboard: false,
-        theme: 'light'
-      });
+    try {
+      const result = await confirmCodeforcesImport(cfHandle);
+      if (!result.success) {
+        importError = result.message || 'Import failed';
+        return;
+      }
+      importSuccess = `Imported ${result.imported} newly solved problem${result.imported === 1 ? '' : 's'}`;
+      importPreview = null;
+    } catch (err) {
+      console.error('runImport: error', err);
+      importError = 'Import failed';
+    } finally {
+      importing = false;
+    }
+  }
 
-      if (result) {
-        preferences = {
+  async function loadPreferences(): Promise<void> {
+    loading = true;
+    error = null;
+
+    try {
+      const userPrefs = await fetchUserPreferences();
+      if (userPrefs) {
+        preferences = userPrefs;
+
+        applyTheme(preferences.theme);
+      } else {
+        const result = await updateUserPreferences({
           hideFromLeaderboard: false,
           theme: 'light'
-        };
+        });
+
+        if (result) {
+          preferences = {
+            hideFromLeaderboard: false,
+            theme: 'light'
+          };
+        }
       }
+    } catch (err) {
+      console.error('loadPreferences: Error loading preferences', err);
+      error = 'Failed to load preferences';
+    } finally {
+      loading = false;
     }
-  } catch (err) {
-    console.error('loadPreferences: Error loading preferences', err);
-    error = 'Failed to load preferences';
-  } finally {
-    loading = false;
   }
-}
 
-async function savePreferences(): Promise<void> {
-  saving = true;
-  error = null;
-  success = null;
+  async function savePreferences(): Promise<void> {
+    saving = true;
+    error = null;
+    success = null;
 
-  try {
-    const result = await updateUserPreferences(preferences);
-    if (result) {
-      success = 'Saved';
-      setTimeout(() => {
-        success = null;
-      }, 2000);
-    } else {
-      console.error('savePreferences: Failed to save preferences');
+    try {
+      const result = await updateUserPreferences(preferences);
+      if (result) {
+        success = 'Saved';
+        setTimeout(() => {
+          success = null;
+        }, 2000);
+      } else {
+        console.error('savePreferences: Failed to save preferences');
+        error = 'Failed to save';
+      }
+    } catch (err) {
+      console.error('savePreferences: Error saving preferences', err);
       error = 'Failed to save';
+    } finally {
+      saving = false;
     }
-  } catch (err) {
-    console.error('savePreferences: Error saving preferences', err);
-    error = 'Failed to save';
-  } finally {
-    saving = false;
   }
-}
 
-function toggleHideFromLeaderboard(): void {
-  preferences.hideFromLeaderboard = !preferences.hideFromLeaderboard;
-  savePreferences();
-}
+  function toggleHideFromLeaderboard(): void {
+    preferences.hideFromLeaderboard = !preferences.hideFromLeaderboard;
+    savePreferences();
+  }
 
-function toggleTheme(): void {
-  const newTheme = preferences.theme === 'light' ? 'dark' : 'light';
-  preferences.theme = newTheme;
+  function toggleTheme(): void {
+    const newTheme = preferences.theme === 'light' ? 'dark' : 'light';
+    preferences.theme = newTheme;
 
-  applyTheme(newTheme);
+    applyTheme(newTheme);
 
-  localStorage.setItem('gitgud-theme', newTheme);
+    localStorage.setItem('gitgud-theme', newTheme);
 
-  // Force a re-render by creating a new object
-  preferences = { ...preferences };
+    // Force a re-render by creating a new object
+    preferences = { ...preferences };
 
-  savePreferences();
-}
+    savePreferences();
+  }
 
-// Gate on the resolved current actor rather than an arbitrary delay, then
-// redirect anonymous visitors and watch for a later sign-out.
-onMount(() => {
-  const initAuth = async () => {
-    const actor = await resolveCurrentActor();
-    if (!actor.user) {
-      // No session — redirect home, leaving the loading state in place.
-      goto(resolve('/'));
-      return;
-    }
-
-    // Actor resolved: load preferences and create defaults if none exist.
-    await loadPreferences();
-
-    // Ignore the subscription's initial state and act on a real sign-out.
-    let seenUser = false;
-    userUnsubscribe = currentActor.subscribe((value) => {
-      if (value.user) {
-        seenUser = true;
-      } else if (value.initialized && seenUser) {
+  // Gate on the resolved current actor rather than an arbitrary delay, then
+  // redirect anonymous visitors and watch for a later sign-out.
+  onMount(() => {
+    const initAuth = async () => {
+      const actor = await resolveCurrentActor();
+      if (!actor.user) {
+        // No session — redirect home, leaving the loading state in place.
         goto(resolve('/'));
+        return;
       }
-    });
-  };
 
-  initAuth();
+      // Actor resolved: load preferences and create defaults if none exist.
+      await loadPreferences();
 
-  return () => {
-    if (userUnsubscribe) {
-      userUnsubscribe();
-    }
-  };
-});
+      // Ignore the subscription's initial state and act on a real sign-out.
+      let seenUser = false;
+      userUnsubscribe = currentActor.subscribe((value) => {
+        if (value.user) {
+          seenUser = true;
+        } else if (value.initialized && seenUser) {
+          goto(resolve('/'));
+        }
+      });
+    };
+
+    initAuth();
+
+    return () => {
+      if (userUnsubscribe) {
+        userUnsubscribe();
+      }
+    };
+  });
 </script>
 
 <svelte:head>
@@ -231,9 +228,7 @@ onMount(() => {
       {/if}
     </div>
 
-    <div
-      class="overflow-hidden rounded-none border-2 border-[var(--color-border)]"
-    >
+    <div class="overflow-hidden rounded-none border-2 border-[var(--color-border)]">
       <div class="border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-4">
         <div class="flex items-center gap-2">
           <svg
@@ -275,10 +270,14 @@ onMount(() => {
             >
               <span class="sr-only">Hide from leaderboard</span>
               <span
-                class="absolute h-full w-full rounded transition-colors duration-200 {preferences.hideFromLeaderboard ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-text-muted)]'} {saving ? 'opacity-50' : ''}"
+                class="absolute h-full w-full rounded transition-colors duration-200 {preferences.hideFromLeaderboard
+                  ? 'bg-[var(--color-accent)]'
+                  : 'bg-[var(--color-text-muted)]'} {saving ? 'opacity-50' : ''}"
               ></span>
               <span
-                class="absolute top-0.5 left-0.5 h-5 w-5 transform rounded bg-white transition-transform duration-200 {preferences.hideFromLeaderboard ? 'translate-x-5' : ''} {saving ? 'opacity-50' : ''}"
+                class="absolute top-0.5 left-0.5 h-5 w-5 transform rounded bg-white transition-transform duration-200 {preferences.hideFromLeaderboard
+                  ? 'translate-x-5'
+                  : ''} {saving ? 'opacity-50' : ''}"
               ></span>
             </button>
           </div>
@@ -288,9 +287,7 @@ onMount(() => {
 
     <!-- Theme Settings Section -->
     {#if !loading}
-      <div
-        class="mt-6 overflow-hidden rounded-none border-2 border-[var(--color-border)]"
-      >
+      <div class="mt-6 overflow-hidden rounded-none border-2 border-[var(--color-border)]">
         <div class="border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-4">
           <div class="flex items-center gap-2">
             <svg
@@ -331,10 +328,16 @@ onMount(() => {
               >
                 <span class="sr-only">Toggle dark mode</span>
                 <span
-                  class="absolute h-full w-full rounded transition-colors duration-200 {preferences.theme === 'dark' ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-text-muted)]'} {saving ? 'opacity-50' : ''}"
+                  class="absolute h-full w-full rounded transition-colors duration-200 {preferences.theme ===
+                  'dark'
+                    ? 'bg-[var(--color-accent)]'
+                    : 'bg-[var(--color-text-muted)]'} {saving ? 'opacity-50' : ''}"
                 ></span>
                 <span
-                  class="absolute top-0.5 left-0.5 h-5 w-5 transform rounded bg-white transition-transform duration-200 {preferences.theme === 'dark' ? 'translate-x-5' : ''} {saving ? 'opacity-50' : ''}"
+                  class="absolute top-0.5 left-0.5 h-5 w-5 transform rounded bg-white transition-transform duration-200 {preferences.theme ===
+                  'dark'
+                    ? 'translate-x-5'
+                    : ''} {saving ? 'opacity-50' : ''}"
                 ></span>
               </button>
             </div>

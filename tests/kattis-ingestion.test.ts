@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import {
   createKattisIngestion,
   extractKattisEntries,
+  formatKattisLabel,
   mapKattisDifficulty,
+  parseKattisProblem,
   parseKattisProblemId,
   type KattisIngestionDependencies
 } from '../src/lib/providers/kattis/ingestion.ts';
@@ -32,6 +34,19 @@ test('accepts IDs and URLs, canonicalizes, and deduplicates', () => {
     ]
   );
   assert.equal(parseKattisProblemId('https://evil.com/problems/hello'), null);
+});
+
+test('problem parsing and labels preserve canonical IDs', () => {
+  assert.deepEqual(parseKattisProblem('hello'), {
+    problemId: 'hello',
+    url: 'https://open.kattis.com/problems/hello'
+  });
+  assert.equal(parseKattisProblem('not valid'), null);
+  assert.equal(formatKattisLabel('https://open.kattis.com/problems/hello'), 'hello');
+  assert.equal(
+    formatKattisLabel('https://open.kattis.com/problems/hello', 'Hello World'),
+    'Hello World'
+  );
 });
 
 test('maps 1-10 ratings to 800-3500', () => {
@@ -78,6 +93,33 @@ test('fetch or parse failure logs and remains a valid title-cased fallback row',
   assert.equal(row.valid && row.payload.difficulty, undefined);
   assert.equal(row.valid && row.payload.addedByUrl, 'https://open.kattis.com/users/');
   assert.equal(logs[0][0], 'Error fetching Kattis problem HTML:');
+});
+
+test('invalid entries and duplicate errors avoid page fetches', async () => {
+  let fetches = 0;
+  const service = ingestion({
+    checkProblem: async () => ({ duplicate: false, error: 'database unavailable' }),
+    fetchPage: async () => {
+      fetches++;
+      return '';
+    }
+  });
+  const invalid = await service.resolve(
+    { kind: 'problem', url: 'https://evil.test/problems/x' },
+    ''
+  );
+  assert.deepEqual(invalid, {
+    valid: false,
+    kind: 'problem',
+    label: 'https://evil.test/problems/x',
+    url: 'https://evil.test/problems/x',
+    reason: 'Invalid URL'
+  });
+  const [entry] = service.extract('hello');
+  const duplicate = await service.resolve(entry, '');
+  assert.equal(duplicate.valid, false);
+  assert.equal(duplicate.valid ? '' : duplicate.reason, 'database unavailable');
+  assert.equal(fetches, 0);
 });
 
 test('duplicate checks are read-only and ingestion exposes no persistence write', async () => {

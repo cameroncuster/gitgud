@@ -68,6 +68,7 @@ test('parseProblemUrl parses contest, problemset, and gym URLs', () => {
   assert.equal(gym?.url, 'https://codeforces.com/gym/104427/problem/A');
 
   assert.equal(parseProblemUrl('https://example.com/not/a/problem'), null);
+  assert.equal(parseProblemUrl('https://evil.test/codeforces.com/contest/1/problem/A'), null);
 });
 
 test('resolveFromCatalog resolves all five repro problems from a mocked catalog', () => {
@@ -91,7 +92,8 @@ test('resolveFromCatalog reports missing and invalid problems', () => {
     [
       { contestId: '9999999', index: 'Z' }, // valid shape, not in catalog
       { contestId: 'abc', index: 'A' }, // invalid contestId
-      { contestId: '4', index: '1' } // invalid index
+      { contestId: '4', index: '1' }, // invalid index
+      null as unknown as { contestId: string; index: string }
     ],
     MOCK_CATALOG
   );
@@ -99,6 +101,11 @@ test('resolveFromCatalog reports missing and invalid problems', () => {
   assert.match(results[0].error ?? '', /not found/i);
   assert.match(results[1].error ?? '', /Invalid contestId/);
   assert.match(results[2].error ?? '', /Invalid problem index/);
+  assert.deepEqual(results[3], {
+    contestId: '',
+    index: '',
+    error: 'Missing contestId or index'
+  });
 });
 
 test('validateProblemRef accepts well-formed refs and rejects bad ones', () => {
@@ -106,6 +113,10 @@ test('validateProblemRef accepts well-formed refs and rejects bad ones', () => {
   assert.equal(validateProblemRef({ contestId: '1', index: 'B2' }), null);
   assert.match(validateProblemRef({ contestId: '', index: 'A' }) ?? '', /Invalid contestId/);
   assert.match(validateProblemRef({ contestId: '1', index: 'aa' }) ?? '', /Invalid problem index/);
+  assert.equal(
+    validateProblemRef(null as unknown as { contestId: string; index: string }),
+    'Missing contestId or index'
+  );
 });
 
 test('fetchProblemsetCatalog returns problems on OK response', async () => {
@@ -113,6 +124,21 @@ test('fetchProblemsetCatalog returns problems on OK response', async () => {
     mockFetch({ status: 'OK', result: { problems: MOCK_CATALOG } })
   );
   assert.equal(catalog.length, MOCK_CATALOG.length);
+});
+
+test('fetchProblemsetCatalog defaults to global fetch and the canonical URL', async (t) => {
+  let requested = '';
+  t.mock.method(
+    globalThis,
+    'fetch',
+    async (input: string | URL | Request) => {
+      requested = String(input);
+      return Response.json({ status: 'OK', result: { problems: MOCK_CATALOG } });
+    },
+    { times: 1 }
+  );
+  assert.equal((await fetchProblemsetCatalog()).length, MOCK_CATALOG.length);
+  assert.equal(requested, PROBLEMSET_API_URL);
 });
 
 test('fetchProblemsetCatalog surfaces an actionable error on FAILED upstream response', async () => {
@@ -129,8 +155,20 @@ test('fetchProblemsetCatalog surfaces an actionable error on FAILED upstream res
   );
 });
 
-test('fetchProblemsetCatalog surfaces HTTP errors', async () => {
+test('fetchProblemsetCatalog surfaces HTTP, network, and malformed payload errors', async () => {
   await assert.rejects(() => fetchProblemsetCatalog(mockFetch({}, false, 503)), /HTTP 503/);
+  await assert.rejects(
+    () => fetchProblemsetCatalog(async () => Promise.reject(new Error('offline'))),
+    /Could not reach Codeforces \(offline\)/
+  );
+  await assert.rejects(
+    () => fetchProblemsetCatalog(mockFetch({ status: 'OK', result: {} })),
+    /unexpected problemset payload/
+  );
+  await assert.rejects(
+    () => fetchProblemsetCatalog(mockFetch({ status: 'FAILED' })),
+    /did not return OK/
+  );
 });
 
 test('problemsetApiUrl defaults to the real endpoint and honors an override base', () => {
@@ -218,6 +256,16 @@ test('createCatalogCache reuses within TTL and reloads after it expires', async 
   clock = 1000; // TTL elapsed
   await cache.get(load);
   assert.equal(calls, 2);
+});
+
+test('resolveFromCatalog defaults absent tags and preserves absent ratings', () => {
+  assert.deepEqual(
+    resolveFromCatalog(
+      [{ contestId: '7', index: 'A' }],
+      [{ contestId: 7, index: 'A', name: 'No Tags', tags: undefined as unknown as string[] }]
+    )[0].problem,
+    { contestId: '7', index: 'A', name: 'No Tags', tags: [], rating: undefined }
+  );
 });
 
 test('createCatalogCache runs each refresh through the loader passed to get()', async () => {

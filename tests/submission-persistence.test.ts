@@ -79,6 +79,24 @@ test('equivalent problem URL checks preserve canonical and alternate duplicate m
   );
 });
 
+test('equivalent URL checks skip a canonical duplicate alternate and continue', async () => {
+  const mock = client([
+    { data: [], error: null },
+    { data: [], error: null }
+  ]);
+  assert.deepEqual(
+    await createSubmissionPersistence(mock.mock).checkEquivalentProblemUrls('canonical', [
+      'canonical',
+      'alternate'
+    ]),
+    { duplicate: false }
+  );
+  assert.deepEqual(
+    mock.calls.map((call) => call.value),
+    ['canonical', 'alternate']
+  );
+});
+
 test('contest duplicate and database errors retain current result shapes', async () => {
   const duplicate = client([{ data: [{ id: 'c' }], error: null }]);
   assert.deepEqual(await createSubmissionPersistence(duplicate.mock).checkContest('contest'), {

@@ -22,36 +22,40 @@ function buildUpstreamUrl(problemId: string): string {
  * The caller input is reduced to a validated problem id before either the
  * canonical Kattis origin or the optional test upstream is constructed.
  */
-export const GET: RequestHandler = async ({ url }) => {
-  const problemParam = url.searchParams.get('url');
-  if (!problemParam) {
-    return json({ error: 'No URL provided' }, { status: 400 });
-  }
-
-  const problemId = parseKattisProblemId(problemParam);
-  if (!problemId) {
-    return json({ error: 'Invalid Kattis problem URL' }, { status: 400 });
-  }
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-
-  try {
-    const response = await fetch(buildUpstreamUrl(problemId), {
-      signal: controller.signal,
-      redirect: 'error'
-    });
-    if (!response.ok) {
-      return json({ error: 'Failed to fetch problem' }, { status: response.status });
+export function _createKattisGet(fetchPage: typeof fetch): RequestHandler {
+  return async ({ url }) => {
+    const problemParam = url.searchParams.get('url');
+    if (!problemParam) {
+      return json({ error: 'No URL provided' }, { status: 400 });
     }
-    return json({ html: await response.text() });
-  } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      return json({ error: 'Timed out fetching problem' }, { status: 504 });
+
+    const problemId = parseKattisProblemId(problemParam);
+    if (!problemId) {
+      return json({ error: 'Invalid Kattis problem URL' }, { status: 400 });
     }
-    console.error('Error fetching Kattis problem:', error);
-    return json({ error: 'Failed to fetch problem' }, { status: 500 });
-  } finally {
-    clearTimeout(timeout);
-  }
-};
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+    try {
+      const response = await fetchPage(buildUpstreamUrl(problemId), {
+        signal: controller.signal,
+        redirect: 'error'
+      });
+      if (!response.ok) {
+        return json({ error: 'Failed to fetch problem' }, { status: response.status });
+      }
+      return json({ html: await response.text() });
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        return json({ error: 'Timed out fetching problem' }, { status: 504 });
+      }
+      console.error('Error fetching Kattis problem:', error);
+      return json({ error: 'Failed to fetch problem' }, { status: 500 });
+    } finally {
+      clearTimeout(timeout);
+    }
+  };
+}
+
+export const GET = _createKattisGet(fetch);

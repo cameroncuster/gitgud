@@ -27,11 +27,8 @@ function problem(
   return {
     id,
     name,
-    tags: type ? [type] : [],
     difficulty,
     url: `https://example.com/${id}`,
-    solved: 0,
-    dateAdded: '',
     addedBy,
     addedByUrl: '',
     likes,

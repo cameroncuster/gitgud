@@ -118,6 +118,33 @@ test('contest controller loads, clears, and reloads on actor changes', async () 
   assert.equal(context.controller.state.feedback.c, 'dislike');
 });
 
+test('contest controller start, subscription, and dispose are idempotent', () => {
+  const context = setup();
+  context.controller.start();
+  assert.equal(context.actor.listenerCount, 1);
+  const unsubscribe = context.controller.subscribe(() => {});
+  unsubscribe();
+  context.controller.dispose();
+  context.controller.dispose();
+  context.controller.start();
+  assert.equal(context.actor.listenerCount, 0);
+});
+
+test('contest load failures and unknown IDs are contained', async () => {
+  let writes = 0;
+  const context = setup({
+    loadFeedback: async () => Promise.reject(new Error('feedback failed')),
+    loadParticipatedContestIds: async () => Promise.reject(new Error('participation failed')),
+    updateFeedback: async () => ((writes += 1), null)
+  });
+  context.actor.set({ user: { id: 'actor' } });
+  await settle();
+  await context.controller.react('missing', true);
+  assert.equal(writes, 0);
+  assert.deepEqual(context.controller.state.feedback, {});
+  assert.deepEqual([...context.controller.state.participatedContestIds], []);
+});
+
 test('contest reaction waits for success and null or rejection changes nothing', async () => {
   const pending = deferred<Contest | null>();
   const context = setup({ updateFeedback: () => pending.promise }, { user: { id: 'actor' } });
@@ -145,6 +172,34 @@ test('contest reaction waits for success and null or rejection changes nothing',
   assert.equal(failureContext.collection().sourceItems[0].likes, 2);
 });
 
+test('contest reaction toggles existing feedback off and ignores stale success', async () => {
+  const pending = deferred<Contest | null>();
+  const context = setup(
+    {
+      loadFeedback: async () => ({ c: 'like' }),
+      updateFeedback: () => pending.promise
+    },
+    { user: { id: 'one' } }
+  );
+  await settle();
+  const action = context.controller.react('c', true);
+  context.actor.set({ user: { id: 'two' } });
+  pending.resolve(contest(1, 1));
+  await action;
+  assert.equal(context.collection().sourceItems[0].likes, 2);
+
+  const current = setup(
+    {
+      loadFeedback: async () => ({ c: 'like' }),
+      updateFeedback: async () => contest(1, 1)
+    },
+    { user: { id: 'actor' } }
+  );
+  await settle();
+  await current.controller.react('c', true);
+  assert.equal('c' in current.controller.state.feedback, false);
+});
+
 test('contest participation waits for persistence success', async () => {
   const pending = deferred<boolean>();
   const context = setup({ setParticipation: () => pending.promise }, { user: { id: 'actor' } });
@@ -160,6 +215,27 @@ test('contest participation waits for persistence success', async () => {
   await settle();
   await failed.controller.setParticipation('c', true);
   assert.equal(failed.controller.state.participatedContestIds.has('c'), false);
+});
+
+test('contest participation contains thrown and stale writes', async () => {
+  const failed = setup(
+    {
+      setParticipation: async () => Promise.reject(new Error('failed'))
+    },
+    { user: { id: 'actor' } }
+  );
+  await settle();
+  await failed.controller.setParticipation('c', true);
+  assert.equal(failed.controller.state.participatedContestIds.has('c'), false);
+
+  const pending = deferred<boolean>();
+  const stale = setup({ setParticipation: () => pending.promise }, { user: { id: 'one' } });
+  await settle();
+  const action = stale.controller.setParticipation('c', true);
+  stale.actor.set({ user: { id: 'two' } });
+  pending.resolve(true);
+  await action;
+  assert.equal(stale.controller.state.participatedContestIds.has('c'), false);
 });
 
 test('contest controller ignores stale loads and disposed completions', async () => {

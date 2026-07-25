@@ -1,10 +1,10 @@
 <script lang="ts">
-import { page } from '$app/state';
-import { resolve } from '$app/paths';
+  import { page } from '$app/state';
+  import { resolve } from '$app/paths';
 
-const status = page.status;
-const isNotFound = status === 404;
-const title = isNotFound ? 'Page not found' : 'Something went wrong';
+  const status = page.status;
+  const isNotFound = status === 404;
+  const title = isNotFound ? 'Page not found' : 'Something went wrong';
 </script>
 
 <svelte:head>

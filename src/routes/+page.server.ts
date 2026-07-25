@@ -1,10 +1,24 @@
-import { fetchProblems } from '$lib/queries/problemQueries';
+import { fetchProblemsResult, type ProblemsQueryResult } from '$lib/queries/problemQueries';
 import type { PageServerLoad } from './$types';
 
-// Server-only load: SSR ships the initial problems in the HTML and the
-// serialized data is reused on the client during hydration, so the homepage
-// makes no duplicate /rest/v1/problems request after hydration.
-export const load: PageServerLoad = async () => {
-  const problems = await fetchProblems();
-  return { problems };
+const PUBLIC_CACHE = 'public, max-age=0, s-maxage=60, stale-while-revalidate=300';
+const PRIVATE_CACHE = 'private, no-store';
+
+type HomepageLoadDependencies = {
+  fetchProblemsResult: () => Promise<ProblemsQueryResult>;
 };
+
+type HomepageLoadEvent = {
+  setHeaders: (headers: Record<string, string>) => void;
+};
+
+export function _createHomepageLoad({ fetchProblemsResult }: HomepageLoadDependencies) {
+  return async ({ setHeaders }: HomepageLoadEvent) => {
+    const result = await fetchProblemsResult();
+    setHeaders({ 'cache-control': result.successful ? PUBLIC_CACHE : PRIVATE_CACHE });
+    return { problems: result.problems };
+  };
+}
+
+// SSR data is reused during hydration, avoiding a duplicate problems request.
+export const load: PageServerLoad = _createHomepageLoad({ fetchProblemsResult });

@@ -30,35 +30,47 @@ function getCatalog(fetchFn: FetchLike) {
  * anonymous problemset.problems API. Admin-gated so it is not an open proxy,
  * and returns only the requested metadata.
  */
-export const POST: RequestHandler = async ({ request, fetch }) => {
-  const auth = await requireAdmin(request);
-  if (!auth.authorized) return auth.response;
-
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return json({ error: 'Invalid JSON body' }, { status: 400 });
-  }
-
-  const refs = (body as { problems?: unknown })?.problems;
-  if (!Array.isArray(refs) || refs.length === 0) {
-    return json({ error: 'Request must include a non-empty "problems" array' }, { status: 400 });
-  }
-  if (refs.length > 100) {
-    return json({ error: 'Too many problems requested (max 100)' }, { status: 400 });
-  }
-
-  let catalog;
-  try {
-    catalog = await getCatalog(fetch);
-  } catch (err) {
-    return json(
-      { error: err instanceof Error ? err.message : 'Failed to fetch Codeforces problemset' },
-      { status: 502 }
-    );
-  }
-
-  const results = resolveFromCatalog(refs as ProblemRef[], catalog);
-  return json({ results });
+type ProblemsPostDependencies = {
+  authorize: typeof requireAdmin;
+  loadCatalog: (fetchFn: FetchLike) => ReturnType<typeof getCatalog>;
 };
+
+export function _createProblemsPost({
+  authorize,
+  loadCatalog
+}: ProblemsPostDependencies): RequestHandler {
+  return async ({ request, fetch }) => {
+    const auth = await authorize(request);
+    if (!auth.authorized) return auth.response;
+
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+
+    const refs = (body as { problems?: unknown })?.problems;
+    if (!Array.isArray(refs) || refs.length === 0) {
+      return json({ error: 'Request must include a non-empty "problems" array' }, { status: 400 });
+    }
+    if (refs.length > 100) {
+      return json({ error: 'Too many problems requested (max 100)' }, { status: 400 });
+    }
+
+    let catalog;
+    try {
+      catalog = await loadCatalog(fetch);
+    } catch (err) {
+      return json(
+        { error: err instanceof Error ? err.message : 'Failed to fetch Codeforces problemset' },
+        { status: 502 }
+      );
+    }
+
+    const results = resolveFromCatalog(refs as ProblemRef[], catalog);
+    return json({ results });
+  };
+}
+
+export const POST = _createProblemsPost({ authorize: requireAdmin, loadCatalog: getCatalog });

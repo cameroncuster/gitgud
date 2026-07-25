@@ -1,58 +1,58 @@
 <script lang="ts">
-import { browser } from '$app/environment';
-import { onMount } from 'svelte';
+  import { browser } from '$app/environment';
+  import { onMount } from 'svelte';
 
-export let topics: string[] = [];
-export let newTopic: string;
-export let selectedTopic: string | null = null;
-export let onSelectTopic: (topic: string | null) => void;
-export let isMobile: boolean = false;
-export let isOpen: boolean = false;
-export let onToggle: () => void;
+  export let topics: string[] = [];
+  export let newTopic: string;
+  export let selectedTopic: string | null = null;
+  export let onSelectTopic: (topic: string | null) => void;
+  export let isMobile: boolean = false;
+  export let isOpen: boolean = false;
+  export let onToggle: () => void;
 
-let touchStartX = 0;
-let touchEndX = 0;
+  let touchStartX = 0;
+  let touchEndX = 0;
 
-function formatTopicName(topic: string): string {
-  return topic.charAt(0).toUpperCase() + topic.slice(1);
-}
-
-function handleTouchStart(e: TouchEvent) {
-  touchStartX = e.touches[0].clientX;
-}
-
-function handleTouchEnd(e: TouchEvent) {
-  touchEndX = e.changedTouches[0].clientX;
-  handleSwipe();
-}
-
-function handleSwipe() {
-  if (!isMobile) return;
-
-  const swipeThreshold = 70; // Minimum distance required for a swipe
-
-  // Left to right swipe (open sidebar)
-  if (touchEndX - touchStartX > swipeThreshold && !isOpen) {
-    onToggle();
+  function formatTopicName(topic: string): string {
+    return topic.charAt(0).toUpperCase() + topic.slice(1);
   }
 
-  // Right to left swipe (close sidebar)
-  if (touchStartX - touchEndX > swipeThreshold && isOpen) {
-    onToggle();
+  function handleTouchStart(e: TouchEvent) {
+    touchStartX = e.touches[0].clientX;
   }
-}
 
-onMount(() => {
-  if (browser) {
-    document.addEventListener('touchstart', handleTouchStart, { passive: true });
-    document.addEventListener('touchend', handleTouchEnd, { passive: true });
-
-    return () => {
-      document.removeEventListener('touchstart', handleTouchStart);
-      document.removeEventListener('touchend', handleTouchEnd);
-    };
+  function handleTouchEnd(e: TouchEvent) {
+    touchEndX = e.changedTouches[0].clientX;
+    handleSwipe();
   }
-});
+
+  function handleSwipe() {
+    if (!isMobile) return;
+
+    const swipeThreshold = 70; // Minimum distance required for a swipe
+
+    // Left to right swipe (open sidebar)
+    if (touchEndX - touchStartX > swipeThreshold && !isOpen) {
+      onToggle();
+    }
+
+    // Right to left swipe (close sidebar)
+    if (touchStartX - touchEndX > swipeThreshold && isOpen) {
+      onToggle();
+    }
+  }
+
+  onMount(() => {
+    if (browser) {
+      document.addEventListener('touchstart', handleTouchStart, { passive: true });
+      document.addEventListener('touchend', handleTouchEnd, { passive: true });
+
+      return () => {
+        document.removeEventListener('touchstart', handleTouchStart);
+        document.removeEventListener('touchend', handleTouchEnd);
+      };
+    }
+  });
 </script>
 
 <!-- Mobile sidebar toggle -->
@@ -139,7 +139,7 @@ onMount(() => {
 
 <!-- Mobile sidebar (slide in from left) -->
 <div
-  class="sidebar fixed inset-y-0 left-0 z-40 w-[80%] max-w-[300px] transform overflow-hidden bg-[var(--color-secondary)] border-r border-[var(--color-border)] transition-transform duration-300 ease-in-out md:hidden"
+  class="sidebar fixed inset-y-0 left-0 z-40 w-[80%] max-w-[300px] transform overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-secondary)] transition-transform duration-300 ease-in-out md:hidden"
   style={`transform: translateX(${isOpen ? '0' : '-100%'});`}
 >
   <div class="h-full overflow-y-auto p-4 pt-16">
@@ -184,25 +184,21 @@ onMount(() => {
 </div>
 
 <style>
-/* Add responsive styles for the sidebar */
-@media (max-width: 768px) {
-  /* Mobile styles */
-  :global(body) {
-    padding-bottom: 5rem; /* Add padding for the floating button */
+  @media (max-width: 768px) {
+    /* Mobile styles */
+    :global(body) {
+      padding-bottom: 5rem; /* Add padding for the floating button */
+    }
   }
-}
 
-/* Ensure proper z-index and positioning */
-.sidebar {
-  z-index: 40;
-}
-
-/* Ensure sidebar doesn't overlap footer */
-@media (min-width: 768px) {
-  /* Desktop styles */
-  div[class*='absolute top-[60px]'] {
-    height: auto;
-    min-height: calc(100vh - 140px);
+  .sidebar {
+    z-index: 40;
   }
-}
+
+  @media (min-width: 768px) {
+    div[class*='absolute top-[60px]'] {
+      height: auto;
+      min-height: calc(100vh - 140px);
+    }
+  }
 </style>
