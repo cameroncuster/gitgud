@@ -120,6 +120,50 @@ export async function fetchProblemsetCatalog(
   return problems;
 }
 
+interface CachedCatalog {
+  problems: CodeforcesProblemsetProblem[];
+  cachedAt: number;
+}
+
+export type CatalogLoader = () => Promise<CodeforcesProblemsetProblem[]>;
+
+export interface CatalogCache {
+  get(load: CatalogLoader): Promise<CodeforcesProblemsetProblem[]>;
+}
+
+/**
+ * TTL cache for the problemset catalog. The loader is supplied per get() call
+ * so each refresh runs through the current caller's fetch rather than one
+ * captured at construction. Concurrent misses share one in-flight load rather
+ * than each triggering their own (avoiding a stampede against the ~11k problem
+ * upstream), and a rejected load is not cached so a transient failure does not
+ * persist for the whole TTL. The clock is injectable for tests.
+ */
+export function createCatalogCache(ttlMs: number, now: () => number = Date.now): CatalogCache {
+  let cached: CachedCatalog | null = null;
+  let inflight: Promise<CodeforcesProblemsetProblem[]> | null = null;
+
+  return {
+    get(load: CatalogLoader): Promise<CodeforcesProblemsetProblem[]> {
+      if (cached && now() - cached.cachedAt < ttlMs) {
+        return Promise.resolve(cached.problems);
+      }
+      if (inflight) {
+        return inflight;
+      }
+      inflight = load()
+        .then((problems) => {
+          cached = { problems, cachedAt: now() };
+          return problems;
+        })
+        .finally(() => {
+          inflight = null;
+        });
+      return inflight;
+    }
+  };
+}
+
 /**
  * Resolve requested problems against an already-fetched catalog. Each requested
  * ref maps to either resolved metadata or an error, preserving input order.

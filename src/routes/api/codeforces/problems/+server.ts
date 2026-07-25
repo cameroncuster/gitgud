@@ -1,10 +1,11 @@
 import { json } from '@sveltejs/kit';
 import { env as publicEnv } from '$env/dynamic/public';
 import {
+  createCatalogCache,
   fetchProblemsetCatalog,
   problemsetApiUrl,
   resolveFromCatalog,
-  type CodeforcesProblemsetProblem,
+  type FetchLike,
   type ProblemRef
 } from '$lib/services/codeforcesProblemset';
 import { requireAdmin } from '$lib/server/authorization';
@@ -13,22 +14,15 @@ import type { RequestHandler } from './$types';
 // In-memory cache of the Codeforces problemset catalog. The catalog is large
 // (~11k problems) and rarely changes, so a single fetch is reused across
 // requests within its TTL instead of downloading it per problem or per batch.
+// The loader is passed per request so each refresh runs through the current
+// request's fetch rather than the global one or a stale captured request.
 const CATALOG_TTL_MS = 5 * 60 * 1000;
-let cachedCatalog: CodeforcesProblemsetProblem[] | null = null;
-let cachedAt = 0;
+const catalogCache = createCatalogCache(CATALOG_TTL_MS);
 
-async function getCatalog(): Promise<CodeforcesProblemsetProblem[]> {
-  const now = Date.now();
-  if (cachedCatalog && now - cachedAt < CATALOG_TTL_MS) {
-    return cachedCatalog;
-  }
-  const catalog = await fetchProblemsetCatalog(
-    fetch,
-    problemsetApiUrl(publicEnv.PUBLIC_CODEFORCES_API_BASE)
+function getCatalog(fetchFn: FetchLike) {
+  return catalogCache.get(() =>
+    fetchProblemsetCatalog(fetchFn, problemsetApiUrl(publicEnv.PUBLIC_CODEFORCES_API_BASE))
   );
-  cachedCatalog = catalog;
-  cachedAt = now;
-  return catalog;
 }
 
 /**
@@ -36,7 +30,7 @@ async function getCatalog(): Promise<CodeforcesProblemsetProblem[]> {
  * anonymous problemset.problems API. Admin-gated so it is not an open proxy,
  * and returns only the requested metadata.
  */
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, fetch }) => {
   const auth = await requireAdmin(request);
   if (!auth.authorized) return auth.response;
 
@@ -55,9 +49,9 @@ export const POST: RequestHandler = async ({ request }) => {
     return json({ error: 'Too many problems requested (max 100)' }, { status: 400 });
   }
 
-  let catalog: CodeforcesProblemsetProblem[];
+  let catalog;
   try {
-    catalog = await getCatalog();
+    catalog = await getCatalog(fetch);
   } catch (err) {
     return json(
       { error: err instanceof Error ? err.message : 'Failed to fetch Codeforces problemset' },

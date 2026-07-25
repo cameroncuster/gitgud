@@ -8,6 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  createCatalogCache,
   fetchProblemsetCatalog,
   problemsetApiUrl,
   PROBLEMSET_API_URL,
@@ -170,4 +171,84 @@ test('end-to-end: fetch catalog then resolve repro problems', async () => {
     catalog
   );
   assert.ok(results.every((r) => r.problem && !r.error));
+});
+
+// A loader that counts invocations and resolves only when released, so a burst
+// of concurrent get() calls can be observed while exactly one load is pending.
+function deferredLoader() {
+  let calls = 0;
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const load = async () => {
+    calls += 1;
+    await gate;
+    return MOCK_CATALOG;
+  };
+  return { load, release, calls: () => calls };
+}
+
+test('createCatalogCache dedupes concurrent misses onto a single load', async () => {
+  const loader = deferredLoader();
+  const cache = createCatalogCache(1000, () => 0);
+
+  const pending = [cache.get(loader.load), cache.get(loader.load), cache.get(loader.load)];
+  loader.release();
+  const results = await Promise.all(pending);
+
+  assert.equal(loader.calls(), 1);
+  for (const r of results) assert.equal(r, MOCK_CATALOG);
+});
+
+test('createCatalogCache reuses within TTL and reloads after it expires', async () => {
+  let calls = 0;
+  const load = async () => {
+    calls += 1;
+    return MOCK_CATALOG;
+  };
+  let clock = 0;
+  const cache = createCatalogCache(1000, () => clock);
+
+  await cache.get(load);
+  clock = 999; // still within TTL
+  await cache.get(load);
+  assert.equal(calls, 1);
+
+  clock = 1000; // TTL elapsed
+  await cache.get(load);
+  assert.equal(calls, 2);
+});
+
+test('createCatalogCache runs each refresh through the loader passed to get()', async () => {
+  let clock = 0;
+  const cache = createCatalogCache(1000, () => clock);
+
+  const used: string[] = [];
+  const loaderFor = (tag: string) => async () => {
+    used.push(tag);
+    return MOCK_CATALOG;
+  };
+
+  await cache.get(loaderFor('first'));
+  clock = 1000; // TTL elapsed, forcing a refresh
+  await cache.get(loaderFor('second'));
+
+  // The refresh must use the second call's loader, not the first captured one.
+  assert.deepEqual(used, ['first', 'second']);
+});
+
+test('createCatalogCache does not cache a rejected load', async () => {
+  let calls = 0;
+  const load = async () => {
+    calls += 1;
+    if (calls === 1) throw new Error('upstream down');
+    return MOCK_CATALOG;
+  };
+  const cache = createCatalogCache(1000, () => 0);
+
+  await assert.rejects(() => cache.get(load), /upstream down/);
+  const catalog = await cache.get(load);
+  assert.equal(calls, 2);
+  assert.equal(catalog, MOCK_CATALOG);
 });
