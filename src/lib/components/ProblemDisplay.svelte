@@ -21,7 +21,6 @@ import {
   type ProblemTopic
 } from '$lib/collections/problemCollection';
 
-// Props
 export let pageTitle = 'Problems';
 export let targetUserId: string | null = null;
 export let defaultSolvedFilterState: 'all' | 'solved' | 'unsolved' = 'all';
@@ -85,18 +84,14 @@ async function loadProblems() {
 
   try {
     if (!alreadySeeded) {
-      // Use problems from the server-side load when available; otherwise fetch them.
       const fetchedProblems = initialProblems ?? (await fetchProblems());
 
       collection = collection.withSourceItems(fetchedProblems);
     }
 
-    // If we're viewing a specific user's page
     if (targetUserId) {
-      // Fetch leaderboard data
       leaderboardEntries = await fetchLeaderboard();
 
-      // Find the target user in the leaderboard
       targetUser = leaderboardEntries.find((entry) => entry.userId === targetUserId) || null;
 
       if (!targetUser) {
@@ -105,7 +100,6 @@ async function loadProblems() {
         return;
       }
 
-      // Fetch the target user's solved problems
       targetUserSolvedProblems = await fetchSolvedProblemsForUser(targetUserId);
       collection = collection.withSolvedProblemIds(targetUserSolvedProblems);
     }
@@ -124,7 +118,6 @@ if (initialProblems && collection.sourceItems.length === 0) {
   collection = collection.withSourceItems(initialProblems);
 }
 
-// Initialize component
 onMount(() => {
   const unsubscribeEngagement = engagement.subscribe((state) => {
     isAuthenticated = state.isAuthenticated;
@@ -134,13 +127,9 @@ onMount(() => {
   engagement.start();
   loadProblems();
 
-  // Check if mobile
   checkMobile();
-
-  // Add resize event listener
   window.addEventListener('resize', checkMobile);
 
-  // Cleanup function
   return () => {
     unsubscribeEngagement();
     engagement.dispose();

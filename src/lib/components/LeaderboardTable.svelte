@@ -2,15 +2,13 @@
 import { resolve } from '$app/paths';
 import type { LeaderboardEntry } from '$lib/queries/leaderboardQueries';
 
-// Props
 export let leaderboardEntries: LeaderboardEntry[] = [];
 
-// Format large numbers with commas
 function formatNumber(num: number): string {
   return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
-// Get rank color class based on Codeforces tier system - sequential assignment
+// Codeforces tier system, ranked from highest to lowest.
 function getRankColor(rank: number): string {
   if (rank === 1) return 'legendary-grandmaster';
   if (rank === 2) return 'international-grandmaster';
@@ -24,7 +22,6 @@ function getRankColor(rank: number): string {
   return 'newbie';
 }
 
-// Get rank tier name for display - sequential assignment
 function getRankTierName(rank: number): string {
   if (rank === 1) return 'Legendary Grandmaster';
   if (rank === 2) return 'International Grandmaster';

@@ -10,11 +10,9 @@ import RecommendersFilter from './RecommendersFilter.svelte';
 import ResponsiveTableContainer from './ResponsiveTableContainer.svelte';
 import TableFeedbackButtons from './TableFeedbackButtons.svelte';
 
-// Use static image paths for logos
 const codeforcesLogo = '/images/codeforces.png';
 const icpcLogo = '/images/icpc.svg';
 
-// Props
 export let contests: Contest[] = [];
 export let userParticipation: Set<string> = new Set();
 export let userFeedback: Record<string, 'like' | 'dislike' | null> = {};
@@ -49,7 +47,6 @@ $: typeFilterLabel =
 $: difficultyAriaSort = getDifficultyAriaSort(difficultySortDirection);
 $: difficultySortLabel = getDifficultySortLabel(difficultySortDirection);
 
-// Generate star rating display
 function getDifficultyStars(difficulty: number | undefined): string {
   if (difficulty === undefined) return '';
 
