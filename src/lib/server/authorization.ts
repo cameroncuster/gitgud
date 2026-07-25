@@ -1,11 +1,12 @@
 import { json } from '@sveltejs/kit';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { PUBLIC_SUPABASE_ANON_KEY, PUBLIC_SUPABASE_URL } from '$env/static/public';
+import type { Database } from '$lib/types/database';
 
 export type AuthorizedUser = {
   authorized: true;
   userId: string;
-  supabase: SupabaseClient;
+  supabase: SupabaseClient<Database>;
 };
 
 export type AuthorizationDenied = {
@@ -28,7 +29,7 @@ export async function requireUser(request: Request): Promise<AuthorizationResult
     };
   }
 
-  const supabase = createClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
+  const supabase = createClient<Database>(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
     global: { headers: { Authorization: `Bearer ${token}` } },
     auth: { persistSession: false, autoRefreshToken: false }
   });

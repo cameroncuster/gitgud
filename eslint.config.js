@@ -10,6 +10,9 @@ const gitignorePath = fileURLToPath(new URL('./.gitignore', import.meta.url));
 
 export default ts.config(
   includeIgnoreFile(gitignorePath),
+  // Generated Supabase types are kept byte-identical to the `supabase gen types`
+  // output, so they are exempt from lint/format rules.
+  { ignores: ['src/lib/types/database.ts'] },
   js.configs.recommended,
   ...ts.configs.recommended,
   ...svelte.configs.recommended,

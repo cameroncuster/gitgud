@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import { createClient } from '@supabase/supabase-js';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 import { env as publicEnv } from '$env/dynamic/public';
+import type { Database } from '$lib/types/database';
 import {
   codeforcesUserStatusUrl,
   extractSolvedProblemUrls,
@@ -124,7 +125,7 @@ export const GET: RequestHandler = async ({ url, request, fetch }) => {
 
   // Intersect against tracked problems server-side. Public read under the anon
   // key; only id/url/name are selected, and the client never supplies these.
-  const anon = createClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
+  const anon = createClient<Database>(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
     auth: { persistSession: false, autoRefreshToken: false }
   });
   const { data: problems, error: problemsError } = await anon
