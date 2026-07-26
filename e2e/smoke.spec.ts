@@ -246,6 +246,27 @@ test.describe('mobile navigation', () => {
 });
 
 test.describe('signed-in settings layout and appearance', () => {
+  test('shows the shared loading spinner, not the regressed loading-page text', async ({
+    page
+  }) => {
+    await seedMemberSession(page);
+    // Hold the preference read open so the interim loading state is observable.
+    let releasePreferences: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => (releasePreferences = resolve));
+    await page.route('**/rest/v1/user_preferences**', async (route) => {
+      if (route.request().method() === 'GET') await gate;
+      await route.continue();
+    });
+    await page.goto('/settings');
+    const spinner = page.locator('[role="status"] svg.animate-spin');
+    await expect(spinner).toBeVisible();
+    // The regressed spinner-less page copy must never render.
+    await expect(page.getByText('Loading settings…', { exact: true })).toHaveCount(0);
+    releasePreferences?.();
+    await expect(page.getByRole('heading', { name: 'Appearance' })).toBeVisible();
+    await expect(spinner).toHaveCount(0);
+  });
+
   test('drives the compact theme cycle from Settings, persists it, and keeps footer space', async ({
     page,
     viewport

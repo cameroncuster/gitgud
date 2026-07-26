@@ -169,6 +169,31 @@ test('error status uses the semantic error color', () => {
   );
 });
 
+test('the loading state renders the shared spinner, not a plain loading-page line', () => {
+  // #108 replaced the spinner with a bare `Loading settings…` line; the fix
+  // restores the canonical animate-spin treatment used across the app so the
+  // interim state matches the other loading surfaces instead of looking janky.
+  const loadingBlock = SETTINGS.match(/\{#if loading\}([\s\S]*?)\{:else\}/);
+  assert.ok(loadingBlock, 'could not locate the {#if loading} block');
+  assert.match(
+    loadingBlock[1],
+    /class="mx-auto h-10 w-10 animate-spin"/,
+    'the settings loading state must render the shared animate-spin spinner'
+  );
+  assert.match(loadingBlock[1], /role="status"/, 'the loading state must be a status region');
+  assert.match(
+    loadingBlock[1],
+    /Loading settings\.\.\./,
+    'spinner copy must match the sibling loading surfaces (Loading settings...)'
+  );
+  // The regressed plain page copy (curly-ellipsis, no spinner) must be gone.
+  assert.doesNotMatch(
+    SETTINGS,
+    /<p class="text-\[var\(--color-text-muted\)\]">Loading settings\u2026<\/p>/,
+    'the regressed spinner-less `Loading settings…` page copy must not return'
+  );
+});
+
 test('appearance is a compact single-target theme cycle, not radio panels', () => {
   // The theme control moved out of the header into a compact Settings control.
   assert.match(SETTINGS, />\s*Appearance\s*</, 'settings must render an Appearance section');
