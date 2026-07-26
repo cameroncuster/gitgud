@@ -13,10 +13,21 @@ export { THEME_PREFERENCES, normalizeThemePreference, resolveTheme } from './app
 export type { ResolvedTheme, ThemePreference } from './appearance';
 export const THEME_STORAGE_KEY = 'gitgud-theme';
 
-const initialResolvedTheme: ResolvedTheme =
-  browser && document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+// Seed the theme from the SSR-applied data-theme attribute so the first paint
+// matches the server. Reads the DOM only in the browser; defaults to light
+// everywhere else. The root element is injectable for unit tests.
+export function resolveInitialTheme(
+  isBrowser: boolean,
+  getRoot: () => { dataset: { theme?: string } } | undefined = () =>
+    (globalThis as { document?: { documentElement: { dataset: { theme?: string } } } }).document
+      ?.documentElement
+): ResolvedTheme {
+  if (!isBrowser) return 'light';
+  return getRoot()?.dataset.theme === 'dark' ? 'dark' : 'light';
+}
+
 export const currentThemePreference = writable<ThemePreference>('system');
-export const currentTheme = writable<ResolvedTheme>(initialResolvedTheme);
+export const currentTheme = writable<ResolvedTheme>(resolveInitialTheme(browser));
 
 type MediaQuery = {
   matches: boolean;
@@ -78,7 +89,6 @@ export function createThemeService({
   }
 
   function applyResolvedTheme(): void {
-    if (!isBrowser) return;
     const resolved = resolveTheme(activePreference, getMediaQuery().matches);
     const root = getDocumentElement();
     themeStore.set(resolved);
@@ -91,7 +101,6 @@ export function createThemeService({
   }
 
   function syncSystemListener(): void {
-    if (!isBrowser) return;
     const query = getMediaQuery();
     if (activePreference === 'system' && !listeningToSystem) {
       query.addEventListener('change', handleSystemThemeChange);

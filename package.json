@@ -11,7 +11,7 @@
     "lint:es": "eslint .",
     "format": "prettier --write .",
     "test": "node --import=./scripts/coverage-hooks.mjs --test 'tests/**/*.test.ts'",
-    "test:coverage": "node --import=./scripts/coverage-hooks.mjs --experimental-test-coverage --test-coverage-include='src/**/*.ts' --test-coverage-exclude='src/**/*.d.ts' --test-coverage-lines=98 --test-coverage-functions=98 --test-coverage-branches=95 --test 'tests/**/*.test.ts'",
+    "test:coverage": "node --import=./scripts/coverage-hooks.mjs --experimental-test-coverage --test-coverage-include='src/**/*.ts' --test-coverage-exclude='src/**/*.d.ts' --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 --test 'tests/**/*.test.ts'",
     "check:performance": "node scripts/check-performance-budget.mjs",
     "test:performance": "PUBLIC_SUPABASE_URL=http://localhost PUBLIC_SUPABASE_PUBLISHABLE_KEY=placeholder pnpm run build && pnpm run check:performance",
     "test:e2e": "playwright test",

@@ -238,6 +238,92 @@ test('contest participation contains thrown and stale writes', async () => {
   assert.equal(stale.controller.state.participatedContestIds.has('c'), false);
 });
 
+test('contest controller re-synchronizes the same actor without reloading', async () => {
+  let feedbackLoads = 0;
+  let participationLoads = 0;
+  const context = setup({
+    loadFeedback: async () => ((feedbackLoads += 1), { c: 'like' }),
+    loadParticipatedContestIds: async () => ((participationLoads += 1), new Set(['one']))
+  });
+  context.actor.set({ user: { id: 'one' } });
+  await settle();
+  assert.equal(feedbackLoads, 1);
+  assert.equal(participationLoads, 1);
+  assert.equal(context.controller.state.isAuthenticated, true);
+
+  context.actor.set({ user: { id: 'one' } });
+  await settle();
+  assert.equal(feedbackLoads, 1);
+  assert.equal(participationLoads, 1);
+  assert.equal(context.controller.state.isAuthenticated, true);
+
+  context.actor.set({ user: null });
+  context.actor.set({ user: null });
+  assert.equal(context.controller.state.isAuthenticated, false);
+});
+
+test('contest subscribers receive published state updates', async () => {
+  const context = setup({ updateFeedback: async () => contest(3, 1) }, { user: { id: 'actor' } });
+  await settle();
+  const seen: boolean[] = [];
+  const unsubscribe = context.controller.subscribe((state) => seen.push(state.isAuthenticated));
+  await context.controller.react('c', true);
+  unsubscribe();
+  assert.ok(seen.length >= 2);
+  assert.equal(seen.at(-1), true);
+});
+
+test('contest dislike reactions record the dislike transition', async () => {
+  const context = setup({ updateFeedback: async () => contest(2, 2) }, { user: { id: 'actor' } });
+  await settle();
+  await context.controller.react('c', false);
+  assert.equal(context.controller.state.feedback.c, 'dislike');
+});
+
+test('contest participation removal deletes the id and reconciles the collection', async () => {
+  const context = setup(
+    { loadParticipatedContestIds: async () => new Set(['c']) },
+    { user: { id: 'actor' } }
+  );
+  await settle();
+  assert.equal(context.controller.state.participatedContestIds.has('c'), true);
+  await context.controller.setParticipation('c', false);
+  assert.equal(context.controller.state.participatedContestIds.has('c'), false);
+  assert.equal(context.collection().participatedContestIds.has('c'), false);
+});
+
+test('contest controller blocks state and collection publications during unsubscribe', () => {
+  let listener: ((actor: Actor) => void) | null = null;
+  const actor = {
+    subscribe(next: (actor: Actor) => void) {
+      listener = next;
+      next({ user: { id: 'actor' } });
+      return () => listener?.({ user: null });
+    }
+  };
+  let collection = new ContestCollection({ items: [contest()] });
+  let collectionWrites = 0;
+  const controller = createContestEngagementController({
+    actor,
+    gateway: {
+      loadFeedback: async () => ({}),
+      loadParticipatedContestIds: async () => new Set(),
+      updateFeedback: async () => null,
+      setParticipation: async () => true
+    },
+    getCollection: () => collection,
+    setCollection: (next) => {
+      collection = next;
+      collectionWrites++;
+    }
+  });
+  controller.start();
+  const writesBeforeDispose = collectionWrites;
+  controller.dispose();
+  assert.equal(controller.state.isAuthenticated, true);
+  assert.equal(collectionWrites, writesBeforeDispose);
+});
+
 test('contest controller ignores stale loads and disposed completions', async () => {
   const firstFeedback = deferred<ContestFeedback>();
   const secondFeedback = deferred<ContestFeedback>();

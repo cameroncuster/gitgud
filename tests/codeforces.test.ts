@@ -162,6 +162,10 @@ test('fetchProblemsetCatalog surfaces HTTP, network, and malformed payload error
     /Could not reach Codeforces \(offline\)/
   );
   await assert.rejects(
+    () => fetchProblemsetCatalog(async () => Promise.reject('string failure')),
+    /Could not reach Codeforces \(network error\)/
+  );
+  await assert.rejects(
     () => fetchProblemsetCatalog(mockFetch({ status: 'OK', result: {} })),
     /unexpected problemset payload/
   );

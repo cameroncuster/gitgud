@@ -52,6 +52,7 @@ export function createContestEngagementController({
   }
 
   function applyParticipation(ids: Set<string>): void {
+    if (disposed) return;
     setCollection(getCollection().withParticipatedContestIds(ids));
   }
 
@@ -84,12 +85,9 @@ export function createContestEngagementController({
 
   function synchronizeActor(nextActor: Actor): void {
     const nextUserId = nextActor.user?.id ?? null;
-    if (actorSynchronized && nextUserId === actorUserId) {
-      if (state.isAuthenticated !== Boolean(nextUserId)) {
-        publish({ ...state, isAuthenticated: Boolean(nextUserId) });
-      }
-      return;
-    }
+    // isAuthenticated is always Boolean(actorUserId), so an unchanged user id
+    // needs no state update.
+    if (actorSynchronized && nextUserId === actorUserId) return;
 
     actorSynchronized = true;
     actorUserId = nextUserId;

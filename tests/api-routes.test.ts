@@ -2,9 +2,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AuthorizationResult } from '../src/lib/server/authorization.ts';
-import { _createProblemsPost } from '../src/routes/api/codeforces/problems/+server.ts';
-import { _createUserSolvesGet } from '../src/routes/api/codeforces/user-solves/+server.ts';
-import { _createKattisGet } from '../src/routes/api/kattis/+server.ts';
+import { _createProblemsPost, _getCatalog } from '../src/routes/api/codeforces/problems/+server.ts';
+import {
+  _createUserSolvesGet,
+  GET as UserSolvesGET
+} from '../src/routes/api/codeforces/user-solves/+server.ts';
+import { _buildUpstreamUrl, _createKattisGet } from '../src/routes/api/kattis/+server.ts';
+import { createSessionBoundSupabase, supabase } from '../src/lib/services/database.ts';
 
 const authorized = async () => ({
   authorized: true as const,
@@ -318,6 +322,20 @@ test('user-solves route maps upstream failure classes and database errors', asyn
   }
 });
 
+test('user-solves route treats a null tracked-problem result as an empty set', async () => {
+  const response = await userSolvesHandler({
+    fetchFn: async () =>
+      Response.json({
+        status: 'OK',
+        result: [{ verdict: 'OK', problem: { contestId: 1, index: 'A' } }]
+      }),
+    database: trackedClient({ data: null, error: null })
+  })('https://gitgud.test/api?handle=tourist');
+  assert.equal(response.status, 200);
+  const payload = (await body(response)) as { matched?: unknown[]; solvedCount?: number };
+  assert.deepEqual(payload.matched ?? [], []);
+});
+
 test('Kattis route rejects absent and unsafe targets before fetching', async () => {
   let fetched = 0;
   const handler = _createKattisGet(async () => {
@@ -361,7 +379,8 @@ test('Kattis route distinguishes aborts from other fetch failures', async () => 
   abort.name = 'AbortError';
   for (const [failure, status, error] of [
     [abort, 504, 'Timed out fetching problem'],
-    [new Error('offline'), 500, 'Failed to fetch problem']
+    [new Error('offline'), 500, 'Failed to fetch problem'],
+    ['non-Error failure', 500, 'Failed to fetch problem']
   ] as const) {
     const handler = _createKattisGet(async () => {
       throw failure;
@@ -370,4 +389,85 @@ test('Kattis route distinguishes aborts from other fetch failures', async () => 
     assert.equal(response.status, status);
     assert.deepEqual(await body(response), { error });
   }
+});
+
+test('Kattis route contains response body failures', async () => {
+  const handler = _createKattisGet(async () => {
+    return {
+      ok: true,
+      text: async () => {
+        throw new Error('body disconnected');
+      }
+    } as unknown as Response;
+  });
+  const response = await handler({ url: new URL('https://gitgud.test/api?url=hello') } as never);
+  assert.equal(response.status, 500);
+  assert.deepEqual(await body(response), { error: 'Failed to fetch problem' });
+});
+
+test('the production upstream builder honors an override base and the canonical origin', () => {
+  assert.equal(
+    _buildUpstreamUrl('hello', 'https://mirror.test/'),
+    'https://mirror.test/problems/hello'
+  );
+  assert.equal(
+    _buildUpstreamUrl('hello', 'https://mirror.test'),
+    'https://mirror.test/problems/hello'
+  );
+  assert.equal(_buildUpstreamUrl('hello', ''), 'https://open.kattis.com/problems/hello');
+  // No override argument falls through to the configured environment base.
+  assert.equal(_buildUpstreamUrl('hello'), 'https://open.kattis.com/problems/hello');
+});
+
+test('the production catalog loader fetches and caches the problemset once', async () => {
+  let fetches = 0;
+  const fetchFn = (async () => {
+    fetches++;
+    return Response.json({
+      status: 'OK',
+      result: {
+        problems: [{ contestId: 1, index: 'A', name: 'Watermelon', tags: ['math'], rating: 800 }],
+        problemStatistics: []
+      }
+    });
+  }) as unknown as typeof fetch;
+  const first = await _getCatalog(fetchFn);
+  const second = await _getCatalog(fetchFn);
+  assert.equal(fetches, 1);
+  assert.equal(first[0].name, 'Watermelon');
+  assert.equal(second, first);
+});
+
+test('the session-bound and shared Supabase clients construct without network access', () => {
+  const bound = createSessionBoundSupabase('token');
+  assert.equal(typeof bound.from, 'function');
+  assert.equal(typeof supabase.from, 'function');
+});
+
+test('the production user-solves GET wires the anon client through to a match result', async (t) => {
+  const original = globalThis.fetch;
+  t.after(() => {
+    globalThis.fetch = original;
+  });
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const target = new URL(String(input));
+    if (target.pathname.startsWith('/auth/')) {
+      return new Response(JSON.stringify({ id: 'actor' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      });
+    }
+    if (target.hostname === 'codeforces.com') {
+      return Response.json({ status: 'OK', result: [] });
+    }
+    return Response.json([]);
+  }) as typeof fetch;
+  const response = await UserSolvesGET({
+    url: new URL('https://gitgud.test/api?handle=tourist'),
+    request: new Request('https://gitgud.test/api', {
+      headers: { authorization: 'Bearer tok' }
+    }),
+    fetch: globalThis.fetch
+  } as never);
+  assert.equal(response.status, 200);
 });

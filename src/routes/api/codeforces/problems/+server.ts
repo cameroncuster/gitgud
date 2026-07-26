@@ -19,7 +19,7 @@ import type { RequestHandler } from './$types';
 const CATALOG_TTL_MS = 5 * 60 * 1000;
 const catalogCache = createCatalogCache(CATALOG_TTL_MS);
 
-function getCatalog(fetchFn: FetchLike) {
+export function _getCatalog(fetchFn: FetchLike) {
   return catalogCache.get(() =>
     fetchProblemsetCatalog(fetchFn, problemsetApiUrl(publicEnv.PUBLIC_CODEFORCES_API_BASE))
   );
@@ -32,7 +32,7 @@ function getCatalog(fetchFn: FetchLike) {
  */
 type ProblemsPostDependencies = {
   authorize: typeof requireAdmin;
-  loadCatalog: (fetchFn: FetchLike) => ReturnType<typeof getCatalog>;
+  loadCatalog: (fetchFn: FetchLike) => ReturnType<typeof _getCatalog>;
 };
 
 export function _createProblemsPost({
@@ -73,4 +73,4 @@ export function _createProblemsPost({
   };
 }
 
-export const POST = _createProblemsPost({ authorize: requireAdmin, loadCatalog: getCatalog });
+export const POST = _createProblemsPost({ authorize: requireAdmin, loadCatalog: _getCatalog });

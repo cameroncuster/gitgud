@@ -339,6 +339,220 @@ test('clear/start-another and handle validation preserve exact messages', async 
   assert.equal(workflow.getState().rows.length, 0);
 });
 
+test('non-Error resolve rejections fall back to a generic reason', async () => {
+  const workflow = createSubmissionWorkflow(
+    adapters(
+      adapter({
+        resolve: async () => {
+          throw 'string failure';
+        }
+      })
+    )
+  );
+  workflow.setPasted('one');
+  await workflow.resolveEntries({ authorized: true });
+  const item = workflow.getState().rows[0].item;
+  assert.equal(item.valid, false);
+  if (!item.valid) assert.equal(item.reason, 'Failed to resolve URL');
+});
+
+test('selecting the current provider is a no-op that preserves the preview', async () => {
+  const workflow = createSubmissionWorkflow(adapters());
+  workflow.setPasted('one');
+  await workflow.resolveEntries({ authorized: true });
+  const sequence = workflow.getState().sequence;
+  workflow.selectProvider('codeforces');
+  assert.equal(workflow.getState().rows.length, 1);
+  assert.equal(workflow.getState().sequence, sequence);
+});
+
+test('resolveEntries is ignored while another resolution is in flight', async () => {
+  let release!: (item: ResolvedItem) => void;
+  const pending = new Promise<ResolvedItem>((resolve) => (release = resolve));
+  const workflow = createSubmissionWorkflow(adapters(adapter({ resolve: async () => pending })));
+  workflow.setPasted('one');
+  const first = workflow.resolveEntries({ authorized: true });
+  assert.equal(await workflow.resolveEntries({ authorized: true }), 'stale');
+  release({
+    valid: true,
+    kind: 'problem',
+    label: 'one',
+    url: 'one',
+    payload: { ...draft, url: 'one' }
+  });
+  assert.equal(await first, 'resolved');
+});
+
+test('onReviewReady runs before resolution and abandons superseded requests', async () => {
+  let reviewReadyCalls = 0;
+  const workflow = createSubmissionWorkflow(adapters());
+  workflow.setPasted('one two');
+  const outcome = await workflow.resolveEntries({
+    authorized: true,
+    onReviewReady: async () => {
+      reviewReadyCalls++;
+    }
+  });
+  assert.equal(outcome, 'resolved');
+  assert.equal(reviewReadyCalls, 1);
+
+  const staleWorkflow = createSubmissionWorkflow(adapters());
+  staleWorkflow.setPasted('one');
+  const stale = staleWorkflow.resolveEntries({
+    authorized: true,
+    onReviewReady: async () => {
+      staleWorkflow.resetPreview();
+    }
+  });
+  assert.equal(await stale, 'stale');
+});
+
+test('a provider switch mid-resolution loop abandons the remaining entries', async () => {
+  const releases: Array<(item: ResolvedItem) => void> = [];
+  const pendings = [0, 1].map(
+    (index) =>
+      new Promise<ResolvedItem>((resolve) => {
+        releases[index] = resolve;
+      })
+  );
+  let resolveCalls = 0;
+  const workflow = createSubmissionWorkflow(
+    adapters(
+      adapter({
+        resolve: async () => pendings[resolveCalls++]
+      })
+    )
+  );
+  workflow.setPasted('one two');
+  const resolving = workflow.resolveEntries({ authorized: true });
+  await Promise.resolve();
+  releases[0]({
+    valid: true,
+    kind: 'problem',
+    label: 'one',
+    url: 'one',
+    payload: { ...draft, url: 'one' }
+  });
+  await Promise.resolve();
+  workflow.selectProvider('kattis');
+  releases[1]?.({
+    valid: true,
+    kind: 'problem',
+    label: 'two',
+    url: 'two',
+    payload: { ...draft, url: 'two' }
+  });
+  assert.equal(await resolving, 'stale');
+});
+
+test('confirmAdd is ignored when nothing valid is staged', async () => {
+  const workflow = createSubmissionWorkflow(adapters());
+  assert.equal(await workflow.confirmAdd(), 'ignored');
+});
+
+test('subscriber invalidation at commit start prevents the database write', async () => {
+  let commits = 0;
+  const workflow = createSubmissionWorkflow(
+    adapters(
+      adapter({
+        commit: async () => {
+          commits++;
+          return { success: true };
+        }
+      })
+    )
+  );
+  workflow.setPasted('one');
+  await workflow.resolveEntries({ authorized: true });
+  const unsubscribe = workflow.subscribe((state) => {
+    if (state.committing) workflow.resetPreview();
+  });
+
+  assert.equal(await workflow.confirmAdd(), 'stale');
+  unsubscribe();
+  assert.equal(commits, 0);
+  assert.equal(workflow.getState().done, false);
+});
+
+test('subscriber invalidation during row publication prevents the database write', async () => {
+  let commits = 0;
+  const workflow = createSubmissionWorkflow(
+    adapters(
+      adapter({
+        commit: async () => {
+          commits++;
+          return { success: true };
+        }
+      })
+    )
+  );
+  workflow.setPasted('one');
+  await workflow.resolveEntries({ authorized: true });
+  const unsubscribe = workflow.subscribe((state) => {
+    if (state.rows.some((row) => row.status === 'committing')) workflow.resetPreview();
+  });
+
+  assert.equal(await workflow.confirmAdd(), 'stale');
+  unsubscribe();
+  assert.equal(commits, 0);
+  assert.equal(workflow.getState().done, false);
+});
+
+test('subscriber invalidation after one committed row prevents later writes', async () => {
+  const commits: string[] = [];
+  const workflow = createSubmissionWorkflow(
+    adapters(
+      adapter({
+        commit: async (item) => {
+          commits.push(item.url);
+          return { success: true };
+        }
+      })
+    )
+  );
+  workflow.setPasted('one two');
+  await workflow.resolveEntries({ authorized: true });
+  const unsubscribe = workflow.subscribe((state) => {
+    if (state.rows.some((row) => row.status === 'added')) workflow.resetPreview();
+  });
+
+  assert.equal(await workflow.confirmAdd(), 'stale');
+  unsubscribe();
+  assert.deepEqual(commits, ['one']);
+  assert.equal(workflow.getState().rows.length, 0);
+  assert.equal(workflow.getState().done, false);
+});
+
+test('subscriber invalidation after the final row cannot publish false completion', async () => {
+  const workflow = createSubmissionWorkflow(adapters());
+  workflow.setPasted('one');
+  await workflow.resolveEntries({ authorized: true });
+  const unsubscribe = workflow.subscribe((state) => {
+    if (state.rows.some((row) => row.status === 'added')) workflow.resetPreview();
+  });
+
+  assert.equal(await workflow.confirmAdd(), 'stale');
+  unsubscribe();
+  assert.equal(workflow.getState().rows.length, 0);
+  assert.equal(workflow.getState().done, false);
+});
+
+test('non-Error commit rejections become the row failure message', async () => {
+  const workflow = createSubmissionWorkflow(
+    adapters(
+      adapter({
+        commit: async () => {
+          throw 'commit string failure';
+        }
+      })
+    )
+  );
+  workflow.setPasted('one');
+  await workflow.resolveEntries({ authorized: true });
+  await workflow.confirmAdd();
+  assert.equal(workflow.getState().rows[0].message, 'Failed to add entry');
+});
+
 test('unauthorized resolve does not call the adapter', async () => {
   let extracted = false;
   const workflow = createSubmissionWorkflow(

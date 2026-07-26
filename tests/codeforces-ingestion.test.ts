@@ -6,7 +6,8 @@ import {
   extractCodeforcesEntries,
   parseCodeforcesContestUrl,
   parseCodeforcesProblemUrl,
-  type CodeforcesIngestionDependencies
+  type CodeforcesIngestionDependencies,
+  type ProblemResolution
 } from '../src/lib/providers/codeforces/ingestion.ts';
 
 const now = '2026-01-01T00:00:00.000Z';
@@ -59,6 +60,92 @@ test('default Codeforces metadata fetcher uses global fetch', async (t) => {
   const resolved = await service.resolve(entry, '');
   assert.equal(resolved.valid && resolved.payload.name, 'Fetched Round');
   assert.equal(requested, 'https://codeforces.com/api/contest.list?gym=false');
+});
+
+test('extraction skips blank tokens and hash-prefixed comments', () => {
+  assert.deepEqual(
+    extractCodeforcesEntries('# a comment\n   \nhttps://codeforces.com/contest/1/problem/A'),
+    [{ kind: 'problem', url: 'https://codeforces.com/contest/1/problem/A' }]
+  );
+});
+
+test('unparseable problem and contest entries resolve to invalid rows', async () => {
+  const service = ingestion();
+  const problemRow = await service.resolve({ kind: 'problem', url: 'not-a-url' }, '');
+  assert.equal(problemRow.valid, false);
+  assert.equal(problemRow.valid ? '' : problemRow.reason, 'Invalid problem URL');
+  const contestRow = await service.resolve({ kind: 'contest', url: 'not-a-url' }, '');
+  assert.equal(contestRow.valid, false);
+  assert.equal(contestRow.valid ? '' : contestRow.reason, 'Invalid contest URL');
+});
+
+test('a regular problem with no batched refs falls back to an empty catalog', async () => {
+  // Resolving before extract leaves the batch context empty, so no catalog
+  // request is issued and the problem is reported as not found.
+  let requests = 0;
+  const service = ingestion({
+    resolveProblemBatch: async () => {
+      requests++;
+      return new Map();
+    }
+  });
+  const row = await service.resolve(
+    { kind: 'problem', url: 'https://codeforces.com/contest/1/problem/A' },
+    ''
+  );
+  assert.equal(requests, 0);
+  assert.equal(row.valid, false);
+  assert.match(row.valid ? '' : row.reason, /not found/);
+});
+
+test('batched problems without provider tags default to an empty tag list', async () => {
+  const service = ingestion({
+    // Provider metadata may omit tags entirely; the resolver must not crash.
+    resolveProblemBatch: async (refs) =>
+      new Map(
+        refs.map((ref) => [
+          `${ref.contestId}:${ref.index}`,
+          {
+            problem: { ...ref, name: `Name ${ref.index}`, tags: undefined, rating: 1000 }
+          } as unknown as ProblemResolution
+        ])
+      )
+  });
+  const [entry] = service.extract('https://codeforces.com/contest/1/problem/A');
+  const row = await service.resolve(entry, '');
+  assert.equal(row.valid, true);
+  if (row.valid && row.kind === 'problem') assert.deepEqual(row.payload.tags, []);
+});
+
+test('contest duplicates without messaging use the generic reason', async () => {
+  const service = ingestion({ checkContest: async () => ({ duplicate: true }) });
+  const [entry] = service.extract('https://codeforces.com/contest/9');
+  const row = await service.resolve(entry, '');
+  assert.equal(row.valid, false);
+  assert.equal(row.valid ? '' : row.reason, 'Contest already exists in database');
+});
+
+test('gym contest metadata missing the contest object becomes an invalid row', async () => {
+  const service = ingestion({
+    fetchJson: async () => ({ status: 'OK', result: {} })
+  });
+  const [entry] = service.extract('https://codeforces.com/gym/7');
+  const row = await service.resolve(entry, '');
+  assert.equal(row.valid, false);
+  assert.match(row.valid ? '' : row.reason, /not found/i);
+});
+
+test('a contest with no name falls back to its URL as the label', async () => {
+  const service = ingestion({
+    fetchJson: async () => ({
+      status: 'OK',
+      result: [{ id: 9, name: '', durationSeconds: 3600 }]
+    })
+  });
+  const [entry] = service.extract('https://codeforces.com/contest/9');
+  const row = await service.resolve(entry, '');
+  assert.equal(row.valid, true);
+  assert.equal(row.valid && row.label, 'https://codeforces.com/contest/9');
 });
 
 test('extracts, canonicalizes, deduplicates, and orders problems before contests', () => {

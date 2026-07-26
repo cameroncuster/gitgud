@@ -63,6 +63,7 @@ export function createProblemEngagementController({
   }
 
   function applySolvedProblemIds(ids: Set<string>): void {
+    if (disposed) return;
     if (applySolvedToCollection) {
       setCollection(getCollection().withSolvedProblemIds(ids));
     }
@@ -102,10 +103,9 @@ export function createProblemEngagementController({
     const nextUserId = nextActor.user?.id ?? null;
     const nextAccessToken = nextActor.session?.access_token ?? null;
     if (actorSynchronized && nextUserId === actorUserId) {
+      // Same user: only the access token can change (token refresh);
+      // isAuthenticated is always Boolean(actorUserId) and needs no update.
       actorAccessToken = nextAccessToken;
-      if (state.isAuthenticated !== Boolean(nextUserId)) {
-        publish({ ...state, isAuthenticated: Boolean(nextUserId) });
-      }
       return;
     }
 

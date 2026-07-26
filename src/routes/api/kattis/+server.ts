@@ -8,8 +8,10 @@ import type { RequestHandler } from './$types';
 
 const FETCH_TIMEOUT_MS = 10_000;
 
-function buildUpstreamUrl(problemId: string): string {
-  const base = publicEnv.PUBLIC_KATTIS_BASE;
+export function _buildUpstreamUrl(
+  problemId: string,
+  base: string | undefined = publicEnv.PUBLIC_KATTIS_BASE
+): string {
   if (!base) {
     return buildCanonicalKattisProblemUrl(problemId);
   }
@@ -37,24 +39,26 @@ export function _createKattisGet(fetchPage: typeof fetch): RequestHandler {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
-    try {
-      const response = await fetchPage(buildUpstreamUrl(problemId), {
-        signal: controller.signal,
-        redirect: 'error'
-      });
-      if (!response.ok) {
-        return json({ error: 'Failed to fetch problem' }, { status: response.status });
+    const request = (async () => {
+      try {
+        const response = await fetchPage(_buildUpstreamUrl(problemId), {
+          signal: controller.signal,
+          redirect: 'error'
+        });
+        if (!response.ok) {
+          return json({ error: 'Failed to fetch problem' }, { status: response.status });
+        }
+        return json({ html: await response.text() });
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          return json({ error: 'Timed out fetching problem' }, { status: 504 });
+        }
+        console.error('Error fetching Kattis problem:', error);
+        return json({ error: 'Failed to fetch problem' }, { status: 500 });
       }
-      return json({ html: await response.text() });
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        return json({ error: 'Timed out fetching problem' }, { status: 504 });
-      }
-      console.error('Error fetching Kattis problem:', error);
-      return json({ error: 'Failed to fetch problem' }, { status: 500 });
-    } finally {
-      clearTimeout(timeout);
-    }
+    })();
+
+    return request.finally(() => clearTimeout(timeout));
   };
 }
 

@@ -147,6 +147,18 @@ test('contest filter reset restores all filters and default ordering', () => {
   assert.deepEqual(ids(collection), ['a', 'b', 'c', 'd']);
 });
 
+test('contest collection preserves source order and defaults to an empty list', () => {
+  const ordered = new ContestCollection({
+    items: [contests[3], contests[0]],
+    preserveSourceOrder: true
+  });
+  assert.deepEqual(
+    ordered.sourceItems.map((item) => item.id),
+    ['d', 'b']
+  );
+  assert.deepEqual(new ContestCollection({ preserveSourceOrder: true }).sourceItems, []);
+});
+
 test('contest collection handles empty input and never mutates supplied source data', () => {
   const source = contests.map((contest) => ({ ...contest }));
   const originalOrder = source.map((item) => item.id);
