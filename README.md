@@ -6,16 +6,6 @@
 
 <h1 align="center">gitgud</h1>
 
-<p align="center">
-  Hand-picked competitive programming problems worth solving.
-  <br>
-  <a href="https://www.gitgud.cc"><strong>Explore gitgud.cc</strong></a>
-  ·
-  <a href="https://www.gitgud.cc/about">About</a>
-  ·
-  <a href="LICENSE">MIT License</a>
-</p>
-
 gitgud is a community-curated collection for competitive programmers who want to practice beyond the fundamentals. Problem archives are enormous, but problem quality varies. gitgud helps surface the problems that teach something memorable.
 
 ## Canon Problems
