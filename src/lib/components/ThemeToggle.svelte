@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { nextThemePreference, type ThemePreference } from '$lib/services/appearance';
+  import { THEME_PREFERENCES, type ThemePreference } from '$lib/services/appearance';
 
   export let preference: ThemePreference;
   export let onSelect: (preference: ThemePreference) => void;
@@ -10,60 +10,61 @@
     dark: 'Dark'
   };
 
-  $: nextPreference = nextThemePreference(preference);
-  $: label = labels[preference];
-  $: nextLabel = labels[nextPreference];
+  let options: HTMLButtonElement[] = [];
+
+  function selectAndFocus(nextPreference: ThemePreference): void {
+    onSelect(nextPreference);
+    options[THEME_PREFERENCES.indexOf(nextPreference)]?.focus();
+  }
+
+  function handleKeydown(event: KeyboardEvent): void {
+    const currentIndex = THEME_PREFERENCES.indexOf(preference);
+    let nextIndex: number | null = null;
+
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+      nextIndex = (currentIndex - 1 + THEME_PREFERENCES.length) % THEME_PREFERENCES.length;
+    } else if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+      nextIndex = (currentIndex + 1) % THEME_PREFERENCES.length;
+    } else if (event.key === 'Home') {
+      nextIndex = 0;
+    } else if (event.key === 'End') {
+      nextIndex = THEME_PREFERENCES.length - 1;
+    }
+
+    if (nextIndex === null) return;
+    event.preventDefault();
+    selectAndFocus(THEME_PREFERENCES[nextIndex]);
+  }
+
+  $: selectedIndex = THEME_PREFERENCES.indexOf(preference);
 </script>
 
-<button
-  type="button"
-  aria-label={`Theme: ${label}. Switch to ${nextLabel}`}
+<div
+  role="radiogroup"
+  aria-label="Theme"
+  tabindex="-1"
   data-theme-preference={preference}
-  class="inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-md border-2 border-[var(--color-border)] bg-[var(--color-secondary)] px-3 py-2 text-sm font-medium text-[var(--color-text)] hover:bg-[var(--color-tertiary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
-  on:click={() => onSelect(nextPreference)}
+  class="relative grid min-h-11 w-full min-w-0 grid-cols-3 rounded-md border-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-1 sm:w-auto sm:min-w-72"
+  on:keydown={handleKeydown}
 >
-  {#if preference === 'system'}
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      class="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
+  <span
+    aria-hidden="true"
+    data-testid="theme-toggle-indicator"
+    class="pointer-events-none absolute top-1 bottom-1 left-1 rounded-sm border border-[var(--color-border)] bg-[var(--color-secondary)] shadow-sm transition-transform duration-200 motion-reduce:transition-none"
+    style={`width: calc((100% - 0.5rem) / 3); transform: translateX(${selectedIndex * 100}%);`}
+  ></span>
+
+  {#each THEME_PREFERENCES as option, index (option)}
+    <button
+      bind:this={options[index]}
+      type="button"
+      role="radio"
+      aria-checked={preference === option}
+      tabindex={preference === option ? 0 : -1}
+      class="relative z-10 min-h-11 min-w-0 rounded-sm px-3 text-sm font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)] aria-checked:font-bold aria-checked:text-[var(--color-text)]"
+      on:click={() => onSelect(option)}
     >
-      <rect x="3" y="4" width="18" height="12" rx="2"></rect>
-      <path d="M8 20h8M12 16v4"></path>
-    </svg>
-  {:else if preference === 'light'}
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      class="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-    >
-      <circle cx="12" cy="12" r="4"></circle>
-      <path
-        d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42"
-      ></path>
-    </svg>
-  {:else}
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      class="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    >
-      <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"></path>
-    </svg>
-  {/if}
-  <span>{label}</span>
-</button>
+      {labels[option]}
+    </button>
+  {/each}
+</div>
