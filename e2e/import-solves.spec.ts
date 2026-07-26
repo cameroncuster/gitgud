@@ -56,10 +56,12 @@ async function preview(page: Page, handle = HANDLE) {
 }
 
 test.describe('authorization', () => {
-  test('an anonymous visitor is redirected home and never sees the import UI', async ({ page }) => {
-    // No seeded session.
+  test('an anonymous visitor reaches Settings but never sees the import UI', async ({ page }) => {
+    // No seeded session. Settings is reachable for the theme control, but the
+    // account-only import section stays gated behind authentication.
     await page.goto('/settings');
-    await page.waitForURL(/\/$/);
+    await expect(page).toHaveURL(/\/settings$/);
+    await expect(page.getByRole('heading', { name: 'Appearance' })).toBeVisible();
     await expect(page.getByText('Import solved problems')).toHaveCount(0);
     await expect(page.getByPlaceholder('Codeforces handle')).toHaveCount(0);
   });

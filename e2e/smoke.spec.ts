@@ -326,19 +326,28 @@ test.describe('signed-in settings layout and appearance', () => {
 });
 
 test.describe('anonymous guards', () => {
-  // Both routes gate their content behind an authenticated session. For an
-  // anonymous visitor the guard redirects home and never exposes the protected
-  // UI. Asserting the redirect plus the absence of protected content captures
-  // the guard against a reachable backend (where the session check resolves
-  // quickly).
-  test('anonymous /settings redirects home and never exposes the settings form', async ({
+  // /submit stays fully gated (redirect home). /settings is intentionally
+  // reachable for anonymous visitors so they can change the localStorage theme,
+  // but its account-only sections stay hidden — covered separately below.
+  test('anonymous /settings stays on the route, shows Appearance, and hides account-only sections', async ({
     page
   }) => {
+    // Fail the test if any account query fires for an anonymous visitor.
+    const accountRequests: string[] = [];
+    await page.route('**/rest/v1/user_preferences**', (route) => {
+      accountRequests.push(route.request().url());
+      return route.continue();
+    });
     await page.goto('/settings');
-    // The guard finds no session and redirects to the home route.
-    await page.waitForURL(/\/$/);
-    // The authenticated-only Privacy section is never reached.
-    await expect(page.getByText('Privacy', { exact: true })).toHaveCount(0);
+    // No redirect: the visitor stays on /settings.
+    await expect(page).toHaveURL(/\/settings$/);
+    // Appearance is available to everyone.
+    await expect(page.getByRole('heading', { name: 'Appearance' })).toBeVisible();
+    // The account-only sections are never rendered.
+    await expect(page.getByRole('heading', { name: 'Privacy', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Import solved problems' })).toHaveCount(0);
+    // And no account read was attempted.
+    expect(accountRequests).toEqual([]);
   });
 
   test('anonymous /submit redirects home and never exposes the submit options', async ({
@@ -540,6 +549,54 @@ test.describe('theme startup', () => {
     await expect
       .poll(() => page.evaluate(() => localStorage.getItem('gitgud-theme')))
       .toBe('system');
+  });
+
+  test('an anonymous visitor cycles the Settings theme and it persists across reload', async ({
+    page,
+    viewport
+  }) => {
+    // No session is seeded. Fail if the anonymous flow triggers any account read.
+    const accountRequests: string[] = [];
+    await page.route('**/rest/v1/user_preferences**', (route) => {
+      accountRequests.push(route.request().url());
+      return route.continue();
+    });
+
+    // Reach Settings from the header without signing in.
+    await page.goto('/');
+    if (viewport && viewport.width < 1024) {
+      await page.getByRole('button', { name: 'Open menu' }).click();
+    }
+    await page.getByRole('banner').getByRole('link', { name: 'Settings' }).click();
+    await expect(page).toHaveURL(/\/settings$/);
+    await expect(page.getByRole('heading', { name: 'Appearance' })).toBeVisible();
+
+    // Account-only sections stay hidden for anonymous visitors.
+    await expect(page.getByRole('heading', { name: 'Privacy', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Import solved problems' })).toHaveCount(0);
+
+    // Cycle system → light → dark → system through the single-target control.
+    await page.getByRole('button', { name: 'Theme: System. Switch to Light' }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    await page.getByRole('button', { name: 'Theme: Light. Switch to Dark' }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('gitgud-theme'))).toBe('dark');
+    await page.getByRole('button', { name: 'Theme: Dark. Switch to System' }).click();
+    await expect(
+      page.getByRole('button', { name: 'Theme: System. Switch to Light' })
+    ).toBeVisible();
+
+    // Set an explicit Dark choice and confirm it survives a reload via localStorage.
+    await page.getByRole('button', { name: 'Theme: System. Switch to Light' }).click();
+    await page.getByRole('button', { name: 'Theme: Light. Switch to Dark' }).click();
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('gitgud-theme'))).toBe('dark');
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await expect(page.getByRole('button', { name: 'Theme: Dark. Switch to System' })).toBeVisible();
+
+    // Never a set of radio panels, and never an account read.
+    await expect(page.getByRole('radio', { name: /^(System|Light|Dark)$/ })).toHaveCount(0);
+    expect(accountRequests).toEqual([]);
   });
 
   test('honors a stored Dark Ink preference before first paint', async ({ page }) => {
