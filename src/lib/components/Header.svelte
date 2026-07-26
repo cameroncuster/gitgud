@@ -3,9 +3,6 @@
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
   import { currentActor, signInWithGithub, signOut } from '$lib/auth/currentActor';
-  import ThemeCycleButton from '$lib/components/ThemeCycleButton.svelte';
-  import { nextThemePreference, type ThemePreference } from '$lib/services/appearance';
-  import { currentThemePreference, setThemePreference } from '$lib/services/theme';
 
   let mobileMenuOpen = false;
   let mobileMenuButton: HTMLButtonElement | null = null;
@@ -13,9 +10,6 @@
   let loginError = page.url.pathname === '/' && page.url.searchParams.get('auth_error') === 'true';
   let logoutBusy = false;
   let logoutError = false;
-  let themeSaveError = false;
-  let themeSaveRevision = 0;
-  let failedThemePreference: ThemePreference | null = null;
 
   $: user = $currentActor.user;
   $: username = user
@@ -59,27 +53,6 @@
     } finally {
       logoutBusy = false;
     }
-  }
-
-  async function selectThemePreference(preference: ThemePreference): Promise<void> {
-    const revision = ++themeSaveRevision;
-    const userId = user?.id;
-    themeSaveError = false;
-    failedThemePreference = null;
-    const saved = await setThemePreference(preference);
-    if (revision !== themeSaveRevision || !userId || user?.id !== userId) return;
-    if (!saved) {
-      themeSaveError = true;
-      failedThemePreference = preference;
-    }
-  }
-
-  function cycleTheme(): void {
-    void selectThemePreference(nextThemePreference($currentThemePreference));
-  }
-
-  function retryThemeSave(): void {
-    if (failedThemePreference) void selectThemePreference(failedThemePreference);
   }
 
   function handleWindowKeydown(event: KeyboardEvent): void {
@@ -150,7 +123,6 @@
       </ul>
 
       <div class="flex min-w-44 items-center justify-end gap-3">
-        <ThemeCycleButton preference={$currentThemePreference} onCycle={cycleTheme} />
         {#if !$currentActor.initialized}
           <button
             type="button"
@@ -206,7 +178,7 @@
                   class="mr-2 inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent"
                   aria-hidden="true"
                 ></span>{/if}
-              {loginBusy ? 'Opening GitHub…' : 'Sign up'}
+              {loginBusy ? 'Opening GitHub…' : 'Continue with GitHub'}
             </button>
             {#if loginError}
               <p class="mt-1 max-w-48 text-xs text-[var(--color-error)]" role="alert">
@@ -245,7 +217,6 @@
         </ul>
 
         <div class="flex flex-wrap items-center gap-3 border-t border-[var(--color-border)] pt-3">
-          <ThemeCycleButton preference={$currentThemePreference} onCycle={cycleTheme} />
           {#if !$currentActor.initialized}
             <p
               role="status"
@@ -297,7 +268,7 @@
                   class="mr-2 inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent"
                   aria-hidden="true"
                 ></span>{/if}
-              {loginBusy ? 'Opening GitHub…' : 'Sign up'}
+              {loginBusy ? 'Opening GitHub…' : 'Continue with GitHub'}
             </button>
             {#if loginError}
               <p class="mt-2 text-sm text-[var(--color-error)]" role="alert">
@@ -310,19 +281,12 @@
     </div>
   {/if}
 
-  {#if themeSaveError || logoutError}
+  {#if logoutError}
     <div
       class="mx-auto mt-2 flex max-w-[1200px] items-center justify-end gap-2 px-3 text-sm text-[var(--color-error)]"
       role="alert"
     >
-      <span>{themeSaveError ? 'Theme could not sync.' : 'Couldn’t sign out. Try again.'}</span>
-      {#if themeSaveError}
-        <button
-          type="button"
-          class="min-h-11 border border-[var(--color-error)] px-3 font-bold"
-          on:click={retryThemeSave}>Retry</button
-        >
-      {/if}
+      <span>Couldn’t sign out. Try again.</span>
     </div>
   {/if}
 </header>

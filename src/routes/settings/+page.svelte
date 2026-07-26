@@ -4,6 +4,9 @@
   import { onMount } from 'svelte';
   import type { Unsubscriber } from 'svelte/store';
   import { currentActor, getCurrentActor, resolveCurrentActor } from '$lib/auth/currentActor';
+  import ThemeCycleButton from '$lib/components/ThemeCycleButton.svelte';
+  import { nextThemePreference, type ThemePreference } from '$lib/services/appearance';
+  import { currentThemePreference, setThemePreference } from '$lib/services/theme';
   import {
     fetchUserPreferences,
     updateLeaderboardPrivacyForUser,
@@ -42,6 +45,9 @@
   let kattisPreview: KattisSolveMatchResult | null = null;
   let fileSelectionRevision = 0;
   let privacySaveRevision = 0;
+  let themeSaveRevision = 0;
+  let themeSaveError = false;
+  let failedThemePreference: ThemePreference | null = null;
   $: importPreview = importProvider === 'codeforces' ? codeforcesPreview : kattisPreview;
 
   function clearImportState(): void {
@@ -140,6 +146,27 @@
     }
   }
 
+  async function selectThemePreference(preference: ThemePreference): Promise<void> {
+    const revision = ++themeSaveRevision;
+    const userId = getCurrentActor().user?.id;
+    themeSaveError = false;
+    failedThemePreference = null;
+    const saved = await setThemePreference(preference);
+    if (revision !== themeSaveRevision || !userId || getCurrentActor().user?.id !== userId) return;
+    if (!saved) {
+      themeSaveError = true;
+      failedThemePreference = preference;
+    }
+  }
+
+  function cycleTheme(): void {
+    void selectThemePreference(nextThemePreference($currentThemePreference));
+  }
+
+  function retryThemeSave(): void {
+    if (failedThemePreference) void selectThemePreference(failedThemePreference);
+  }
+
   async function toggleHideFromLeaderboard(): Promise<void> {
     const userId = getCurrentActor().user?.id;
     if (!userId) return;
@@ -216,6 +243,34 @@
           disabled={saving}>{preferences.hideFromLeaderboard ? 'On' : 'Off'}</button
         >
       </div>
+    </section>
+
+    <section class="mt-6 overflow-hidden border-2 border-[var(--color-border)]">
+      <h2 class="border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-4 font-bold">
+        Appearance
+      </h2>
+      <div class="flex items-center justify-between gap-4 bg-[var(--color-secondary)] p-4">
+        <div>
+          <p class="font-medium text-[var(--color-text)]">Theme</p>
+          <p class="text-sm text-[var(--color-text-muted)]">
+            Cycles System, Light, then Dark. System follows your device preference.
+          </p>
+        </div>
+        <ThemeCycleButton preference={$currentThemePreference} onCycle={cycleTheme} />
+      </div>
+      {#if themeSaveError}
+        <div
+          class="flex items-center justify-end gap-2 border-t-2 border-[var(--color-border)] bg-[var(--color-secondary)] px-4 pb-4 text-sm text-[var(--color-error)]"
+          role="alert"
+        >
+          <span>Theme could not sync.</span>
+          <button
+            type="button"
+            class="min-h-11 border border-[var(--color-error)] px-3 font-bold"
+            on:click={retryThemeSave}>Retry</button
+          >
+        </div>
+      {/if}
     </section>
 
     <section class="mt-6 mb-16 overflow-hidden border-2 border-[var(--color-border)] md:mb-20">

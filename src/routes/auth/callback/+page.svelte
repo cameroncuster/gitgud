@@ -47,31 +47,15 @@
 </script>
 
 <svelte:head>
-  <title>Finishing sign-in</title>
+  <title>Signing in</title>
 </svelte:head>
 
-<div class="flex min-h-[55vh] items-center justify-center px-4">
-  <section
-    class="w-full max-w-lg border-2 border-[var(--color-border)] bg-[var(--color-secondary)] p-8 text-center"
-    aria-labelledby="callback-title"
-  >
-    <div class="mb-6 flex items-center justify-center gap-4 text-lg font-bold" aria-hidden="true">
-      <span class="border border-[var(--color-border)] px-3 py-2">GitHub</span>
-      <span>→</span>
-      <span class="text-[var(--color-accent)]">gitgud</span>
-    </div>
-    <h1 id="callback-title" class="text-2xl font-bold">Finishing secure sign-in</h1>
-    <p class="mt-3 text-[var(--color-text-muted)]">
-      Verifying your GitHub session. You’ll return automatically.
-    </p>
-    <div class="mt-6 flex items-center justify-center gap-3" role="status" aria-live="polite">
-      <span
-        class="callback-spinner h-5 w-5 rounded-full border-2 border-[var(--color-border)] border-t-[var(--color-accent)]"
-        aria-hidden="true"
-      ></span>
-      <span>Verification in progress</span>
-    </div>
-  </section>
+<div class="flex min-h-[40vh] items-center justify-center" role="status" aria-live="polite">
+  <span
+    class="callback-spinner mr-3 inline-block h-5 w-5 rounded-full border-2 border-[var(--color-border)] border-t-[var(--color-accent)]"
+    aria-hidden="true"
+  ></span>
+  <p class="text-[var(--color-heading)]">Signing you in…</p>
 </div>
 
 <style>

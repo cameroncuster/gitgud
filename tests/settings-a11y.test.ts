@@ -169,16 +169,19 @@ test('error status uses the semantic error color', () => {
   );
 });
 
-test('appearance is controlled from the header instead of duplicated in settings', () => {
-  assert.doesNotMatch(
+test('appearance is a compact single-target theme cycle, not radio panels', () => {
+  // The theme control moved out of the header into a compact Settings control.
+  assert.match(SETTINGS, />\s*Appearance\s*</, 'settings must render an Appearance section');
+  // A single click target (the shared ThemeCycleButton), not three cards/radios.
+  assert.match(
     SETTINGS,
-    />\s*Appearance\s*</,
-    'settings must not render an Appearance section'
+    /<ThemeCycleButton\s+preference=\{\$currentThemePreference\}\s+onCycle=\{cycleTheme\}\s*\/>/,
+    'settings must use the single-target ThemeCycleButton for theme selection'
   );
   assert.doesNotMatch(
     SETTINGS,
-    /name="settings-appearance"/,
-    'settings must not duplicate theme radios'
+    /name="(settings-appearance|mobile-appearance|desktop-appearance)"/,
+    'settings must not reintroduce theme radios'
   );
 });
 
