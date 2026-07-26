@@ -4,8 +4,11 @@
   import '../app.css';
   import { onMount } from 'svelte';
   import { currentActor, startCurrentActor } from '$lib/auth/currentActor';
-  import { loadThemePreference, applyTheme } from '$lib/services/theme';
-  import { browser } from '$app/environment';
+  import {
+    destroyThemeService,
+    initializeThemePreference,
+    loadThemePreference
+  } from '$lib/services/theme';
 
   onMount(() => {
     let mounted = true;
@@ -20,10 +23,9 @@
       }
     });
 
+    initializeThemePreference();
+
     const initialize = async () => {
-      if (browser) {
-        applyTheme(localStorage.getItem('gitgud-theme') || 'light');
-      }
       const stop = await startCurrentActor();
       if (mounted) stopActor = stop;
       else stop();
@@ -33,6 +35,7 @@
     return () => {
       mounted = false;
       actorUnsubscribe();
+      destroyThemeService();
       stopActor?.();
     };
   });

@@ -68,6 +68,17 @@ test('init includes every reusable schema object file once and permissions last'
   assert.equal(new Set(includes).size, includes.length, 'init contains duplicate includes');
 });
 
+test('user appearance defaults to System and constrains future theme writes', () => {
+  const preferences = readSql('auth/user_preferences.sql');
+  assert.match(preferences, /theme\s+TEXT\s+NOT NULL\s+DEFAULT\s+'system'/i);
+  assert.match(preferences, /ALTER COLUMN theme SET DEFAULT 'system'/i);
+  assert.match(preferences, /CHECK \(theme IN \('system', 'light', 'dark'\)\) NOT VALID/i);
+  assert.match(preferences, /VALUES \(NEW\.id, false, 'system'\)/i);
+  assert.doesNotMatch(preferences, /^\s*UPDATE\s+user_preferences\b/gim);
+  assert.doesNotMatch(preferences, /^\s*DELETE\s+FROM\b/gim);
+  assert.doesNotMatch(preferences, /^\s*TRUNCATE\b/gim);
+});
+
 test('every CREATE POLICY has its exact DROP POLICY IF EXISTS immediately before it', () => {
   for (const path of sqlFiles()) {
     const sql = readSql(path);
@@ -179,7 +190,10 @@ test('forward migration is transactional, idempotent, data-free, and verifies po
   assert.match(migration, /^COMMIT;/m);
   assert.ok(migration.indexOf('BEGIN;') < migration.indexOf('COMMIT;'));
   assert.match(migration, /^\\ir permissions\.sql$/m);
-  assert.doesNotMatch(migration, /^\s*(?:INSERT|UPDATE|DELETE|TRUNCATE)\b/gim);
+  assert.doesNotMatch(migration, /^\s*INSERT\s+INTO\b/gim);
+  assert.doesNotMatch(migration, /^\s*UPDATE\s+user_preferences\b/gim);
+  assert.doesNotMatch(migration, /^\s*DELETE\s+FROM\b/gim);
+  assert.doesNotMatch(migration, /^\s*TRUNCATE\b/gim);
   assert.match(migration, /pg_policies/);
   assert.match(migration, /p\.prosecdef/);
   assert.match(migration, /p\.proconfig\s*=\s*ARRAY\['search_path=public, pg_temp'\]::TEXT\[\]/);

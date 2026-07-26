@@ -1,22 +1,34 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { createUserService } from '../src/lib/services/user.ts';
+import { createUserService, type UserPreferences } from '../src/lib/services/user.ts';
 import { createUserSolvesService } from '../src/lib/services/userSolves.ts';
 
 type Result = { data?: unknown; error: { code?: string } | null };
-type Call = { operation: string; value?: unknown };
+type Call = { operation: string; value?: unknown; userId?: string };
 
 function preferenceClient(results: Result[]) {
   const calls: Call[] = [];
   const next = () => results.shift() as Result;
   const client = {
     from: () => ({
-      select: () => ({ eq: () => ({ single: async () => next() }) }),
-      update: (value: unknown) => {
-        calls.push({ operation: 'update', value });
-        return { eq: async () => next() };
-      },
+      select: () => ({
+        eq: () => ({
+          limit: async () => {
+            const result = next();
+            return {
+              ...result,
+              data: result.data == null || Array.isArray(result.data) ? result.data : [result.data]
+            };
+          }
+        })
+      }),
+      update: (value: unknown) => ({
+        eq: async (_column: string, userId: string) => {
+          calls.push({ operation: 'update', value, userId });
+          return next();
+        }
+      }),
       insert: async (value: unknown) => {
         calls.push({ operation: 'insert', value });
         return next();
@@ -26,7 +38,7 @@ function preferenceClient(results: Result[]) {
   return { client, calls };
 }
 
-const preferences = { hideFromLeaderboard: true, theme: 'dark' };
+const preferences: UserPreferences = { hideFromLeaderboard: true, theme: 'dark' };
 
 test('user preferences require an actor and map stored fallback theme', async () => {
   const anonymous = preferenceClient([]);
@@ -52,12 +64,12 @@ test('user preferences require an actor and map stored fallback theme', async ()
   });
   assert.deepEqual(await service.fetchUserPreferences(), {
     hideFromLeaderboard: true,
-    theme: 'light'
+    theme: 'system'
   });
 });
 
-test('preference reads preserve null data and explicit themes', async () => {
-  const noData = preferenceClient([{ data: null, error: null }]);
+test('preference reads preserve errors and explicit themes', async () => {
+  const noData = preferenceClient([{ data: null, error: { code: 'denied' } }]);
   assert.equal(
     await createUserService({
       client: noData.client,
@@ -74,14 +86,14 @@ test('preference reads preserve null data and explicit themes', async () => {
       client: explicit.client,
       getCurrentUser: () => ({ id: 'actor' })
     }).fetchUserPreferences(),
-    { hideFromLeaderboard: false, theme: 'paper' }
+    { hideFromLeaderboard: false, theme: 'system' }
   );
 });
 
 test('missing preferences are created with defaults and returned only after persistence', async () => {
   const success = preferenceClient([
-    { data: null, error: { code: 'PGRST116' } },
-    { data: null, error: { code: 'PGRST116' } },
+    { data: [], error: null },
+    { data: [], error: null },
     { data: null, error: null }
   ]);
   const service = createUserService({
@@ -91,22 +103,20 @@ test('missing preferences are created with defaults and returned only after pers
   });
   assert.deepEqual(await service.fetchUserPreferences(), {
     hideFromLeaderboard: false,
-    theme: 'light'
+    theme: 'system'
   });
   assert.deepEqual(success.calls[0], {
     operation: 'insert',
     value: {
       user_id: 'actor',
-      hide_from_leaderboard: false,
-      theme: 'light',
       created_at: '2026-01-01T00:00:00.000Z',
       updated_at: '2026-01-01T00:00:00.000Z'
     }
   });
 
   const failed = preferenceClient([
-    { data: null, error: { code: 'PGRST116' } },
-    { data: null, error: { code: 'PGRST116' } },
+    { data: [], error: null },
+    { data: [], error: null },
     { data: null, error: { code: 'denied' } }
   ]);
   assert.equal(
@@ -131,7 +141,8 @@ test('preference update chooses update or insert with stable timestamps', async 
   assert.equal(await existingService.updateUserPreferences(preferences), true);
   assert.deepEqual(existing.calls[0], {
     operation: 'update',
-    value: { hide_from_leaderboard: true, theme: 'dark', updated_at: 'timestamp' }
+    value: { hide_from_leaderboard: true, theme: 'dark', updated_at: 'timestamp' },
+    userId: 'actor'
   });
 
   const missing = preferenceClient([
@@ -147,6 +158,115 @@ test('preference update chooses update or insert with stable timestamps', async 
     true
   );
   assert.equal(missing.calls[0].operation, 'insert');
+});
+
+test('focused preference writes are actor-stable and update independent columns', async () => {
+  let currentUser: { id: string } | null = { id: 'actor-a' };
+  const database = preferenceClient([
+    { data: { id: 'theme-pref' }, error: null },
+    { data: null, error: null },
+    { data: { id: 'privacy-pref' }, error: null },
+    { data: null, error: null }
+  ]);
+  const service = createUserService({
+    client: database.client,
+    getCurrentUser: () => currentUser,
+    now: () => 'timestamp'
+  });
+
+  const themeWrite = service.updateThemePreferenceForUser('actor-a', 'invalid');
+  currentUser = { id: 'actor-b' };
+  assert.equal(await themeWrite, true);
+  assert.equal(await service.updateLeaderboardPrivacyForUser('actor-b', true), true);
+  assert.deepEqual(database.calls, [
+    {
+      operation: 'update',
+      value: { theme: 'system', updated_at: 'timestamp' },
+      userId: 'actor-a'
+    },
+    {
+      operation: 'update',
+      value: { hide_from_leaderboard: true, updated_at: 'timestamp' },
+      userId: 'actor-b'
+    }
+  ]);
+  assert.equal(await service.updateThemePreferenceForUser('actor-a', 'dark'), false);
+});
+
+test('concurrent theme and privacy writes update only their independent columns', async () => {
+  const database = preferenceClient([
+    { data: { id: 'theme-pref' }, error: null },
+    { data: { id: 'privacy-pref' }, error: null },
+    { data: null, error: null },
+    { data: null, error: null }
+  ]);
+  const service = createUserService({
+    client: database.client,
+    getCurrentUser: () => ({ id: 'actor' }),
+    now: () => 'timestamp'
+  });
+
+  assert.deepEqual(
+    await Promise.all([
+      service.updateThemePreferenceForUser('actor', 'dark'),
+      service.updateLeaderboardPrivacyForUser('actor', true)
+    ]),
+    [true, true]
+  );
+  assert.deepEqual(database.calls, [
+    {
+      operation: 'update',
+      value: { theme: 'dark', updated_at: 'timestamp' },
+      userId: 'actor'
+    },
+    {
+      operation: 'update',
+      value: { hide_from_leaderboard: true, updated_at: 'timestamp' },
+      userId: 'actor'
+    }
+  ]);
+});
+
+test('focused missing-row inserts rely on defaults for the independent field', async () => {
+  const theme = preferenceClient([
+    { data: [], error: null },
+    { data: null, error: null }
+  ]);
+  const themeService = createUserService({
+    client: theme.client,
+    getCurrentUser: () => ({ id: 'actor' }),
+    now: () => 'timestamp'
+  });
+  assert.equal(await themeService.updateThemePreferenceForUser('actor', 'dark'), true);
+  assert.deepEqual(theme.calls[0], {
+    operation: 'insert',
+    value: {
+      user_id: 'actor',
+      theme: 'dark',
+      created_at: 'timestamp',
+      updated_at: 'timestamp'
+    }
+  });
+
+  const privacy = preferenceClient([
+    { data: [], error: null },
+    { data: null, error: null }
+  ]);
+  const privacyService = createUserService({
+    client: privacy.client,
+    getCurrentUser: () => ({ id: 'actor' }),
+    now: () => 'timestamp'
+  });
+  assert.equal(await privacyService.updateLeaderboardPrivacyForUser('actor', true), true);
+  assert.deepEqual(privacy.calls[0], {
+    operation: 'insert',
+    value: {
+      user_id: 'actor',
+      hide_from_leaderboard: true,
+      created_at: 'timestamp',
+      updated_at: 'timestamp'
+    }
+  });
 });
 
 test('duplicate insert race retries as update and reports retry failure', async () => {
@@ -243,7 +363,14 @@ test('preference service contains query, write, and thrown errors', async () => 
 function importClient(results: Result[], throws = false) {
   const calls: unknown[] = [];
   const client = {
-    from: () => ({
+    from: (table: string) => ({
+      select: (columns: string) => ({
+        in: async (column: string, values: string[]) => {
+          calls.push({ table, columns, column, values });
+          if (throws) throw new Error('offline');
+          return results.shift();
+        }
+      }),
       upsert: (rows: unknown, options: unknown) => {
         calls.push({ rows, options });
         if (throws) throw new Error('offline');
@@ -431,6 +558,144 @@ test('solve confirmation performs no writes for anonymous, failed, or empty matc
   });
   assert.deepEqual(await empty.confirmCodeforcesImport('x'), { success: true, imported: 0 });
   assert.equal(database.calls.length, 0);
+});
+
+test('Kattis empty preview needs no database query', async () => {
+  const database = importClient([]);
+  const service = createUserSolvesService({
+    client: database.client,
+    resolveActor: async () => actor(),
+    getActor: () => actor(),
+    fetchMatchesResponse: async () => Response.json({})
+  });
+  assert.deepEqual(await service.previewKattisImport('!!!'), {
+    success: true,
+    result: {
+      matched: [],
+      unmatchedCount: 0,
+      duplicateCount: 0,
+      capped: false
+    }
+  });
+  assert.equal(database.calls.length, 0);
+});
+
+test('Kattis preview queries canonical tracked URLs and reports match counts', async () => {
+  const database = importClient([
+    {
+      data: [
+        {
+          id: 'database-id',
+          url: 'https://open.kattis.com/problems/gamma',
+          name: 'Gamma'
+        }
+      ],
+      error: null
+    }
+  ]);
+  const service = createUserSolvesService({
+    client: database.client,
+    resolveActor: async () => actor(),
+    getActor: () => actor(),
+    fetchMatchesResponse: async () => Response.json({})
+  });
+  assert.deepEqual(await service.previewKattisImport('gamma missing gamma'), {
+    success: true,
+    result: {
+      matched: [
+        {
+          id: 'database-id',
+          url: 'https://open.kattis.com/problems/gamma',
+          name: 'Gamma'
+        }
+      ],
+      unmatchedCount: 1,
+      duplicateCount: 1,
+      capped: false
+    }
+  });
+  assert.deepEqual(database.calls[0], {
+    table: 'problems',
+    columns: 'id,url,name',
+    column: 'url',
+    values: ['https://open.kattis.com/problems/gamma', 'https://open.kattis.com/problems/missing']
+  });
+});
+
+test('Kattis confirm re-queries and imports only the database-derived UUID', async () => {
+  const database = importClient([
+    {
+      data: [
+        {
+          id: 'database-id',
+          url: 'https://open.kattis.com/problems/gamma',
+          name: 'Gamma'
+        }
+      ],
+      error: null
+    },
+    { data: [{ problem_id: 'database-id' }], error: null }
+  ]);
+  const service = createUserSolvesService({
+    client: database.client,
+    resolveActor: async () => actor(),
+    getActor: () => actor(),
+    fetchMatchesResponse: async () => Response.json({})
+  });
+  assert.deepEqual(await service.confirmKattisImport('gamma fabricated-uuid'), {
+    success: true,
+    imported: 1
+  });
+  assert.deepEqual(database.calls[1], {
+    rows: [{ user_id: 'actor', problem_id: 'database-id' }],
+    options: { onConflict: 'user_id,problem_id', ignoreDuplicates: true }
+  });
+});
+
+test('Kattis import rejects anonymous actors, changed sessions, and query failures', async () => {
+  const anonymous = createUserSolvesService({
+    client: importClient([]).client,
+    resolveActor: async () => actor(false, false),
+    getActor: () => actor(false, false),
+    fetchMatchesResponse: async () => Response.json({})
+  });
+  assert.equal((await anonymous.previewKattisImport('gamma')).success, false);
+
+  let reads = 0;
+  const changedDatabase = importClient([
+    {
+      data: [
+        {
+          id: 'database-id',
+          url: 'https://open.kattis.com/problems/gamma',
+          name: 'Gamma'
+        }
+      ],
+      error: null
+    }
+  ]);
+  const changed = createUserSolvesService({
+    client: changedDatabase.client,
+    resolveActor: async () => actor(),
+    getActor: () => {
+      reads++;
+      return reads < 2 ? actor() : { ...actor(), user: { id: 'changed' } as never };
+    },
+    fetchMatchesResponse: async () => Response.json({})
+  });
+  assert.deepEqual(await changed.confirmKattisImport('gamma'), {
+    success: false,
+    imported: 0,
+    message: 'Your session changed during import'
+  });
+
+  const failed = createUserSolvesService({
+    client: importClient([{ data: null, error: { code: 'denied' } }]).client,
+    resolveActor: async () => actor(),
+    getActor: () => actor(),
+    fetchMatchesResponse: async () => Response.json({})
+  });
+  assert.equal((await failed.previewKattisImport('gamma')).success, false);
 });
 
 test('solve confirmation hides database errors and counts missing return data as zero', async () => {

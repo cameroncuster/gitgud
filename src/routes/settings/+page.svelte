@@ -1,193 +1,205 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
-  import { currentActor, resolveCurrentActor } from '$lib/auth/currentActor';
-  import { fetchUserPreferences, updateUserPreferences } from '$lib/services/user';
-  import type { UserPreferences } from '$lib/services/user';
+  import { onMount } from 'svelte';
   import type { Unsubscriber } from 'svelte/store';
-  import { applyTheme } from '$lib/services/theme';
-  import { previewCodeforcesImport, confirmCodeforcesImport } from '$lib/services/userSolves';
+  import { currentActor, getCurrentActor, resolveCurrentActor } from '$lib/auth/currentActor';
+  import {
+    currentTheme,
+    setThemePreference,
+    THEME_PREFERENCES,
+    type ThemePreference
+  } from '$lib/services/theme';
+  import {
+    fetchUserPreferences,
+    updateLeaderboardPrivacyForUser,
+    type UserPreferences
+  } from '$lib/services/user';
+  import {
+    confirmCodeforcesImport,
+    confirmKattisImport,
+    previewCodeforcesImport,
+    previewKattisImport
+  } from '$lib/services/userSolves';
   import type { SolveMatchResult } from '$lib/services/codeforcesSolves';
+  import { MAX_KATTIS_FILE_SIZE, type KattisSolveMatchResult } from '$lib/services/kattisSolves';
 
-  let preferences: UserPreferences = {
-    hideFromLeaderboard: false,
-    theme: 'light'
+  type ImportProvider = 'codeforces' | 'kattis';
+
+  const importProviders: ImportProvider[] = ['codeforces', 'kattis'];
+  const appearanceDescriptions: Record<ThemePreference, string> = {
+    system: 'Follow your device appearance and update when it changes.',
+    light: 'Always use the Paper theme.',
+    dark: 'Always use the Dark Ink theme.'
   };
 
-  let loading: boolean = true;
-  let saving: boolean = false;
+  let preferences: UserPreferences = { hideFromLeaderboard: false, theme: 'system' };
+  let loading = true;
+  let saving = false;
   let error: string | null = null;
   let success: string | null = null;
   let userUnsubscribe: Unsubscriber | null = null;
 
-  let cfHandle: string = '';
-  let importPreviewing: boolean = false;
-  let importing: boolean = false;
+  let importProvider: ImportProvider = 'codeforces';
+  let cfHandle = '';
+  let kattisInput = '';
+  let kattisIsHtml = false;
+  let selectedFileName = '';
+  let importPreviewing = false;
+  let importing = false;
   let importError: string | null = null;
   let importSuccess: string | null = null;
-  let importPreview: SolveMatchResult | null = null;
+  let codeforcesPreview: SolveMatchResult | null = null;
+  let kattisPreview: KattisSolveMatchResult | null = null;
+  let fileSelectionRevision = 0;
+  let preferenceSaveRevision = 0;
+  $: importPreview = importProvider === 'codeforces' ? codeforcesPreview : kattisPreview;
 
-  // Preview the Codeforces solves that match problems tracked here. Read-only.
+  function clearImportState(): void {
+    importError = null;
+    importSuccess = null;
+    codeforcesPreview = null;
+    kattisPreview = null;
+  }
+
   async function runPreview(): Promise<void> {
-    if (!cfHandle.trim()) {
+    if (importProvider === 'codeforces' && !cfHandle.trim()) {
       importError = 'Enter a Codeforces handle';
+      return;
+    }
+    if (importProvider === 'kattis' && !kattisInput.trim()) {
+      importError = 'Paste Kattis problem IDs or choose a file';
       return;
     }
 
     importPreviewing = true;
-    importError = null;
-    importSuccess = null;
-    importPreview = null;
-
+    clearImportState();
     try {
-      const result = await previewCodeforcesImport(cfHandle);
-      if (!result.success) {
-        importError = result.message;
-        return;
+      if (importProvider === 'codeforces') {
+        const result = await previewCodeforcesImport(cfHandle);
+        if (!result.success) importError = result.message;
+        else codeforcesPreview = result.result;
+      } else {
+        const result = await previewKattisImport(kattisInput, kattisIsHtml);
+        if (!result.success) importError = result.message;
+        else kattisPreview = result.result;
       }
-      importPreview = result.result;
-    } catch (err) {
-      console.error('runPreview: error', err);
+    } catch (previewError) {
+      console.error('runPreview: error', previewError);
       importError = 'Failed to preview import';
     } finally {
       importPreviewing = false;
     }
   }
 
-  // Confirm the previewed import. The server re-derives the matched set, so only
-  // server-derived tracked problems are imported for the current user.
   async function runImport(): Promise<void> {
-    if (!importPreview || importPreview.matched.length === 0) {
-      return;
-    }
+    const matchCount =
+      importProvider === 'codeforces'
+        ? codeforcesPreview?.matched.length
+        : kattisPreview?.matched.length;
+    if (!matchCount) return;
 
     importing = true;
     importError = null;
     importSuccess = null;
-
     try {
-      const result = await confirmCodeforcesImport(cfHandle);
-      if (!result.success) {
-        importError = result.message || 'Import failed';
-        return;
+      const result =
+        importProvider === 'codeforces'
+          ? await confirmCodeforcesImport(cfHandle)
+          : await confirmKattisImport(kattisInput, kattisIsHtml);
+      if (!result.success) importError = result.message || 'Import failed';
+      else {
+        importSuccess = `Imported ${result.imported} newly solved problem${result.imported === 1 ? '' : 's'}`;
+        codeforcesPreview = null;
+        kattisPreview = null;
       }
-      importSuccess = `Imported ${result.imported} newly solved problem${result.imported === 1 ? '' : 's'}`;
-      importPreview = null;
-    } catch (err) {
-      console.error('runImport: error', err);
+    } catch (importFailure) {
+      console.error('runImport: error', importFailure);
       importError = 'Import failed';
     } finally {
       importing = false;
     }
   }
 
-  async function loadPreferences(): Promise<void> {
-    loading = true;
-    error = null;
-
+  async function handleKattisFile(event: Event): Promise<void> {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    const revision = ++fileSelectionRevision;
+    kattisInput = '';
+    kattisIsHtml = false;
+    selectedFileName = '';
+    clearImportState();
+    if (!file) return;
+    if (!/\.(txt|html?)$/i.test(file.name)) {
+      importError = 'Choose a .txt or .html file';
+      input.value = '';
+      return;
+    }
+    if (file.size > MAX_KATTIS_FILE_SIZE) {
+      importError = 'File is too large (maximum 2 MB)';
+      input.value = '';
+      return;
+    }
     try {
-      const userPrefs = await fetchUserPreferences();
-      if (userPrefs) {
-        preferences = userPrefs;
-
-        applyTheme(preferences.theme);
-      } else {
-        const result = await updateUserPreferences({
-          hideFromLeaderboard: false,
-          theme: 'light'
-        });
-
-        if (result) {
-          preferences = {
-            hideFromLeaderboard: false,
-            theme: 'light'
-          };
-        }
-      }
-    } catch (err) {
-      console.error('loadPreferences: Error loading preferences', err);
-      error = 'Failed to load preferences';
-    } finally {
-      loading = false;
+      const contents = await file.text();
+      if (revision !== fileSelectionRevision) return;
+      kattisInput = contents;
+      kattisIsHtml = /\.html?$/i.test(file.name);
+      selectedFileName = file.name;
+    } catch {
+      if (revision === fileSelectionRevision) importError = 'Could not read that file';
     }
   }
 
-  async function savePreferences(): Promise<void> {
+  async function selectAppearance(theme: ThemePreference): Promise<void> {
+    const revision = ++preferenceSaveRevision;
+    preferences = { ...preferences, theme };
     saving = true;
     error = null;
     success = null;
-
-    try {
-      const result = await updateUserPreferences(preferences);
-      if (result) {
-        success = 'Saved';
-        setTimeout(() => {
-          success = null;
-        }, 2000);
-      } else {
-        console.error('savePreferences: Failed to save preferences');
-        error = 'Failed to save';
-      }
-    } catch (err) {
-      console.error('savePreferences: Error saving preferences', err);
-      error = 'Failed to save';
-    } finally {
-      saving = false;
-    }
+    const saved = await setThemePreference(theme);
+    if (revision !== preferenceSaveRevision) return;
+    if (saved) success = 'Saved';
+    else error = 'Failed to save';
+    saving = false;
   }
 
-  function toggleHideFromLeaderboard(): void {
-    preferences.hideFromLeaderboard = !preferences.hideFromLeaderboard;
-    savePreferences();
+  async function toggleHideFromLeaderboard(): Promise<void> {
+    const userId = getCurrentActor().user?.id;
+    if (!userId) return;
+    const revision = ++preferenceSaveRevision;
+    const nextValue = !preferences.hideFromLeaderboard;
+    preferences = { ...preferences, hideFromLeaderboard: nextValue };
+    saving = true;
+    error = null;
+    success = null;
+    const saved = await updateLeaderboardPrivacyForUser(userId, nextValue);
+    if (revision !== preferenceSaveRevision) return;
+    if (saved) success = 'Saved';
+    else error = 'Failed to save';
+    saving = false;
   }
 
-  function toggleTheme(): void {
-    const newTheme = preferences.theme === 'light' ? 'dark' : 'light';
-    preferences.theme = newTheme;
-
-    applyTheme(newTheme);
-
-    localStorage.setItem('gitgud-theme', newTheme);
-
-    // Force a re-render by creating a new object
-    preferences = { ...preferences };
-
-    savePreferences();
-  }
-
-  // Gate on the resolved current actor rather than an arbitrary delay, then
-  // redirect anonymous visitors and watch for a later sign-out.
   onMount(() => {
-    const initAuth = async () => {
+    const initialize = async () => {
       const actor = await resolveCurrentActor();
       if (!actor.user) {
-        // No session — redirect home, leaving the loading state in place.
-        goto(resolve('/'));
+        await goto(resolve('/'));
         return;
       }
 
-      // Actor resolved: load preferences and create defaults if none exist.
-      await loadPreferences();
+      const loaded = await fetchUserPreferences();
+      if (loaded) preferences = loaded;
+      loading = false;
 
-      // Ignore the subscription's initial state and act on a real sign-out.
-      let seenUser = false;
+      let seenUser = true;
       userUnsubscribe = currentActor.subscribe((value) => {
-        if (value.user) {
-          seenUser = true;
-        } else if (value.initialized && seenUser) {
-          goto(resolve('/'));
-        }
+        if (value.user) seenUser = true;
+        else if (value.initialized && seenUser) void goto(resolve('/'));
       });
     };
-
-    initAuth();
-
-    return () => {
-      if (userUnsubscribe) {
-        userUnsubscribe();
-      }
-    };
+    void initialize();
+    return () => userUnsubscribe?.();
   });
 </script>
 
@@ -197,244 +209,209 @@
 </svelte:head>
 
 <div class="mx-auto w-full max-w-[1200px] px-4 py-6">
-  <h1 class="mb-6 text-2xl font-semibold text-[var(--color-heading)]">Settings</h1>
+  <h1 class="sr-only">Settings</h1>
   {#if loading}
-    <div class="flex h-[calc(100vh-4rem)] items-center justify-center py-2 text-center">
-      <div>
-        <svg
-          class="mx-auto h-10 w-10 animate-spin"
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-        >
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"
-          ></circle>
-          <path
-            class="opacity-75"
-            fill="var(--color-primary)"
-            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-          ></path>
-        </svg>
-        <p class="mt-2 text-[var(--color-text-muted)]">Loading settings...</p>
-      </div>
+    <div class="flex min-h-[40vh] items-center justify-center" role="status">
+      <p class="text-[var(--color-text-muted)]">Loading settings…</p>
     </div>
   {:else}
-    <div class="mb-4 flex h-6 justify-end" role="status" aria-live="polite">
-      {#if success}
-        <div class="text-sm font-medium text-[var(--color-success)]">{success}</div>
-      {/if}
-      {#if error}
-        <div class="text-sm font-medium text-[var(--color-error)]">{error}</div>
-      {/if}
+    <div class="mb-4 flex min-h-6 justify-end" role="status" aria-live="polite">
+      {#if success}<p class="text-sm text-[var(--color-success)]">{success}</p>{/if}
+      {#if error}<p class="text-sm text-[var(--color-error)]">{error}</p>{/if}
     </div>
 
-    <div class="overflow-hidden rounded-none border-2 border-[var(--color-border)]">
-      <div class="border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-4">
-        <div class="flex items-center gap-2">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-5 w-5 text-[var(--color-text-muted)]"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-            <circle cx="9" cy="7" r="4"></circle>
-            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-          </svg>
-          <span class="font-bold text-[var(--color-heading)]">Privacy</span>
+    <section class="overflow-hidden border-2 border-[var(--color-border)]">
+      <h2 class="border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-4 font-bold">
+        Privacy
+      </h2>
+      <div class="flex items-center justify-between gap-4 bg-[var(--color-secondary)] p-4">
+        <div>
+          <p class="font-medium text-[var(--color-text)]">Hide from leaderboard</p>
+          <p class="text-sm text-[var(--color-text-muted)]">
+            Your profile will not be visible on the public leaderboard.
+          </p>
         </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={preferences.hideFromLeaderboard}
+          class="min-h-11 min-w-16 border-2 border-[var(--color-border)] px-2 font-medium focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
+          on:click={() => void toggleHideFromLeaderboard()}
+          disabled={saving}>{preferences.hideFromLeaderboard ? 'On' : 'Off'}</button
+        >
       </div>
+    </section>
 
-      <div class="bg-[var(--color-secondary)] p-4">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="font-medium text-[var(--color-text)]">Hide from leaderboard</p>
-            <p class="text-sm text-[var(--color-text-muted)]">
-              Your profile will not be visible on the public leaderboard
-            </p>
-          </div>
-
-          <div class="w-11 flex-shrink-0">
-            <button
-              type="button"
-              role="switch"
-              aria-checked={preferences.hideFromLeaderboard}
-              class="relative inline-flex h-6 w-11 cursor-pointer items-center rounded focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:outline-none"
-              on:click={toggleHideFromLeaderboard}
-              disabled={saving}
+    <section class="mt-6 overflow-hidden border-2 border-[var(--color-border)]">
+      <h2 class="border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-4 font-bold">
+        Appearance
+      </h2>
+      <fieldset class="bg-[var(--color-secondary)] p-4">
+        <legend class="sr-only">Choose appearance</legend>
+        <div class="grid gap-3 md:grid-cols-3">
+          {#each THEME_PREFERENCES as theme (theme)}
+            <label
+              class="flex min-h-28 cursor-pointer gap-3 border-2 border-[var(--color-border)] p-4 has-[:checked]:border-[var(--color-accent)] has-[:checked]:bg-[var(--color-tertiary)]"
             >
-              <span class="sr-only">Hide from leaderboard</span>
-              <span
-                class="absolute h-full w-full rounded transition-colors duration-200 {preferences.hideFromLeaderboard
-                  ? 'bg-[var(--color-accent)]'
-                  : 'bg-[var(--color-text-muted)]'} {saving ? 'opacity-50' : ''}"
-              ></span>
-              <span
-                class="absolute top-0.5 left-0.5 h-5 w-5 transform rounded bg-white transition-transform duration-200 {preferences.hideFromLeaderboard
-                  ? 'translate-x-5'
-                  : ''} {saving ? 'opacity-50' : ''}"
-              ></span>
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Theme Settings Section -->
-    {#if !loading}
-      <div class="mt-6 overflow-hidden rounded-none border-2 border-[var(--color-border)]">
-        <div class="border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-4">
-          <div class="flex items-center gap-2">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-5 w-5 text-[var(--color-text-muted)]"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path
-                d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"
-              />
-            </svg>
-            <span class="font-bold text-[var(--color-heading)]">Theme</span>
-          </div>
-        </div>
-
-        <div class="bg-[var(--color-secondary)] p-4">
-          <div class="flex items-center justify-between">
-            <div>
-              <p class="font-medium text-[var(--color-text)]">Dark mode</p>
-              <p class="text-sm text-[var(--color-text-muted)]">
-                Switch between light and dark theme
-              </p>
-            </div>
-
-            <div class="w-11 flex-shrink-0">
-              <button
-                type="button"
-                role="switch"
-                aria-checked={preferences.theme === 'dark'}
-                class="relative inline-flex h-6 w-11 cursor-pointer items-center rounded focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:outline-none"
-                on:click={toggleTheme}
+              <input
+                type="radio"
+                name="settings-appearance"
+                value={theme}
+                checked={preferences.theme === theme}
                 disabled={saving}
-              >
-                <span class="sr-only">Toggle dark mode</span>
-                <span
-                  class="absolute h-full w-full rounded transition-colors duration-200 {preferences.theme ===
-                  'dark'
-                    ? 'bg-[var(--color-accent)]'
-                    : 'bg-[var(--color-text-muted)]'} {saving ? 'opacity-50' : ''}"
-                ></span>
-                <span
-                  class="absolute top-0.5 left-0.5 h-5 w-5 transform rounded bg-white transition-transform duration-200 {preferences.theme ===
-                  'dark'
-                    ? 'translate-x-5'
-                    : ''} {saving ? 'opacity-50' : ''}"
-                ></span>
-              </button>
-            </div>
-          </div>
+                on:change={() => selectAppearance(theme)}
+              />
+              <span>
+                <span class="block font-bold text-[var(--color-heading)] capitalize">{theme}</span>
+                <span class="mt-1 block text-sm text-[var(--color-text-muted)]">
+                  {appearanceDescriptions[theme]}
+                </span>
+                {#if preferences.theme === theme}
+                  <span class="mt-2 block text-xs text-[var(--color-text)]">
+                    Currently resolved to {$currentTheme}.
+                  </span>
+                {/if}
+              </span>
+            </label>
+          {/each}
         </div>
-      </div>
-    {/if}
+      </fieldset>
+    </section>
 
-    <!-- Import Solved Problems Section -->
-    <div class="mt-6 overflow-hidden rounded-none border-2 border-[var(--color-border)]">
-      <div class="border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-4">
-        <div class="flex items-center gap-2">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-5 w-5 text-[var(--color-text-muted)]"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-          <span class="font-bold text-[var(--color-heading)]">Import solved problems</span>
-        </div>
-      </div>
-
+    <section class="mt-6 overflow-hidden border-2 border-[var(--color-border)]">
+      <h2 class="border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-4 font-bold">
+        Import solved problems
+      </h2>
       <div class="bg-[var(--color-secondary)] p-4">
-        <p class="mb-3 text-sm text-[var(--color-text-muted)]">
-          Import your solved problems from Codeforces. Only problems already tracked on gitgud are
-          matched; nothing is created and re-importing is safe.
-        </p>
+        <fieldset>
+          <legend class="mb-2 font-medium">Source</legend>
+          <div class="flex gap-2">
+            {#each importProviders as provider (provider)}
+              <label
+                class="flex min-h-11 cursor-pointer items-center gap-2 border-2 border-[var(--color-border)] px-3 capitalize has-[:checked]:border-[var(--color-accent)]"
+              >
+                <input
+                  type="radio"
+                  name="import-provider"
+                  value={provider}
+                  checked={importProvider === provider}
+                  on:change={() => {
+                    importProvider = provider;
+                    fileSelectionRevision++;
+                    clearImportState();
+                  }}
+                />
+                {provider}
+              </label>
+            {/each}
+          </div>
+        </fieldset>
 
-        <div class="flex flex-col gap-2 sm:flex-row">
-          <label class="flex-1">
+        {#if importProvider === 'codeforces'}
+          <p class="my-3 text-sm text-[var(--color-text-muted)]">
+            Import accepted submissions from your public Codeforces handle. Existing behavior is
+            unchanged and only tracked problems are matched.
+          </p>
+          <label class="block">
             <span class="sr-only">Codeforces handle</span>
             <input
               type="text"
               bind:value={cfHandle}
               placeholder="Codeforces handle"
               autocomplete="off"
-              class="w-full rounded-none border-2 border-[var(--color-border)] bg-[var(--color-primary)] px-3 py-2 text-[var(--color-text)] focus-visible:border-[var(--color-accent)] focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none"
+              class="w-full border-2 border-[var(--color-border)] bg-[var(--color-primary)] px-3 py-2"
               disabled={importPreviewing || importing}
             />
           </label>
-          <button
-            type="button"
-            class="rounded-none border-2 border-[var(--color-border)] bg-[var(--color-tertiary)] px-4 py-2 font-medium text-[var(--color-heading)] hover:bg-[var(--color-accent)] hover:text-white focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:outline-none disabled:opacity-50"
-            on:click={runPreview}
-            disabled={importPreviewing || importing}
+        {:else}
+          <p class="my-3 text-sm text-[var(--color-text-muted)]">
+            Paste Kattis problem IDs or canonical problem URLs, or choose a local .txt/.html file.
+            Files stay in your browser; gitgud never contacts Kattis for this import.
+          </p>
+          <label class="block">
+            <span class="mb-1 block font-medium">Kattis problem IDs or URLs</span>
+            <textarea
+              bind:value={kattisInput}
+              on:input={() => {
+                fileSelectionRevision++;
+                kattisIsHtml = false;
+                selectedFileName = '';
+                clearImportState();
+              }}
+              rows="6"
+              maxlength="1000000"
+              placeholder="gamma&#10;https://open.kattis.com/problems/twostones"
+              class="w-full border-2 border-[var(--color-border)] bg-[var(--color-primary)] p-3"
+              disabled={importPreviewing || importing}></textarea>
+          </label>
+          <label
+            class="mt-3 inline-flex min-h-11 cursor-pointer items-center border-2 border-[var(--color-border)] px-3 font-medium"
           >
-            {importPreviewing ? 'Loading…' : 'Preview'}
-          </button>
-        </div>
+            Choose local .txt or .html file
+            <input
+              type="file"
+              accept=".txt,.html,.htm,text/plain,text/html"
+              class="sr-only"
+              on:change={handleKattisFile}
+              disabled={importPreviewing || importing}
+            />
+          </label>
+          {#if selectedFileName}
+            <p class="mt-2 text-sm text-[var(--color-text-muted)]">Loaded {selectedFileName}</p>
+          {/if}
+        {/if}
+
+        <button
+          type="button"
+          class="mt-3 min-h-11 border-2 border-[var(--color-border)] bg-[var(--color-tertiary)] px-4 font-medium disabled:opacity-50"
+          on:click={runPreview}
+          disabled={importPreviewing || importing}
+          >{importPreviewing ? 'Loading…' : 'Preview'}</button
+        >
 
         <div class="mt-3" role="status" aria-live="polite">
-          {#if importError}
-            <p class="text-sm font-medium text-[var(--color-error)]">{importError}</p>
-          {/if}
-          {#if importSuccess}
-            <p class="text-sm font-medium text-[var(--color-success)]">{importSuccess}</p>
-          {/if}
+          {#if importError}<p class="text-sm text-[var(--color-error)]">{importError}</p>{/if}
+          {#if importSuccess}<p class="text-sm text-[var(--color-success)]">{importSuccess}</p>{/if}
         </div>
 
         {#if importPreview}
           <div class="mt-4 border-t-2 border-[var(--color-border)] pt-4">
-            <p class="text-sm text-[var(--color-text)]">
-              <span class="font-medium">{importPreview.matched.length}</span> solved problem{importPreview
-                .matched.length === 1
+            <p>
+              <strong>{importPreview.matched.length}</strong> solved problem{importPreview.matched
+                .length === 1
                 ? ''
                 : 's'} matched.
-              {#if importPreview.unmatchedCount > 0}
-                <span class="text-[var(--color-text-muted)]">
-                  {importPreview.unmatchedCount} solved problem{importPreview.unmatchedCount === 1
+            </p>
+            {#if importProvider === 'codeforces'}
+              {#if codeforcesPreview && codeforcesPreview.unmatchedCount > 0}
+                <p class="text-sm text-[var(--color-text-muted)]">
+                  {codeforcesPreview.unmatchedCount} solved problem{codeforcesPreview.unmatchedCount ===
+                  1
                     ? ''
                     : 's'} not tracked here.
-                </span>
+                </p>
               {/if}
-            </p>
-
+            {:else if kattisPreview}
+              <p class="text-sm text-[var(--color-text-muted)]">
+                {kattisPreview.unmatchedCount} unmatched. {kattisPreview.duplicateCount} duplicate{kattisPreview.duplicateCount ===
+                1
+                  ? ''
+                  : 's'} removed.
+                {#if kattisPreview.capped}Input was capped for safety.{/if}
+              </p>
+            {/if}
             {#if importPreview.matched.length > 0}
               <button
                 type="button"
-                class="mt-3 rounded-none border-2 border-[var(--color-border)] bg-[var(--color-accent)] px-4 py-2 font-medium text-white hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:outline-none disabled:opacity-50"
+                class="mt-3 min-h-11 border-2 border-[var(--color-border)] bg-[var(--color-accent)] px-4 font-medium text-[var(--color-on-accent)] disabled:opacity-50"
                 on:click={runImport}
                 disabled={importing}
+                >{importing ? 'Importing…' : `Import ${importPreview.matched.length}`}</button
               >
-                {importing ? 'Importing…' : `Import ${importPreview.matched.length}`}
-              </button>
             {/if}
           </div>
         {/if}
       </div>
-    </div>
+    </section>
   {/if}
 </div>

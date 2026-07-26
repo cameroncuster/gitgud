@@ -145,7 +145,7 @@ test('saved-status region is an assertive-free live region (role=status + aria-l
   // The status container must announce the transient "Saved"/error text to
   // assistive tech. `role="status"` implies a polite live region; the explicit
   // aria-live pairs with it so the announcement is not lost.
-  const region = SETTINGS.match(/<div class="mb-4 flex h-6 justify-end"[^>]*>/);
+  const region = SETTINGS.match(/<div class="mb-4 flex min-h-6 justify-end"[^>]*>/);
   assert.ok(region, 'could not locate the status region container');
   assert.match(region[0], /role="status"/, 'status region must have role="status"');
   assert.match(region[0], /aria-live="polite"/, 'status region must be aria-live="polite"');
@@ -156,7 +156,7 @@ test('saved status uses the semantic success color, not primary or accent', () =
   // (and the semantically-wrong `--color-accent`) must not carry status text.
   assert.match(
     SETTINGS,
-    /\{#if success\}\s*<div class="text-sm font-medium text-\[var\(--color-success\)\]">\{success\}<\/div>/,
+    /\{#if success\}<p class="text-sm text-\[var\(--color-success\)\]">\{success\}<\/p>\{\/if\}/,
     'success status must use text-[var(--color-success)]'
   );
 });
@@ -164,18 +164,14 @@ test('saved status uses the semantic success color, not primary or accent', () =
 test('error status uses the semantic error color', () => {
   assert.match(
     SETTINGS,
-    /\{#if error\}\s*<div class="text-sm font-medium text-\[var\(--color-error\)\]">\{error\}<\/div>/,
+    /\{#if error\}<p class="text-sm text-\[var\(--color-error\)\]">\{error\}<\/p>\{\/if\}/,
     'error status must use text-[var(--color-error)]'
   );
 });
 
-test('both toggles focus with a keyboard-visible accent ring, not the invisible primary', () => {
-  // Both role="switch" buttons must draw a focus-visible ring in accent; none
-  // may keep the old `focus:ring-[var(--color-primary)]`. Scope the assertion to
-  // the toggle buttons themselves so unrelated accessible focus rings elsewhere
-  // on the page (e.g. the import controls) do not perturb the count.
+test('the privacy toggle has a keyboard-visible accent ring, not invisible primary', () => {
   const toggles = [...SETTINGS.matchAll(/<button[^>]*role="switch"[\s\S]*?>/g)].map((m) => m[0]);
-  assert.equal(toggles.length, 2, 'expected exactly two role="switch" toggles');
+  assert.equal(toggles.length, 1, 'expected exactly one role="switch" toggle');
   for (const toggle of toggles) {
     assert.match(
       toggle,
@@ -223,7 +219,7 @@ test('the settings init gates on the resolved current actor and redirects anonym
   // Anonymous visitors are redirected home once the actor resolves.
   assert.match(
     SETTINGS,
-    /const actor = await resolveCurrentActor\(\);[\s\S]*?if \(!actor\.user\)\s*\{\s*\/\/[\s\S]*?goto\(resolve\('\/'\)\)/,
+    /const actor = await resolveCurrentActor\(\);[\s\S]*?if \(!actor\.user\)\s*\{[\s\S]*?goto\(resolve\('\/'\)\)/,
     'init must await the current actor and redirect home when no user is present'
   );
 });
