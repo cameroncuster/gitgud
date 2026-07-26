@@ -169,24 +169,60 @@ test('error status uses the semantic error color', () => {
   );
 });
 
-test('appearance is controlled from the header instead of duplicated in settings', () => {
+test('the loading state renders the shared spinner, not a plain loading-page line', () => {
+  // #108 replaced the spinner with a bare `Loading settings…` line; the fix
+  // restores the canonical animate-spin treatment used across the app so the
+  // interim state matches the other loading surfaces instead of looking janky.
+  const loadingBlock = SETTINGS.match(/\{#if loading\}([\s\S]*?)\{:else\}/);
+  assert.ok(loadingBlock, 'could not locate the {#if loading} block');
+  assert.match(
+    loadingBlock[1],
+    /class="mx-auto h-10 w-10 animate-spin"/,
+    'the settings loading state must render the shared animate-spin spinner'
+  );
+  assert.match(loadingBlock[1], /role="status"/, 'the loading state must be a status region');
+  assert.match(
+    loadingBlock[1],
+    /Loading settings\.\.\./,
+    'spinner copy must match the sibling loading surfaces (Loading settings...)'
+  );
+  // The regressed plain page copy (curly-ellipsis, no spinner) must be gone.
   assert.doesNotMatch(
     SETTINGS,
-    />\s*Appearance\s*</,
-    'settings must not render an Appearance section'
+    /<p class="text-\[var\(--color-text-muted\)\]">Loading settings\u2026<\/p>/,
+    'the regressed spinner-less `Loading settings…` page copy must not return'
+  );
+});
+
+test('appearance is a compact single-target theme cycle, not radio panels', () => {
+  // The theme control moved out of the header into a compact Settings control.
+  assert.match(SETTINGS, />\s*Appearance\s*</, 'settings must render an Appearance section');
+  // A single click target (the shared ThemeCycleButton), not three cards/radios.
+  assert.match(
+    SETTINGS,
+    /<ThemeCycleButton\s+preference=\{\$currentThemePreference\}\s+onCycle=\{cycleTheme\}\s*\/>/,
+    'settings must use the single-target ThemeCycleButton for theme selection'
   );
   assert.doesNotMatch(
     SETTINGS,
-    /name="settings-appearance"/,
-    'settings must not duplicate theme radios'
+    /name="(settings-appearance|mobile-appearance|desktop-appearance)"/,
+    'settings must not reintroduce theme radios'
   );
 });
 
 test('the settings page leaves deliberate space above the footer', () => {
+  // Signed-in: the Import card is last and carries the responsive bottom margin.
   assert.match(
     SETTINGS,
     /<section class="[^"]*mb-16[^"]*md:mb-20[^"]*">\s*<h2[^>]*>\s*Import solved problems/,
-    'the final settings card must retain responsive footer separation'
+    'the final signed-in settings card must retain responsive footer separation'
+  );
+  // Anonymous: only Appearance renders, so it must pick up the same margin when
+  // no user is present (the `user ? '' : 'mb-16 md:mb-20'` branch).
+  assert.match(
+    SETTINGS,
+    /user\s*\?\s*''\s*:\s*'mb-16 md:mb-20'/,
+    'the Appearance card must retain footer separation when it is the last card for anonymous visitors'
   );
 });
 
@@ -231,16 +267,43 @@ test('the settings init has no fixed timeout / artificial delay', () => {
   );
 });
 
-test('the settings init gates on the resolved current actor and redirects anonymous visitors', () => {
+test('the settings init resolves the actor and loads preferences only for signed-in users', () => {
   assert.match(
     SETTINGS,
     /import\s*\{[^}]*resolveCurrentActor[^}]*\}\s*from '\$lib\/auth\/currentActor';/,
     'init must resolve auth through the currentActor module'
   );
-  // Anonymous visitors are redirected home once the actor resolves.
+  // Anonymous visitors are NOT redirected away — Settings is reachable so they
+  // can change the localStorage theme. The old redirect must be gone.
+  assert.doesNotMatch(
+    SETTINGS,
+    /goto\(resolve\('\/'\)\)/,
+    'init must not redirect anonymous visitors away from Settings'
+  );
+  // The account query only runs when a session exists (no account read for
+  // anonymous visitors).
   assert.match(
     SETTINGS,
-    /const actor = await resolveCurrentActor\(\);[\s\S]*?if \(!actor\.user\)\s*\{[\s\S]*?goto\(resolve\('\/'\)\)/,
-    'init must await the current actor and redirect home when no user is present'
+    /const actor = await resolveCurrentActor\(\);[\s\S]*?if \(actor\.user\)\s*\{[\s\S]*?fetchUserPreferences\(\)/,
+    'init must gate fetchUserPreferences behind a resolved session'
+  );
+});
+
+test('account-only sections are gated behind a session; Appearance is always rendered', () => {
+  // Appearance renders unconditionally (outside any {#if user}); the privacy
+  // and import sections live inside the {#if user} account gate.
+  const appearanceIdx = SETTINGS.search(/>\s*Appearance\s*</);
+  const gateIdx = SETTINGS.indexOf('{#if user}');
+  assert.ok(appearanceIdx !== -1, 'Appearance section must be present');
+  assert.ok(gateIdx !== -1, 'account sections must be gated by {#if user}');
+  assert.ok(
+    appearanceIdx < gateIdx,
+    'Appearance must render before (outside) the {#if user} account gate'
+  );
+  // The privacy toggle and import UI are account-only.
+  assert.match(
+    SETTINGS,
+    /\{#if user\}[\s\S]*?Privacy[\s\S]*?Import solved problems[\s\S]*?\{\/if\}/,
+    'Privacy and Import must be inside the {#if user} account gate'
   );
 });

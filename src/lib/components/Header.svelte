@@ -3,9 +3,6 @@
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
   import { currentActor, signInWithGithub, signOut } from '$lib/auth/currentActor';
-  import ThemeCycleButton from '$lib/components/ThemeCycleButton.svelte';
-  import { nextThemePreference, type ThemePreference } from '$lib/services/appearance';
-  import { currentThemePreference, setThemePreference } from '$lib/services/theme';
 
   let mobileMenuOpen = false;
   let mobileMenuButton: HTMLButtonElement | null = null;
@@ -13,9 +10,6 @@
   let loginError = page.url.pathname === '/' && page.url.searchParams.get('auth_error') === 'true';
   let logoutBusy = false;
   let logoutError = false;
-  let themeSaveError = false;
-  let themeSaveRevision = 0;
-  let failedThemePreference: ThemePreference | null = null;
 
   $: user = $currentActor.user;
   $: username = user
@@ -59,27 +53,6 @@
     } finally {
       logoutBusy = false;
     }
-  }
-
-  async function selectThemePreference(preference: ThemePreference): Promise<void> {
-    const revision = ++themeSaveRevision;
-    const userId = user?.id;
-    themeSaveError = false;
-    failedThemePreference = null;
-    const saved = await setThemePreference(preference);
-    if (revision !== themeSaveRevision || !userId || user?.id !== userId) return;
-    if (!saved) {
-      themeSaveError = true;
-      failedThemePreference = preference;
-    }
-  }
-
-  function cycleTheme(): void {
-    void selectThemePreference(nextThemePreference($currentThemePreference));
-  }
-
-  function retryThemeSave(): void {
-    if (failedThemePreference) void selectThemePreference(failedThemePreference);
   }
 
   function handleWindowKeydown(event: KeyboardEvent): void {
@@ -150,7 +123,6 @@
       </ul>
 
       <div class="flex min-w-44 items-center justify-end gap-3">
-        <ThemeCycleButton preference={$currentThemePreference} onCycle={cycleTheme} />
         {#if !$currentActor.initialized}
           <button
             type="button"
@@ -194,6 +166,28 @@
             aria-busy={logoutBusy}>{logoutBusy ? 'Signing out…' : 'Logout'}</button
           >
         {:else}
+          <a
+            href={resolve('/settings')}
+            class="flex min-h-11 min-w-11 items-center justify-center rounded-full text-[var(--color-text)] hover:bg-[var(--color-tertiary)] hover:text-[var(--color-accent)]"
+            title="Settings"
+            aria-label="Settings"
+          >
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              class="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
+              ></path>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+          </a>
           <div>
             <button
               type="button"
@@ -206,7 +200,7 @@
                   class="mr-2 inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent"
                   aria-hidden="true"
                 ></span>{/if}
-              {loginBusy ? 'Opening GitHub…' : 'Sign up'}
+              {loginBusy ? 'Opening GitHub…' : 'Continue with GitHub'}
             </button>
             {#if loginError}
               <p class="mt-1 max-w-48 text-xs text-[var(--color-error)]" role="alert">
@@ -245,7 +239,6 @@
         </ul>
 
         <div class="flex flex-wrap items-center gap-3 border-t border-[var(--color-border)] pt-3">
-          <ThemeCycleButton preference={$currentThemePreference} onCycle={cycleTheme} />
           {#if !$currentActor.initialized}
             <p
               role="status"
@@ -286,19 +279,43 @@
               >
             </div>
           {:else}
-            <button
-              type="button"
-              class="min-h-11 border border-[var(--color-accent)] bg-[var(--color-accent)] px-3 font-bold text-[var(--color-on-accent)] disabled:opacity-70"
-              on:click={handleLogin}
-              disabled={loginBusy}
-              aria-busy={loginBusy}
-            >
-              {#if loginBusy}<span
-                  class="mr-2 inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent"
+            <div class="flex flex-wrap items-center gap-3">
+              <a
+                href={resolve('/settings')}
+                class="flex min-h-11 min-w-11 items-center justify-center rounded-full text-[var(--color-text)] hover:bg-[var(--color-tertiary)] hover:text-[var(--color-accent)]"
+                title="Settings"
+                aria-label="Settings"
+              >
+                <svg
                   aria-hidden="true"
-                ></span>{/if}
-              {loginBusy ? 'Opening GitHub…' : 'Sign up'}
-            </button>
+                  viewBox="0 0 24 24"
+                  class="h-5 w-5"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
+                  ></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+              </a>
+              <button
+                type="button"
+                class="min-h-11 border border-[var(--color-accent)] bg-[var(--color-accent)] px-3 font-bold text-[var(--color-on-accent)] disabled:opacity-70"
+                on:click={handleLogin}
+                disabled={loginBusy}
+                aria-busy={loginBusy}
+              >
+                {#if loginBusy}<span
+                    class="mr-2 inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent"
+                    aria-hidden="true"
+                  ></span>{/if}
+                {loginBusy ? 'Opening GitHub…' : 'Continue with GitHub'}
+              </button>
+            </div>
             {#if loginError}
               <p class="mt-2 text-sm text-[var(--color-error)]" role="alert">
                 Couldn’t open GitHub. Try again.
@@ -310,19 +327,12 @@
     </div>
   {/if}
 
-  {#if themeSaveError || logoutError}
+  {#if logoutError}
     <div
       class="mx-auto mt-2 flex max-w-[1200px] items-center justify-end gap-2 px-3 text-sm text-[var(--color-error)]"
       role="alert"
     >
-      <span>{themeSaveError ? 'Theme could not sync.' : 'Couldn’t sign out. Try again.'}</span>
-      {#if themeSaveError}
-        <button
-          type="button"
-          class="min-h-11 border border-[var(--color-error)] px-3 font-bold"
-          on:click={retryThemeSave}>Retry</button
-        >
-      {/if}
+      <span>Couldn’t sign out. Try again.</span>
     </div>
   {/if}
 </header>

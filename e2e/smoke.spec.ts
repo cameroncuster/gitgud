@@ -139,7 +139,7 @@ test.describe('header session and appearance controls', () => {
     await page.goto('/');
     const mobileMenu = page.getByRole('button', { name: 'Open menu' });
     if (await mobileMenu.isVisible()) await mobileMenu.click();
-    await expect(page.getByRole('button', { name: 'Sign up' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Continue with GitHub' })).toBeVisible();
     await expect(page.getByText('Checking session…')).toHaveCount(0);
   });
 
@@ -151,42 +151,24 @@ test.describe('header session and appearance controls', () => {
     if (await mobileMenu.isVisible()) await mobileMenu.click();
     const error = page.getByRole('alert').filter({ hasText: 'Couldn’t open GitHub' });
     await expect(error).toBeVisible();
-    await page.getByRole('button', { name: 'Sign up' }).click();
+    await page.getByRole('button', { name: 'Continue with GitHub' }).click();
     await page.waitForURL(/\/auth\/callback/);
     await page.waitForURL(/\/$/);
     await expect(error).toHaveCount(0);
   });
 
-  test('desktop theme icon cycles System, Light, Dark, then System', async ({ page, viewport }) => {
-    test.skip(!!viewport && viewport.width < 1024, 'desktop theme control only');
+  test('the desktop header exposes no theme control', async ({ page, viewport }) => {
+    test.skip(!!viewport && viewport.width < 1024, 'desktop header only');
     await page.goto('/');
-    const system = page.getByRole('button', { name: 'Theme: System. Switch to Light' });
-    const target = await system.boundingBox();
-    expect(target?.height).toBeGreaterThanOrEqual(44);
-    expect(target?.width).toBeGreaterThanOrEqual(44);
-    await expect(system).toHaveText('');
-    await system.click();
-    await page.getByRole('button', { name: 'Theme: Light. Switch to Dark' }).click();
-    await page.getByRole('button', { name: 'Theme: Dark. Switch to System' }).click();
-    await expect(
-      page.getByRole('button', { name: 'Theme: System. Switch to Light' })
-    ).toBeVisible();
-    await expect(page.getByRole('radio')).toHaveCount(0);
+    await waitForShell(page);
+    await expect(page.getByRole('button', { name: /^Theme:/ })).toHaveCount(0);
   });
 
-  test('mobile theme icon remains secondary and meets the 44px target minimum', async ({
-    page,
-    viewport
-  }) => {
-    test.skip(!!viewport && viewport.width >= 1024, 'mobile theme control only');
+  test('the mobile header menu exposes no theme control', async ({ page, viewport }) => {
+    test.skip(!!viewport && viewport.width >= 1024, 'mobile header only');
     await page.goto('/');
     await page.getByRole('button', { name: 'Open menu' }).click();
-    const theme = page.getByRole('button', { name: 'Theme: System. Switch to Light' });
-    const box = await theme.boundingBox();
-    expect(box?.height).toBeGreaterThanOrEqual(44);
-    expect(box?.width).toBeGreaterThanOrEqual(44);
-    await expect(theme).toHaveText('');
-    await expect(page.getByRole('radio')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /^Theme:/ })).toHaveCount(0);
   });
 });
 
@@ -202,7 +184,7 @@ test.describe('OAuth callback treatment', () => {
     await expect(page.getByRole('alert').filter({ hasText: 'Couldn’t open GitHub' })).toBeVisible();
   });
 
-  test('server renders the secure GitHub to gitgud progress status', async ({ page }) => {
+  test('server renders a minimal signing-in status without a page-like card', async ({ page }) => {
     let html = '';
     await page.route('/auth/callback', async (route) => {
       const response = await route.fetch();
@@ -210,11 +192,9 @@ test.describe('OAuth callback treatment', () => {
       await route.fulfill({ response, body: html });
     });
     await page.goto('/auth/callback');
-    expect(html).toContain('GitHub');
-    expect(html).toContain('gitgud');
-    expect(html).toContain('Finishing secure sign-in');
-    expect(html).toContain('Verifying your GitHub session. You’ll return automatically.');
-    expect(html).toContain('Verification in progress');
+    expect(html).toContain('Signing you in…');
+    expect(html).not.toContain('Finishing secure sign-in');
+    expect(html).not.toContain('Verification in progress');
   });
 });
 
@@ -266,25 +246,60 @@ test.describe('mobile navigation', () => {
 });
 
 test.describe('signed-in settings layout and appearance', () => {
-  test('keeps appearance in the header and leaves space above the footer', async ({
+  test('shows the shared loading spinner, not the regressed loading-page text', async ({
+    page
+  }) => {
+    await seedMemberSession(page);
+    // Hold the preference read open so the interim loading state is observable.
+    let releasePreferences: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => (releasePreferences = resolve));
+    await page.route('**/rest/v1/user_preferences**', async (route) => {
+      if (route.request().method() === 'GET') await gate;
+      await route.continue();
+    });
+    await page.goto('/settings');
+    const spinner = page.locator('[role="status"] svg.animate-spin');
+    await expect(spinner).toBeVisible();
+    // The regressed spinner-less page copy must never render.
+    await expect(page.getByText('Loading settings…', { exact: true })).toHaveCount(0);
+    releasePreferences?.();
+    await expect(page.getByRole('heading', { name: 'Appearance' })).toBeVisible();
+    await expect(spinner).toHaveCount(0);
+  });
+
+  test('drives the compact theme cycle from Settings, persists it, and keeps footer space', async ({
     page,
     viewport
   }) => {
     await seedMemberSession(page);
     await page.goto('/settings');
     await expect(page.locator('h1.sr-only')).toHaveText('Settings');
-    await expect(page.getByRole('heading', { name: 'Appearance' })).toHaveCount(0);
+    // Appearance now lives on the settings page as a compact single-target cycle.
+    await expect(page.getByRole('heading', { name: 'Appearance' })).toBeVisible();
 
-    let themeButton = page.getByRole('button', { name: 'Theme: System. Switch to Light' });
-    if (!(await themeButton.isVisible())) {
+    // The compact Settings gear icon stays an icon, not text. On mobile it lives
+    // inside the hamburger menu, so reveal it first.
+    if (viewport && viewport.width < 1024) {
       await page.getByRole('button', { name: 'Open menu' }).click();
-      themeButton = page.getByRole('button', { name: 'Theme: System. Switch to Light' });
     }
+    // The header no longer carries a theme control on either layout.
+    const header = page.getByRole('banner');
+    await expect(header.getByRole('button', { name: /^Theme:/ })).toHaveCount(0);
     const settingsLink = page.getByRole('link', { name: 'Settings' });
     const settingsTarget = await settingsLink.boundingBox();
     expect(settingsTarget?.height).toBeGreaterThanOrEqual(44);
     expect(settingsTarget?.width).toBeGreaterThanOrEqual(44);
     await expect(settingsLink).toHaveText('');
+    if (viewport && viewport.width < 1024) {
+      await page.getByRole('button', { name: 'Close menu' }).click();
+    }
+
+    const themeButton = page.getByRole('button', { name: 'Theme: System. Switch to Light' });
+    const target = await themeButton.boundingBox();
+    expect(target?.height).toBeGreaterThanOrEqual(44);
+    expect(target?.width).toBeGreaterThanOrEqual(44);
+    await expect(themeButton).toHaveText('');
+
     await themeButton.click();
     const darkPreferenceSaved = page.waitForResponse((response) => {
       if (!response.url().includes('/rest/v1/user_preferences') || !response.ok()) return false;
@@ -297,10 +312,8 @@ test.describe('signed-in settings layout and appearance', () => {
     await darkPreferenceSaved;
 
     await page.reload();
-    if (viewport && viewport.width < 1024) {
-      await page.getByRole('button', { name: 'Open menu' }).click();
-    }
     await expect(page.getByRole('button', { name: 'Theme: Dark. Switch to System' })).toBeVisible();
+    // A single click target — never three large cards / radio panels.
     await expect(page.getByRole('radio', { name: /^(System|Light|Dark)$/ })).toHaveCount(0);
 
     const lastCard = page.locator('main section').last();
@@ -313,19 +326,28 @@ test.describe('signed-in settings layout and appearance', () => {
 });
 
 test.describe('anonymous guards', () => {
-  // Both routes gate their content behind an authenticated session. For an
-  // anonymous visitor the guard redirects home and never exposes the protected
-  // UI. Asserting the redirect plus the absence of protected content captures
-  // the guard against a reachable backend (where the session check resolves
-  // quickly).
-  test('anonymous /settings redirects home and never exposes the settings form', async ({
+  // /submit stays fully gated (redirect home). /settings is intentionally
+  // reachable for anonymous visitors so they can change the localStorage theme,
+  // but its account-only sections stay hidden — covered separately below.
+  test('anonymous /settings stays on the route, shows Appearance, and hides account-only sections', async ({
     page
   }) => {
+    // Fail the test if any account query fires for an anonymous visitor.
+    const accountRequests: string[] = [];
+    await page.route('**/rest/v1/user_preferences**', (route) => {
+      accountRequests.push(route.request().url());
+      return route.continue();
+    });
     await page.goto('/settings');
-    // The guard finds no session and redirects to the home route.
-    await page.waitForURL(/\/$/);
-    // The authenticated-only Privacy section is never reached.
-    await expect(page.getByText('Privacy', { exact: true })).toHaveCount(0);
+    // No redirect: the visitor stays on /settings.
+    await expect(page).toHaveURL(/\/settings$/);
+    // Appearance is available to everyone.
+    await expect(page.getByRole('heading', { name: 'Appearance' })).toBeVisible();
+    // The account-only sections are never rendered.
+    await expect(page.getByRole('heading', { name: 'Privacy', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Import solved problems' })).toHaveCount(0);
+    // And no account read was attempted.
+    expect(accountRequests).toEqual([]);
   });
 
   test('anonymous /submit redirects home and never exposes the submit options', async ({
@@ -497,14 +519,84 @@ test.describe('theme startup', () => {
     await page.emulateMedia({ colorScheme: 'dark' });
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 
-    let themeButton = page.getByRole('button', { name: 'Theme: System. Switch to Light' });
-    if (!(await themeButton.isVisible())) {
-      await page.getByRole('button', { name: 'Open menu' }).click();
-      themeButton = page.getByRole('button', { name: 'Theme: System. Switch to Light' });
-    }
-    await themeButton.click();
+    // An explicit Light choice from the Settings theme control stops following
+    // the OS. The control now lives on the settings page, so seed a session.
+    await seedMemberSession(page);
+    await page.goto('/settings');
+    await page.getByRole('button', { name: 'Theme: System. Switch to Light' }).click();
     await page.emulateMedia({ colorScheme: 'dark' });
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  });
+
+  test('the Settings theme control cycles System, Light, Dark, then System and persists', async ({
+    page
+  }) => {
+    await seedMemberSession(page);
+    await page.goto('/settings');
+    const system = page.getByRole('button', { name: 'Theme: System. Switch to Light' });
+    const box = await system.boundingBox();
+    expect(box?.height).toBeGreaterThanOrEqual(44);
+    expect(box?.width).toBeGreaterThanOrEqual(44);
+    await system.click();
+    await page.getByRole('button', { name: 'Theme: Light. Switch to Dark' }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await page.getByRole('button', { name: 'Theme: Dark. Switch to System' }).click();
+    await expect(
+      page.getByRole('button', { name: 'Theme: System. Switch to Light' })
+    ).toBeVisible();
+    // A single click target, not a set of radio panels.
+    await expect(page.getByRole('radio', { name: /System|Light|Dark/ })).toHaveCount(0);
+    await expect
+      .poll(() => page.evaluate(() => localStorage.getItem('gitgud-theme')))
+      .toBe('system');
+  });
+
+  test('an anonymous visitor cycles the Settings theme and it persists across reload', async ({
+    page,
+    viewport
+  }) => {
+    // No session is seeded. Fail if the anonymous flow triggers any account read.
+    const accountRequests: string[] = [];
+    await page.route('**/rest/v1/user_preferences**', (route) => {
+      accountRequests.push(route.request().url());
+      return route.continue();
+    });
+
+    // Reach Settings from the header without signing in.
+    await page.goto('/');
+    if (viewport && viewport.width < 1024) {
+      await page.getByRole('button', { name: 'Open menu' }).click();
+    }
+    await page.getByRole('banner').getByRole('link', { name: 'Settings' }).click();
+    await expect(page).toHaveURL(/\/settings$/);
+    await expect(page.getByRole('heading', { name: 'Appearance' })).toBeVisible();
+
+    // Account-only sections stay hidden for anonymous visitors.
+    await expect(page.getByRole('heading', { name: 'Privacy', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Import solved problems' })).toHaveCount(0);
+
+    // Cycle system → light → dark → system through the single-target control.
+    await page.getByRole('button', { name: 'Theme: System. Switch to Light' }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    await page.getByRole('button', { name: 'Theme: Light. Switch to Dark' }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('gitgud-theme'))).toBe('dark');
+    await page.getByRole('button', { name: 'Theme: Dark. Switch to System' }).click();
+    await expect(
+      page.getByRole('button', { name: 'Theme: System. Switch to Light' })
+    ).toBeVisible();
+
+    // Set an explicit Dark choice and confirm it survives a reload via localStorage.
+    await page.getByRole('button', { name: 'Theme: System. Switch to Light' }).click();
+    await page.getByRole('button', { name: 'Theme: Light. Switch to Dark' }).click();
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('gitgud-theme'))).toBe('dark');
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await expect(page.getByRole('button', { name: 'Theme: Dark. Switch to System' })).toBeVisible();
+
+    // Never a set of radio panels, and never an account read.
+    await expect(page.getByRole('radio', { name: /^(System|Light|Dark)$/ })).toHaveCount(0);
+    expect(accountRequests).toEqual([]);
   });
 
   test('honors a stored Dark Ink preference before first paint', async ({ page }) => {
