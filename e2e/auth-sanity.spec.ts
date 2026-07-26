@@ -24,7 +24,7 @@ test('@sanity GitHub sign-in persists an admin session and logout revokes access
   await waitForShell(page);
   await openMobileMenu(page);
 
-  await page.getByRole('button', { name: 'Continue with GitHub' }).click();
+  await page.getByRole('button', { name: 'Sign in' }).click();
   await page.waitForURL(/\/auth\/callback/);
   await page.waitForURL(/\/$/);
 
@@ -65,7 +65,7 @@ test('@sanity GitHub sign-in persists an admin session and logout revokes access
   if (await mobileMenuToggle.isVisible()) {
     await mobileMenuToggle.click();
   }
-  await expect(page.getByRole('button', { name: 'Continue with GitHub' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
 
   await page.goto('/submit');
   await page.waitForURL(/\/$/);

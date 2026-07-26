@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { currentActor, getCurrentActor, resolveCurrentActor } from '$lib/auth/currentActor';
-  import ThemeCycleButton from '$lib/components/ThemeCycleButton.svelte';
-  import { nextThemePreference, type ThemePreference } from '$lib/services/appearance';
+  import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+  import type { ThemePreference } from '$lib/services/appearance';
   import { currentThemePreference, setThemePreference } from '$lib/services/theme';
   import {
     fetchUserPreferences,
@@ -159,10 +159,6 @@
     }
   }
 
-  function cycleTheme(): void {
-    void selectThemePreference(nextThemePreference($currentThemePreference));
-  }
-
   function retryThemeSave(): void {
     if (failedThemePreference) void selectThemePreference(failedThemePreference);
   }
@@ -240,14 +236,16 @@
       <h2 class="border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-4 font-bold">
         Appearance
       </h2>
-      <div class="flex items-center justify-between gap-4 bg-[var(--color-secondary)] p-4">
+      <div
+        class="flex flex-col gap-3 bg-[var(--color-secondary)] p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+      >
         <div>
           <p class="font-medium text-[var(--color-text)]">Theme</p>
           <p class="text-sm text-[var(--color-text-muted)]">
-            Cycles System, Light, then Dark. System follows your device preference.
+            Choose System, Light, or Dark. System follows your device preference.
           </p>
         </div>
-        <ThemeCycleButton preference={$currentThemePreference} onCycle={cycleTheme} />
+        <ThemeToggle preference={$currentThemePreference} onSelect={selectThemePreference} />
       </div>
       {#if themeSaveError}
         <div
