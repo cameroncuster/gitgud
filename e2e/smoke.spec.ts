@@ -166,6 +166,7 @@ test.describe('header session and appearance controls', () => {
     await waitForShell(page);
     await expect(page.getByRole('radiogroup', { name: 'Theme' })).toHaveCount(0);
     await expect(page.getByRole('radio', { name: /^(System|Light|Dark)$/ })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /^Theme:/ })).toHaveCount(0);
   });
 
   test('the mobile header menu exposes no theme control', async ({ page, viewport }) => {
@@ -174,6 +175,7 @@ test.describe('header session and appearance controls', () => {
     await page.getByRole('button', { name: 'Open menu' }).click();
     await expect(page.getByRole('radiogroup', { name: 'Theme' })).toHaveCount(0);
     await expect(page.getByRole('radio', { name: /^(System|Light|Dark)$/ })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /^Theme:/ })).toHaveCount(0);
   });
 });
 
@@ -272,14 +274,14 @@ test.describe('signed-in settings layout and appearance', () => {
     await expect(spinner).toHaveCount(0);
   });
 
-  test('selects a theme directly from the Settings toggle, persists it, and keeps footer space', async ({
+  test('cycles the Settings theme button, persists it, and keeps footer space', async ({
     page,
     viewport
   }) => {
     await seedMemberSession(page);
     await page.goto('/settings');
     await expect(page.locator('h1.sr-only')).toHaveText('Settings');
-    // Appearance lives on the settings page as an explicit three-state toggle.
+    // Appearance lives on the settings page as one compact three-state cycle button.
     await expect(page.getByRole('heading', { name: 'Appearance' })).toBeVisible();
 
     // The compact Settings gear icon stays an icon, not text. On mobile it lives
@@ -291,6 +293,7 @@ test.describe('signed-in settings layout and appearance', () => {
     const header = page.getByRole('banner');
     await expect(header.getByRole('radio', { name: /^(System|Light|Dark)$/ })).toHaveCount(0);
     await expect(header.getByRole('radiogroup', { name: 'Theme' })).toHaveCount(0);
+    await expect(header.getByRole('button', { name: /^Theme:/ })).toHaveCount(0);
     const settingsLink = page.getByRole('link', { name: 'Settings' });
     const settingsTarget = await settingsLink.boundingBox();
     expect(settingsTarget?.height).toBeGreaterThanOrEqual(44);
@@ -300,38 +303,32 @@ test.describe('signed-in settings layout and appearance', () => {
       await page.getByRole('button', { name: 'Close menu' }).click();
     }
 
-    // All three options are simultaneously visible, and System starts selected.
-    const group = page.getByRole('radiogroup', { name: 'Theme' });
-    await expect(group.getByRole('radio')).toHaveCount(3);
-    for (const name of ['System', 'Light', 'Dark']) {
-      await expect(group.getByRole('radio', { name })).toBeVisible();
-    }
-    const systemOption = group.getByRole('radio', { name: 'System' });
-    await expect(systemOption).toHaveAttribute('aria-checked', 'true');
-    const target = await systemOption.boundingBox();
+    const themeButton = page.getByRole('button', { name: /^Theme:/ });
+    await expect(themeButton).toHaveAccessibleName('Theme: System. Switch to Light');
+    await expect(themeButton).toHaveText('System');
+    const target = await themeButton.boundingBox();
     expect(target?.height).toBeGreaterThanOrEqual(44);
     expect(target?.width).toBeGreaterThanOrEqual(44);
 
-    // Selecting Dark directly (not cycling) applies and persists it.
+    await themeButton.click();
+    await expect(themeButton).toHaveAccessibleName('Theme: Light. Switch to Dark');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+
     const darkPreferenceSaved = page.waitForResponse((response) => {
       if (!response.url().includes('/rest/v1/user_preferences') || !response.ok()) return false;
       const body = response.request().postData();
       return body?.includes('"theme":"dark"') ?? false;
     });
-    await group.getByRole('radio', { name: 'Dark' }).click();
-    await expect(group.getByRole('radio', { name: 'Dark' })).toHaveAttribute(
-      'aria-checked',
-      'true'
-    );
-    await expect(systemOption).toHaveAttribute('aria-checked', 'false');
+    await themeButton.click();
+    await expect(themeButton).toHaveAccessibleName('Theme: Dark. Switch to System');
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     await expect.poll(() => page.evaluate(() => localStorage.getItem('gitgud-theme'))).toBe('dark');
     await darkPreferenceSaved;
 
     await page.reload();
-    await expect(
-      page.getByRole('radiogroup', { name: 'Theme' }).getByRole('radio', { name: 'Dark' })
-    ).toHaveAttribute('aria-checked', 'true');
+    await expect(page.getByRole('button', { name: /^Theme:/ })).toHaveAccessibleName(
+      'Theme: Dark. Switch to System'
+    );
 
     const lastCard = page.locator('main section').last();
     const footer = page.locator('footer');
@@ -536,79 +533,50 @@ test.describe('theme startup', () => {
     await page.emulateMedia({ colorScheme: 'dark' });
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 
-    // An explicit Light choice from the Settings theme control stops following
-    // the OS. The control now lives on the settings page, so seed a session.
+    // One click advances System to explicit Light, which stops following the OS.
     await seedMemberSession(page);
     await page.goto('/settings');
-    await page
-      .getByRole('radiogroup', { name: 'Theme' })
-      .getByRole('radio', { name: 'Light' })
-      .click();
+    await page.getByRole('button', { name: 'Theme: System. Switch to Light' }).click();
     await page.emulateMedia({ colorScheme: 'dark' });
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   });
 
-  test('the Settings theme toggle selects System, Light, and Dark directly and persists', async ({
+  test('the Settings theme button cycles System, Light, Dark, and back to System', async ({
     page
   }) => {
     await seedMemberSession(page);
     await page.goto('/settings');
-    const group = page.getByRole('radiogroup', { name: 'Theme' });
-    // All three options are present at once and System starts selected.
-    await expect(group.getByRole('radio')).toHaveCount(3);
-    await expect(group.getByRole('radio', { name: 'System' })).toHaveAttribute(
-      'aria-checked',
-      'true'
-    );
-    const system = group.getByRole('radio', { name: 'System' });
-    const box = await system.boundingBox();
+    const button = page.getByRole('button', { name: /^Theme:/ });
+    await expect(button).toHaveAccessibleName('Theme: System. Switch to Light');
+    const box = await button.boundingBox();
     expect(box?.height).toBeGreaterThanOrEqual(44);
     expect(box?.width).toBeGreaterThanOrEqual(44);
 
-    // Direct selection of each state — not cycling through a single button.
-    await group.getByRole('radio', { name: 'Light' }).click();
+    await button.click();
+    await expect(button).toHaveAccessibleName('Theme: Light. Switch to Dark');
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-    await group.getByRole('radio', { name: 'Dark' }).click();
+    await button.click();
+    await expect(button).toHaveAccessibleName('Theme: Dark. Switch to System');
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-    await group.getByRole('radio', { name: 'System' }).click();
-    await expect(group.getByRole('radio', { name: 'System' })).toHaveAttribute(
-      'aria-checked',
-      'true'
-    );
+    await button.click();
+    await expect(button).toHaveAccessibleName('Theme: System. Switch to Light');
     await expect
       .poll(() => page.evaluate(() => localStorage.getItem('gitgud-theme')))
       .toBe('system');
   });
 
-  test('the Settings theme toggle is keyboard operable as a single-choice group', async ({
-    page
-  }) => {
+  test('the Settings theme button cycles with the keyboard and keeps focus', async ({ page }) => {
     await seedMemberSession(page);
     await page.goto('/settings');
-    const group = page.getByRole('radiogroup', { name: 'Theme' });
-    // Only the selected option is in the tab order (roving tabindex).
-    await group.getByRole('radio', { name: 'System' }).focus();
-    await expect(group.getByRole('radio', { name: 'System' })).toBeFocused();
-    // Arrow keys move selection and focus to the next option.
-    await page.keyboard.press('ArrowRight');
-    await expect(group.getByRole('radio', { name: 'Light' })).toBeFocused();
-    await expect(group.getByRole('radio', { name: 'Light' })).toHaveAttribute(
-      'aria-checked',
-      'true'
-    );
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-    await page.keyboard.press('ArrowRight');
-    await expect(group.getByRole('radio', { name: 'Dark' })).toHaveAttribute(
-      'aria-checked',
-      'true'
-    );
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-    // Wraps around to System.
-    await page.keyboard.press('ArrowRight');
-    await expect(group.getByRole('radio', { name: 'System' })).toHaveAttribute(
-      'aria-checked',
-      'true'
-    );
+    const button = page.getByRole('button', { name: /^Theme:/ });
+    await button.focus();
+    await expect(button).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(button).toHaveAccessibleName('Theme: Light. Switch to Dark');
+    await expect(button).toBeFocused();
+    await page.keyboard.press('Space');
+    await expect(button).toHaveAccessibleName('Theme: Dark. Switch to System');
+    await expect(button).toBeFocused();
   });
 
   test('an anonymous visitor selects a Settings theme and it persists across reload', async ({
@@ -635,27 +603,22 @@ test.describe('theme startup', () => {
     await expect(page.getByRole('heading', { name: 'Privacy', exact: true })).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Import solved problems' })).toHaveCount(0);
 
-    // All three options are present and System is the default selection.
-    const group = page.getByRole('radiogroup', { name: 'Theme' });
-    await expect(group.getByRole('radio')).toHaveCount(3);
-    await expect(group.getByRole('radio', { name: 'System' })).toHaveAttribute(
-      'aria-checked',
-      'true'
-    );
+    const button = page.getByRole('button', { name: /^Theme:/ });
+    await expect(button).toHaveAccessibleName('Theme: System. Switch to Light');
 
-    // Direct selection of each state works without an account read.
-    await group.getByRole('radio', { name: 'Light' }).click();
+    // Cycling works without an account read.
+    await button.click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-    await group.getByRole('radio', { name: 'Dark' }).click();
+    await button.click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     await expect.poll(() => page.evaluate(() => localStorage.getItem('gitgud-theme'))).toBe('dark');
 
     // The explicit Dark choice survives a reload via localStorage.
     await page.reload();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-    await expect(
-      page.getByRole('radiogroup', { name: 'Theme' }).getByRole('radio', { name: 'Dark' })
-    ).toHaveAttribute('aria-checked', 'true');
+    await expect(page.getByRole('button', { name: /^Theme:/ })).toHaveAccessibleName(
+      'Theme: Dark. Switch to System'
+    );
 
     // Anonymous persistence never triggers an account read.
     expect(accountRequests).toEqual([]);
