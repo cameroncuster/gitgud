@@ -13,7 +13,7 @@ import { MOCK_PORT, MOCK_URL, MOCK_SUPABASE_URL } from './e2e/support/constants.
 // browser interception — is what feeds deterministic rows into the rendered page.
 //
 // Layer B — live read-only smoke (opt-in). When SUPABASE_SMOKE=1 and real
-// PUBLIC_SUPABASE_URL / PUBLIC_SUPABASE_ANON_KEY are provided (via CI secrets),
+// PUBLIC_SUPABASE_URL / PUBLIC_SUPABASE_PUBLISHABLE_KEY are provided (via CI secrets),
 // a second build+preview is pointed at the real project and the `live-*`
 // projects assert that actual anonymous data loads. It performs only anonymous
 // reads — never a login, form submission, or write. When the env is absent the
@@ -31,7 +31,7 @@ const LIVE_BASE = `http://localhost:${LIVE_PREVIEW_PORT}`;
 const LIVE_SMOKE =
   process.env.SUPABASE_SMOKE === '1' &&
   !!process.env.PUBLIC_SUPABASE_URL &&
-  !!process.env.PUBLIC_SUPABASE_ANON_KEY &&
+  !!process.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY &&
   process.env.PUBLIC_SUPABASE_URL !== MOCK_URL;
 
 // The mocked and live layers each run their own `vite build` into SvelteKit's
@@ -66,7 +66,7 @@ const mockPreviewWebServer = {
     // Baked into the build at build time. The stable-first-label host yields a
     // deterministic Supabase storage key the auth-seeding init script targets.
     PUBLIC_SUPABASE_URL: MOCK_SUPABASE_URL,
-    PUBLIC_SUPABASE_ANON_KEY: 'mock-anon-key',
+    PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'mock-publishable-key',
     // Redirect the server-side provider fetches (problemset / Kattis page) to
     // the mock so no live provider is ever contacted during E2E.
     PUBLIC_CODEFORCES_API_BASE: `${MOCK_SUPABASE_URL}/api`,
@@ -82,7 +82,7 @@ const liveWebServer = {
   timeout: 180_000,
   env: {
     PUBLIC_SUPABASE_URL: process.env.PUBLIC_SUPABASE_URL || '',
-    PUBLIC_SUPABASE_ANON_KEY: process.env.PUBLIC_SUPABASE_ANON_KEY || ''
+    PUBLIC_SUPABASE_PUBLISHABLE_KEY: process.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY || ''
   }
 };
 

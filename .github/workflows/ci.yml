@@ -69,13 +69,13 @@ jobs:
         run: pnpm exec svelte-kit sync
         env:
           PUBLIC_SUPABASE_URL: http://localhost
-          PUBLIC_SUPABASE_ANON_KEY: placeholder
+          PUBLIC_SUPABASE_PUBLISHABLE_KEY: placeholder
 
       - name: Run svelte-check
         run: pnpm run check
         env:
           PUBLIC_SUPABASE_URL: http://localhost
-          PUBLIC_SUPABASE_ANON_KEY: placeholder
+          PUBLIC_SUPABASE_PUBLISHABLE_KEY: placeholder
 
   node24-unit-coverage:
     runs-on: ubuntu-latest
@@ -111,7 +111,7 @@ jobs:
         run: pnpm run test:coverage
         env:
           PUBLIC_SUPABASE_URL: http://localhost
-          PUBLIC_SUPABASE_ANON_KEY: placeholder
+          PUBLIC_SUPABASE_PUBLISHABLE_KEY: placeholder
 
   node24-build-performance:
     runs-on: ubuntu-latest
@@ -147,7 +147,7 @@ jobs:
         run: pnpm run build
         env:
           PUBLIC_SUPABASE_URL: http://localhost
-          PUBLIC_SUPABASE_ANON_KEY: placeholder
+          PUBLIC_SUPABASE_PUBLISHABLE_KEY: placeholder
 
       - name: Check performance budgets without rebuilding
         run: pnpm run check:performance
@@ -204,7 +204,7 @@ jobs:
         run: pnpm exec playwright test --project="${{ matrix.project }}" --workers=1
         env:
           PUBLIC_SUPABASE_URL: http://localhost
-          PUBLIC_SUPABASE_ANON_KEY: placeholder
+          PUBLIC_SUPABASE_PUBLISHABLE_KEY: placeholder
 
       - name: Upload Playwright failure artifacts
         if: ${{ failure() && !cancelled() }}
@@ -229,10 +229,10 @@ jobs:
         id: live-config
         shell: bash
         env:
-          LIVE_SUPABASE_URL: ${{ vars.PUBLIC_SUPABASE_URL }}
-          LIVE_SUPABASE_ANON_KEY: ${{ secrets.PUBLIC_SUPABASE_ANON_KEY }}
+          LIVE_SUPABASE_URL: ${{ secrets.PUBLIC_SUPABASE_URL }}
+          LIVE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
         run: |
-          if [[ -n "$LIVE_SUPABASE_URL" && -n "$LIVE_SUPABASE_ANON_KEY" ]]; then
+          if [[ -n "$LIVE_SUPABASE_URL" && -n "$LIVE_SUPABASE_PUBLISHABLE_KEY" ]]; then
             echo "configured=true" >> "$GITHUB_OUTPUT"
           else
             echo "configured=false" >> "$GITHUB_OUTPUT"
@@ -293,8 +293,8 @@ jobs:
         env:
           SUPABASE_SMOKE: '1'
           E2E_LIVE_ONLY: '1'
-          PUBLIC_SUPABASE_URL: ${{ vars.PUBLIC_SUPABASE_URL }}
-          PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.PUBLIC_SUPABASE_ANON_KEY }}
+          PUBLIC_SUPABASE_URL: ${{ secrets.PUBLIC_SUPABASE_URL }}
+          PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
 
       - name: Upload Playwright failure artifacts
         if: ${{ failure() && !cancelled() }}
@@ -344,25 +344,25 @@ jobs:
         run: pnpm exec svelte-kit sync
         env:
           PUBLIC_SUPABASE_URL: http://localhost
-          PUBLIC_SUPABASE_ANON_KEY: placeholder
+          PUBLIC_SUPABASE_PUBLISHABLE_KEY: placeholder
 
       - name: Run svelte-check
         run: pnpm run check
         env:
           PUBLIC_SUPABASE_URL: http://localhost
-          PUBLIC_SUPABASE_ANON_KEY: placeholder
+          PUBLIC_SUPABASE_PUBLISHABLE_KEY: placeholder
 
       - name: Run unit tests
         run: pnpm run test
         env:
           PUBLIC_SUPABASE_URL: http://localhost
-          PUBLIC_SUPABASE_ANON_KEY: placeholder
+          PUBLIC_SUPABASE_PUBLISHABLE_KEY: placeholder
 
       - name: Build
         run: pnpm run build
         env:
           PUBLIC_SUPABASE_URL: http://localhost
-          PUBLIC_SUPABASE_ANON_KEY: placeholder
+          PUBLIC_SUPABASE_PUBLISHABLE_KEY: placeholder
 
   build:
     name: build

@@ -8,7 +8,7 @@ import { waitForShell } from './support/harness.ts';
 //
 //   SUPABASE_SMOKE=1
 //   PUBLIC_SUPABASE_URL=<real project URL>
-//   PUBLIC_SUPABASE_ANON_KEY=<real anon (publishable) key>
+//   PUBLIC_SUPABASE_PUBLISHABLE_KEY=<real publishable key>
 //
 // In CI these come from repository secrets/variables (see README / the CI
 // workflow). When they are absent the whole suite skips with an explicit
@@ -19,20 +19,20 @@ import { waitForShell } from './support/harness.ts';
 //   * Only public SELECT/RPC reads that the app issues for an anonymous
 //     visitor (problems, contests, get_leaderboard) — all granted to `anon` in
 //     sql/permissions.sql.
-//   * The anon key is a publishable, client-safe key. NEVER use a service-role
-//     key here.
+//   * The publishable key is client-safe. NEVER use a secret or service-role key
+//     here.
 
 const ENABLED =
   process.env.SUPABASE_SMOKE === '1' &&
   !!process.env.PUBLIC_SUPABASE_URL &&
-  !!process.env.PUBLIC_SUPABASE_ANON_KEY &&
+  !!process.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY &&
   process.env.PUBLIC_SUPABASE_URL !== 'http://localhost';
 
 test.describe('live read-only Supabase smoke', () => {
   test.skip(
     !ENABLED,
     'live smoke disabled: set SUPABASE_SMOKE=1 with real PUBLIC_SUPABASE_URL and ' +
-      'PUBLIC_SUPABASE_ANON_KEY (client-safe anon key) to enable. See README.'
+      'PUBLIC_SUPABASE_PUBLISHABLE_KEY (client-safe publishable key) to enable. See README.'
   );
 
   async function loadResolved(page: Page, path: string) {

@@ -43,12 +43,12 @@ corepack enable
 pnpm install --frozen-lockfile
 cat > .env <<'EOF'
 PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-PUBLIC_SUPABASE_ANON_KEY=your-anon-or-publishable-key
+PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
 EOF
 pnpm dev
 ```
 
-Set `PUBLIC_SUPABASE_URL` and the client-safe `PUBLIC_SUPABASE_ANON_KEY` in `.env`. Never expose a service-role key. For a new database, follow the [SQL guide](sql/README.md).
+Set `PUBLIC_SUPABASE_URL` and the client-safe `PUBLIC_SUPABASE_PUBLISHABLE_KEY` in `.env`. Never expose a secret or service-role key. For a new database, follow the [SQL guide](sql/README.md).
 
 ## Validate
 

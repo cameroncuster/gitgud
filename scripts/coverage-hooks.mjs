@@ -7,7 +7,7 @@ import { registerHooks } from 'node:module';
 const root = resolvePath(import.meta.dirname, '..');
 const publicEnv = Object.freeze({
   PUBLIC_SUPABASE_URL: process.env.PUBLIC_SUPABASE_URL ?? 'http://localhost',
-  PUBLIC_SUPABASE_ANON_KEY: process.env.PUBLIC_SUPABASE_ANON_KEY ?? 'placeholder',
+  PUBLIC_SUPABASE_PUBLISHABLE_KEY: process.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? 'placeholder',
   PUBLIC_CODEFORCES_API_BASE: process.env.PUBLIC_CODEFORCES_API_BASE,
   PUBLIC_KATTIS_BASE: process.env.PUBLIC_KATTIS_BASE
 });
@@ -15,7 +15,7 @@ const virtualModules = new Map([
   ['$app/environment', 'export const browser = false; export const dev = false;'],
   [
     '$env/static/public',
-    `export const PUBLIC_SUPABASE_URL = ${JSON.stringify(publicEnv.PUBLIC_SUPABASE_URL)}; export const PUBLIC_SUPABASE_ANON_KEY = ${JSON.stringify(publicEnv.PUBLIC_SUPABASE_ANON_KEY)};`
+    `export const PUBLIC_SUPABASE_URL = ${JSON.stringify(publicEnv.PUBLIC_SUPABASE_URL)}; export const PUBLIC_SUPABASE_PUBLISHABLE_KEY = ${JSON.stringify(publicEnv.PUBLIC_SUPABASE_PUBLISHABLE_KEY)};`
   ],
   ['$env/dynamic/public', `export const env = ${JSON.stringify(publicEnv)};`]
 ]);
