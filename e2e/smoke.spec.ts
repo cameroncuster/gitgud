@@ -164,6 +164,10 @@ test.describe('header session and appearance controls', () => {
     test.skip(!!viewport && viewport.width < 1024, 'desktop appearance popover only');
     await page.goto('/');
     const button = page.getByRole('button', { name: 'Appearance' });
+    const target = await button.boundingBox();
+    expect(target?.height).toBeGreaterThanOrEqual(44);
+    expect(target?.width).toBeGreaterThanOrEqual(44);
+    await expect(button).toHaveText('');
     await button.click();
     await expect(page.getByRole('radio', { name: 'System' })).toBeChecked();
     await page.keyboard.press('Escape');
@@ -258,19 +262,44 @@ test.describe('mobile navigation', () => {
   });
 });
 
-test.describe('signed-in settings appearance', () => {
-  test('uses an sr-only h1 and persists the selected account appearance', async ({ page }) => {
+test.describe('signed-in settings layout and appearance', () => {
+  test('keeps appearance in the header and leaves space above the footer', async ({
+    page,
+    viewport
+  }) => {
     await seedMemberSession(page);
     await page.goto('/settings');
     await expect(page.locator('h1.sr-only')).toHaveText('Settings');
+    await expect(page.getByRole('heading', { name: 'Appearance' })).toHaveCount(0);
+
+    const appearanceButton = page.getByRole('button', { name: 'Appearance' });
+    if (await appearanceButton.isVisible()) await appearanceButton.click();
+    else {
+      await page.getByRole('button', { name: 'Open menu' }).click();
+    }
+    const settingsLink = page.getByRole('link', { name: 'Settings' });
+    const settingsTarget = await settingsLink.boundingBox();
+    expect(settingsTarget?.height).toBeGreaterThanOrEqual(44);
+    expect(settingsTarget?.width).toBeGreaterThanOrEqual(44);
+    await expect(settingsLink).toHaveText('');
     await page.getByRole('radio', { name: 'Dark' }).check();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     await expect.poll(() => page.evaluate(() => localStorage.getItem('gitgud-theme'))).toBe('dark');
-    await expect(page.getByText('Saved', { exact: true })).toBeVisible();
 
     await page.reload();
+    if (viewport && viewport.width < 1024) {
+      await page.getByRole('button', { name: 'Open menu' }).click();
+    } else {
+      await page.getByRole('button', { name: 'Appearance' }).click();
+    }
     await expect(page.getByRole('radio', { name: 'Dark' })).toBeChecked();
-    await expect(page.getByText(/Currently resolved to dark/i)).toBeVisible();
+
+    const lastCard = page.locator('main section').last();
+    const footer = page.locator('footer');
+    const [cardBox, footerBox] = await Promise.all([lastCard.boundingBox(), footer.boundingBox()]);
+    expect(cardBox).not.toBeNull();
+    expect(footerBox).not.toBeNull();
+    expect(footerBox!.y - (cardBox!.y + cardBox!.height)).toBeGreaterThanOrEqual(60);
   });
 });
 
