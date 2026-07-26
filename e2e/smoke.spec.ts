@@ -274,14 +274,13 @@ test.describe('signed-in settings layout and appearance', () => {
     await expect(spinner).toHaveCount(0);
   });
 
-  test('cycles the Settings theme button, persists it, and keeps footer space', async ({
+  test('selects a Settings theme position, persists it, and keeps footer space', async ({
     page,
     viewport
   }) => {
     await seedMemberSession(page);
     await page.goto('/settings');
     await expect(page.locator('h1.sr-only')).toHaveText('Settings');
-    // Appearance lives on the settings page as one compact three-state cycle button.
     await expect(page.getByRole('heading', { name: 'Appearance' })).toBeVisible();
 
     // The compact Settings gear icon stays an icon, not text. On mobile it lives
@@ -303,15 +302,20 @@ test.describe('signed-in settings layout and appearance', () => {
       await page.getByRole('button', { name: 'Close menu' }).click();
     }
 
-    const themeButton = page.getByRole('button', { name: /^Theme:/ });
-    await expect(themeButton).toHaveAccessibleName('Theme: System. Switch to Light');
-    await expect(themeButton).toHaveText('System');
-    const target = await themeButton.boundingBox();
-    expect(target?.height).toBeGreaterThanOrEqual(44);
-    expect(target?.width).toBeGreaterThanOrEqual(44);
+    const themeToggle = page.getByRole('radiogroup', { name: 'Theme' });
+    const system = themeToggle.getByRole('radio', { name: 'System' });
+    const light = themeToggle.getByRole('radio', { name: 'Light' });
+    const dark = themeToggle.getByRole('radio', { name: 'Dark' });
+    await expect(system).toBeChecked();
+    await expect(light).not.toBeChecked();
+    await expect(dark).not.toBeChecked();
+    for (const position of [system, light, dark]) {
+      const target = await position.boundingBox();
+      expect(target?.height).toBeGreaterThanOrEqual(44);
+    }
 
-    await themeButton.click();
-    await expect(themeButton).toHaveAccessibleName('Theme: Light. Switch to Dark');
+    await light.click();
+    await expect(light).toBeChecked();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
 
     const darkPreferenceSaved = page.waitForResponse((response) => {
@@ -319,16 +323,14 @@ test.describe('signed-in settings layout and appearance', () => {
       const body = response.request().postData();
       return body?.includes('"theme":"dark"') ?? false;
     });
-    await themeButton.click();
-    await expect(themeButton).toHaveAccessibleName('Theme: Dark. Switch to System');
+    await dark.click();
+    await expect(dark).toBeChecked();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     await expect.poll(() => page.evaluate(() => localStorage.getItem('gitgud-theme'))).toBe('dark');
     await darkPreferenceSaved;
 
     await page.reload();
-    await expect(page.getByRole('button', { name: /^Theme:/ })).toHaveAccessibleName(
-      'Theme: Dark. Switch to System'
-    );
+    await expect(page.getByRole('radio', { name: 'Dark' })).toBeChecked();
 
     const lastCard = page.locator('main section').last();
     const footer = page.locator('footer');
@@ -533,50 +535,57 @@ test.describe('theme startup', () => {
     await page.emulateMedia({ colorScheme: 'dark' });
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 
-    // One click advances System to explicit Light, which stops following the OS.
+    // An explicit Light choice stops following the OS.
     await seedMemberSession(page);
     await page.goto('/settings');
-    await page.getByRole('button', { name: 'Theme: System. Switch to Light' }).click();
+    await page.getByRole('radio', { name: 'Light' }).click();
     await page.emulateMedia({ colorScheme: 'dark' });
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   });
 
-  test('the Settings theme button cycles System, Light, Dark, and back to System', async ({
+  test('the Settings theme toggle directly selects left, middle, and right positions', async ({
     page
   }) => {
     await seedMemberSession(page);
     await page.goto('/settings');
-    const button = page.getByRole('button', { name: /^Theme:/ });
-    await expect(button).toHaveAccessibleName('Theme: System. Switch to Light');
-    const box = await button.boundingBox();
-    expect(box?.height).toBeGreaterThanOrEqual(44);
-    expect(box?.width).toBeGreaterThanOrEqual(44);
+    const group = page.getByRole('radiogroup', { name: 'Theme' });
+    const system = group.getByRole('radio', { name: 'System' });
+    const light = group.getByRole('radio', { name: 'Light' });
+    const dark = group.getByRole('radio', { name: 'Dark' });
+    await expect(system).toBeChecked();
 
-    await button.click();
-    await expect(button).toHaveAccessibleName('Theme: Light. Switch to Dark');
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-    await button.click();
-    await expect(button).toHaveAccessibleName('Theme: Dark. Switch to System');
+    await dark.click();
+    await expect(dark).toBeChecked();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-    await button.click();
-    await expect(button).toHaveAccessibleName('Theme: System. Switch to Light');
+    await light.click();
+    await expect(light).toBeChecked();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    await system.click();
+    await expect(system).toBeChecked();
     await expect
       .poll(() => page.evaluate(() => localStorage.getItem('gitgud-theme')))
       .toBe('system');
   });
 
-  test('the Settings theme button cycles with the keyboard and keeps focus', async ({ page }) => {
+  test('the Settings theme toggle supports arrow, Home, and End keys', async ({ page }) => {
     await seedMemberSession(page);
     await page.goto('/settings');
-    const button = page.getByRole('button', { name: /^Theme:/ });
-    await button.focus();
-    await expect(button).toBeFocused();
-    await page.keyboard.press('Enter');
-    await expect(button).toHaveAccessibleName('Theme: Light. Switch to Dark');
-    await expect(button).toBeFocused();
-    await page.keyboard.press('Space');
-    await expect(button).toHaveAccessibleName('Theme: Dark. Switch to System');
-    await expect(button).toBeFocused();
+    const system = page.getByRole('radio', { name: 'System' });
+    const light = page.getByRole('radio', { name: 'Light' });
+    const dark = page.getByRole('radio', { name: 'Dark' });
+    await system.focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(light).toBeChecked();
+    await expect(light).toBeFocused();
+    await page.keyboard.press('End');
+    await expect(dark).toBeChecked();
+    await expect(dark).toBeFocused();
+    await page.keyboard.press('Home');
+    await expect(system).toBeChecked();
+    await expect(system).toBeFocused();
+    await page.keyboard.press('ArrowLeft');
+    await expect(dark).toBeChecked();
+    await expect(dark).toBeFocused();
   });
 
   test('an anonymous visitor selects a Settings theme and it persists across reload', async ({
@@ -603,22 +612,18 @@ test.describe('theme startup', () => {
     await expect(page.getByRole('heading', { name: 'Privacy', exact: true })).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Import solved problems' })).toHaveCount(0);
 
-    const button = page.getByRole('button', { name: /^Theme:/ });
-    await expect(button).toHaveAccessibleName('Theme: System. Switch to Light');
+    const group = page.getByRole('radiogroup', { name: 'Theme' });
+    await expect(group.getByRole('radio', { name: 'System' })).toBeChecked();
 
-    // Cycling works without an account read.
-    await button.click();
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-    await button.click();
+    // Direct selection works without an account read.
+    await group.getByRole('radio', { name: 'Dark' }).click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     await expect.poll(() => page.evaluate(() => localStorage.getItem('gitgud-theme'))).toBe('dark');
 
     // The explicit Dark choice survives a reload via localStorage.
     await page.reload();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-    await expect(page.getByRole('button', { name: /^Theme:/ })).toHaveAccessibleName(
-      'Theme: Dark. Switch to System'
-    );
+    await expect(page.getByRole('radio', { name: 'Dark' })).toBeChecked();
 
     // Anonymous persistence never triggers an account read.
     expect(accountRequests).toEqual([]);

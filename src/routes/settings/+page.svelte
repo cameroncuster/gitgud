@@ -242,7 +242,7 @@
         <div>
           <p class="font-medium text-[var(--color-text)]">Theme</p>
           <p class="text-sm text-[var(--color-text-muted)]">
-            Click to cycle System, Light, and Dark. System follows your device preference.
+            Choose System, Light, or Dark. System follows your device preference.
           </p>
         </div>
         <ThemeToggle preference={$currentThemePreference} onSelect={selectThemePreference} />

@@ -199,7 +199,7 @@ const THEME_TOGGLE = readFileSync(
   'utf8'
 );
 
-test('appearance uses one theme button wired to the existing persistence path', () => {
+test('appearance uses the three-position theme toggle with the existing persistence path', () => {
   assert.match(SETTINGS, />\s*Appearance\s*</, 'settings must render an Appearance section');
   assert.match(
     SETTINGS,
@@ -208,46 +208,54 @@ test('appearance uses one theme button wired to the existing persistence path', 
   );
   assert.match(
     SETTINGS,
-    /Click to cycle System, Light, and Dark/,
-    'settings must explain the cycle interaction'
+    /Choose System, Light, or Dark/,
+    'settings must explain the direct-selection interaction'
   );
 });
 
-test('the theme button exposes its current state and next action', () => {
-  assert.doesNotMatch(
+test('the theme toggle exposes three directly selectable positions', () => {
+  assert.match(THEME_TOGGLE, /role="radiogroup"/, 'theme control must be one radio group');
+  assert.match(THEME_TOGGLE, /aria-label="Theme"/, 'theme group must have an accessible name');
+  assert.match(THEME_TOGGLE, /role="radio"/, 'each theme position must be a radio');
+  assert.match(
     THEME_TOGGLE,
-    /role="radiogroup"|role="radio"/,
-    'theme control must be one button'
+    /aria-checked=\{preference === option\}/,
+    'the selected position must be exposed to assistive technology'
   );
   assert.match(
     THEME_TOGGLE,
-    /nextThemePreference\(preference\)/,
-    'the button must use the shared System, Light, Dark cycle'
+    /data-testid="theme-toggle-indicator"/,
+    'the toggle must include one sliding active indicator'
   );
   assert.match(
     THEME_TOGGLE,
-    /aria-label=\{`Theme: \$\{label\}\. Switch to \$\{nextLabel\}`\}/,
-    'the accessible name must expose the current state and next action'
-  );
-  assert.match(
-    THEME_TOGGLE,
-    /<span>\{label\}<\/span>/,
-    'the current preference must remain visible'
+    /translateX\(\$\{selectedIndex \* 100\}%\)/,
+    'the active indicator must move between left, middle, and right positions'
   );
 });
 
-test('the theme button is keyboard operable with focus-visible styling', () => {
-  assert.match(THEME_TOGGLE, /type="button"/, 'the native button must remain keyboard operable');
+test('the theme toggle supports arrow, Home, and End keys with focus-visible styling', () => {
+  assert.match(
+    THEME_TOGGLE,
+    /event\.key === 'ArrowLeft'/,
+    'left arrow must select the prior theme'
+  );
+  assert.match(
+    THEME_TOGGLE,
+    /event\.key === 'ArrowRight'/,
+    'right arrow must select the next theme'
+  );
+  assert.match(THEME_TOGGLE, /event\.key === 'Home'/, 'Home must select System');
+  assert.match(THEME_TOGGLE, /event\.key === 'End'/, 'End must select Dark');
   assert.match(
     THEME_TOGGLE,
     /focus-visible:outline-\[var\(--color-accent\)\]/,
-    'the button must draw a focus-visible accent outline'
+    'each position must draw a focus-visible accent outline'
   );
 });
 
-test('the theme button meets the 44px minimum touch target', () => {
-  assert.match(THEME_TOGGLE, /min-h-11/, 'theme button must be at least 44px tall');
-  assert.match(THEME_TOGGLE, /min-w-11/, 'theme button must be at least 44px wide');
+test('each theme position meets the 44px minimum touch target', () => {
+  assert.match(THEME_TOGGLE, /min-h-11/, 'each theme position must be at least 44px tall');
 });
 
 test('the settings page leaves deliberate space above the footer', () => {
