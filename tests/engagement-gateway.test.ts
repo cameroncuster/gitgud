@@ -28,6 +28,7 @@ function deleteQuery(calls: Call[], error: { code?: string } | null = null): Del
 
 test('problem gateway preserves RPC params and solved persistence', async () => {
   const calls: Call[] = [];
+  const feedbackTokens: string[] = [];
   let insertError: { code?: string } | null = null;
   const client: ProblemEngagementClient = {
     from: (table) => ({
@@ -50,6 +51,10 @@ test('problem gateway preserves RPC params and solved persistence', async () => 
     getCurrentUser: () => ({ id: 'actor' }),
     loadFeedback: async () => ({}),
     loadSolvedProblemIds: async () => new Set(),
+    createFeedbackClient: (accessToken) => {
+      feedbackTokens.push(accessToken);
+      return client;
+    },
     mapProblemRecord: (record) => ({
       id: record.id,
       name: 'mapped',
@@ -61,7 +66,16 @@ test('problem gateway preserves RPC params and solved persistence', async () => 
       source: 'codeforces'
     })
   });
-  assert.equal((await gateway.updateFeedback('p', true))?.name, 'mapped');
+  assert.equal(
+    (
+      await gateway.updateFeedback('p', true, {
+        userId: 'actor',
+        accessToken: 'initiating-token'
+      })
+    )?.name,
+    'mapped'
+  );
+  assert.deepEqual(feedbackTokens, ['initiating-token']);
   assert.deepEqual(calls[0], {
     name: 'update_problem_feedback',
     value: { p_problem_id: 'p', p_is_like: true }
@@ -96,12 +110,19 @@ test('problem gateway rejects anonymous writes before touching the client', asyn
     getCurrentUser: () => null,
     loadFeedback: async () => ({}),
     loadSolvedProblemIds: async () => new Set(),
+    createFeedbackClient: () => {
+      calls++;
+      return client;
+    },
     mapProblemRecord: () => {
       throw new Error('must not map');
     }
   });
   assert.equal(await gateway.setSolved('p', true), false);
-  assert.equal(await gateway.updateFeedback('p', true), null);
+  assert.equal(
+    await gateway.updateFeedback('p', true, { userId: 'actor', accessToken: 'token' }),
+    null
+  );
   assert.equal(calls, 0);
 });
 
@@ -125,16 +146,18 @@ test('problem gateway contains delete, RPC, and thrown client failures', async (
     getCurrentUser: () => ({ id: 'actor' }),
     loadFeedback: async () => ({}),
     loadSolvedProblemIds: async () => new Set(),
+    createFeedbackClient: () => client,
     mapProblemRecord: () => {
       throw new Error('mapping failed');
     }
   });
+  const actor = { userId: 'actor', accessToken: 'token' };
   assert.equal(await gateway.setSolved('p', false), false);
   mode = 'rpc';
-  assert.equal(await gateway.updateFeedback('p', true), null);
+  assert.equal(await gateway.updateFeedback('p', true, actor), null);
   mode = 'throw';
   assert.equal(await gateway.setSolved('p', true), false);
-  assert.equal(await gateway.updateFeedback('p', true), null);
+  assert.equal(await gateway.updateFeedback('p', true, actor), null);
 });
 
 test('problem gateway maps null/error RPC to null', async () => {
@@ -151,13 +174,15 @@ test('problem gateway maps null/error RPC to null', async () => {
     getCurrentUser: () => ({ id: 'actor' }),
     loadFeedback: async () => ({}),
     loadSolvedProblemIds: async () => new Set(),
+    createFeedbackClient: () => client,
     mapProblemRecord: () => {
       throw new Error('must not map');
     }
   });
-  assert.equal(await gateway.updateFeedback('p', true), null);
+  const actor = { userId: 'actor', accessToken: 'token' };
+  assert.equal(await gateway.updateFeedback('p', true, actor), null);
   rpcError = { code: 'rpc-failed' };
-  assert.equal(await gateway.updateFeedback('p', true), null);
+  assert.equal(await gateway.updateFeedback('p', true, actor), null);
 });
 
 test('contest gateway preserves RPC params and participation persistence', async () => {

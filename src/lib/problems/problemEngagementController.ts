@@ -1,13 +1,17 @@
-import { transitionReaction } from '../engagement/reactionTransition.ts';
 import type { ProblemCollection } from '../collections/problemCollection.ts';
 import type { ProblemEngagementGateway, ProblemFeedback } from './problemEngagementGateway.ts';
 
-type Actor = { user: { id: string } | null };
+type Actor = {
+  user: { id: string } | null;
+  session?: { access_token: string } | null;
+};
 type ActorStore = { subscribe: (listener: (actor: Actor) => void) => () => void };
 
 export type ProblemEngagementState = Readonly<{
   isAuthenticated: boolean;
   feedback: ProblemFeedback;
+  feedbackReady: boolean;
+  pendingReactionIds: Set<string>;
   solvedProblemIds: Set<string>;
 }>;
 
@@ -40,9 +44,12 @@ export function createProblemEngagementController({
   let state: ProblemEngagementState = {
     isAuthenticated: false,
     feedback: {},
+    feedbackReady: true,
+    pendingReactionIds: new Set(),
     solvedProblemIds: new Set()
   };
   let actorUserId: string | null = null;
+  let actorAccessToken: string | null = null;
   let actorSynchronized = false;
   let generation = 0;
   let unsubscribeActor: (() => void) | null = null;
@@ -68,9 +75,15 @@ export function createProblemEngagementController({
   async function loadFeedback(expectedGeneration: number, expectedUserId: string): Promise<void> {
     try {
       const feedback = await gateway.loadFeedback();
-      if (isCurrent(expectedGeneration, expectedUserId)) publish({ ...state, feedback });
+      if (isCurrent(expectedGeneration, expectedUserId)) {
+        publish({ ...state, feedback, feedbackReady: true });
+      }
     } catch (error) {
       console.error('Failed to load problem feedback:', error);
+      if (isCurrent(expectedGeneration, expectedUserId)) {
+        publish({ ...state, feedbackReady: false });
+        reportError('Couldn’t load reactions. Reload to try again.');
+      }
     }
   }
 
@@ -87,7 +100,9 @@ export function createProblemEngagementController({
 
   function synchronizeActor(nextActor: Actor): void {
     const nextUserId = nextActor.user?.id ?? null;
+    const nextAccessToken = nextActor.session?.access_token ?? null;
     if (actorSynchronized && nextUserId === actorUserId) {
+      actorAccessToken = nextAccessToken;
       if (state.isAuthenticated !== Boolean(nextUserId)) {
         publish({ ...state, isAuthenticated: Boolean(nextUserId) });
       }
@@ -96,61 +111,70 @@ export function createProblemEngagementController({
 
     actorSynchronized = true;
     actorUserId = nextUserId;
+    actorAccessToken = nextAccessToken;
     const expectedGeneration = ++generation;
     if (!nextUserId) {
       const solvedProblemIds = new Set<string>();
-      publish({ isAuthenticated: false, feedback: {}, solvedProblemIds });
+      publish({
+        isAuthenticated: false,
+        feedback: {},
+        feedbackReady: true,
+        pendingReactionIds: new Set(),
+        solvedProblemIds
+      });
       applySolvedProblemIds(solvedProblemIds);
       return;
     }
 
-    publish({ ...state, isAuthenticated: true });
+    const solvedProblemIds = new Set<string>();
+    publish({
+      isAuthenticated: true,
+      feedback: {},
+      feedbackReady: false,
+      pendingReactionIds: new Set(),
+      solvedProblemIds
+    });
+    applySolvedProblemIds(solvedProblemIds);
     void loadFeedback(expectedGeneration, nextUserId);
     void loadSolved(expectedGeneration, nextUserId);
   }
 
   async function react(problemId: string, isLike: boolean): Promise<void> {
     if (disposed) return;
-    if (!state.isAuthenticated) {
+    if (!state.isAuthenticated || !actorUserId || !actorAccessToken) {
       reportError('You must be signed in to like or dislike problems');
       return;
     }
+    if (!state.feedbackReady || state.pendingReactionIds.size > 0) return;
 
-    const requestedReaction = isLike ? 'like' : 'dislike';
     const problem = getCollection().sourceItems.find((item) => item.id === problemId);
     if (!problem) return;
-    const transition = transitionReaction(
-      {
-        likes: problem.likes,
-        dislikes: problem.dislikes,
-        reaction: state.feedback[problemId] ?? null
-      },
-      requestedReaction
-    );
-
-    setCollection(
-      getCollection().updateSourceItem(problemId, (item) => ({
-        ...item,
-        likes: transition.likes,
-        dislikes: transition.dislikes
-      }))
-    );
-    publish({
-      ...state,
-      feedback: { ...state.feedback, [problemId]: transition.reaction }
-    });
+    const expectedGeneration = generation;
+    const expectedUserId = actorUserId;
+    const reactionActor = { userId: actorUserId, accessToken: actorAccessToken };
+    const pendingReactionIds = new Set(state.pendingReactionIds).add(problemId);
+    publish({ ...state, pendingReactionIds });
 
     try {
-      await gateway.updateFeedback(problemId, isLike);
+      const updatedProblem = await gateway.updateFeedback(problemId, isLike, reactionActor);
+      if (!isCurrent(expectedGeneration, expectedUserId)) return;
+      if (!updatedProblem) {
+        reportError('Couldn’t save reaction. Try again.');
+        return;
+      }
+      setCollection(getCollection().updateSourceItem(problemId, () => updatedProblem));
+      await loadFeedback(expectedGeneration, expectedUserId);
     } catch (error) {
       console.error('Error updating feedback:', error);
-      if (disposed || !actorUserId) return;
-      const expectedGeneration = generation;
-      const expectedUserId = actorUserId;
-      await Promise.all([
-        loadFeedback(expectedGeneration, expectedUserId),
-        loadSolved(expectedGeneration, expectedUserId)
-      ]);
+      if (isCurrent(expectedGeneration, expectedUserId)) {
+        reportError('Couldn’t save reaction. Try again.');
+      }
+    } finally {
+      if (isCurrent(expectedGeneration, expectedUserId)) {
+        const nextPendingReactionIds = new Set(state.pendingReactionIds);
+        nextPendingReactionIds.delete(problemId);
+        publish({ ...state, pendingReactionIds: nextPendingReactionIds });
+      }
     }
   }
 

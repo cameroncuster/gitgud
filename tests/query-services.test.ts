@@ -184,7 +184,7 @@ test('problem queries return safe empty values for database and thrown failures'
   });
   assert.deepEqual(await queries.fetchProblemsResult(), { successful: false, problems: [] });
   assert.equal(await queries.fetchProblemById('p'), undefined);
-  assert.deepEqual(await queries.fetchProblemFeedback(), {});
+  await assert.rejects(() => queries.fetchProblemFeedback(), /Failed to load problem feedback/);
   assert.deepEqual([...(await queries.fetchSolvedProblems())], []);
   assert.deepEqual([...(await queries.fetchSolvedProblemsForUser('other'))], []);
 
@@ -202,7 +202,7 @@ test('problem queries return safe empty values for database and thrown failures'
   });
   assert.deepEqual(await throwing.fetchProblemsResult(), { successful: false, problems: [] });
   assert.equal(await throwing.fetchProblemById('p'), undefined);
-  assert.deepEqual(await throwing.fetchProblemFeedback(), {});
+  await assert.rejects(() => throwing.fetchProblemFeedback(), /offline/);
   assert.deepEqual([...(await throwing.fetchSolvedProblems())], []);
   assert.deepEqual([...(await throwing.fetchSolvedProblemsForUser('other'))], []);
 });

@@ -6,3 +6,9 @@ const supabaseUrl = PUBLIC_SUPABASE_URL;
 const supabaseKey = PUBLIC_SUPABASE_ANON_KEY;
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseKey);
+
+export function createSessionBoundSupabase(accessToken: string) {
+  return createClient<Database>(supabaseUrl, supabaseKey, {
+    accessToken: async () => accessToken
+  });
+}

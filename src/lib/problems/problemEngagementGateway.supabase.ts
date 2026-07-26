@@ -4,7 +4,7 @@ import {
   fetchSolvedProblems,
   mapProblemRecord
 } from '../queries/problemQueries';
-import { supabase } from '../services/database';
+import { createSessionBoundSupabase, supabase } from '../services/database';
 import {
   createProblemEngagementGateway,
   type ProblemEngagementClient
@@ -15,5 +15,6 @@ export const problemEngagementGateway = createProblemEngagementGateway({
   getCurrentUser: () => getCurrentActor().user,
   loadFeedback: fetchProblemFeedback,
   loadSolvedProblemIds: fetchSolvedProblems,
+  createFeedbackClient: createSessionBoundSupabase,
   mapProblemRecord
 });

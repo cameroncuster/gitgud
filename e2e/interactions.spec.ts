@@ -16,17 +16,32 @@ test.beforeEach(async ({ page }) => {
   await seedMemberSession(page);
 });
 
-test('problem reactions stay optimistic when the RPC returns null', async ({ page }) => {
+test('problem reactions persist the authoritative count across reload', async ({ page }) => {
+  await page.goto('/');
+
+  let row = rowFor(page, problem.name);
+  await row.getByRole('button', { name: `Like, ${problem.likes} likes` }).click();
+  await expect(
+    row.getByRole('button', { name: `Like (liked), ${problem.likes + 1} likes` })
+  ).toBeVisible();
+
+  const response = await page.reload();
+  expect(response?.headers()['cache-control']).toBe('no-store');
+  row = rowFor(page, problem.name);
+  await expect(
+    row.getByRole('button', { name: `Like (liked), ${problem.likes + 1} likes` })
+  ).toBeVisible();
+});
+
+test('problem reactions roll back when the RPC returns no authoritative row', async ({ page }) => {
   await setMutationMode('null');
   await page.goto('/');
 
   const row = rowFor(page, problem.name);
-  const like = row.getByRole('button', { name: `Like, ${problem.likes} likes` });
-  await like.click();
+  await row.getByRole('button', { name: `Like, ${problem.likes} likes` }).click();
 
-  await expect(
-    row.getByRole('button', { name: `Like (liked), ${problem.likes + 1} likes` })
-  ).toBeVisible();
+  await expect(page.getByRole('alert')).toContainText('Couldn’t save reaction. Try again.');
+  await expect(row.getByRole('button', { name: `Like, ${problem.likes} likes` })).toBeVisible();
 });
 
 test('contest reactions wait for server confirmation', async ({ page }) => {

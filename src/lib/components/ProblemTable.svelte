@@ -15,6 +15,8 @@
   export let bodyId: string | undefined = undefined;
   export let userFeedback: Record<string, 'like' | 'dislike' | null> = {};
   export let userSolvedProblems: Set<string> = new Set();
+  export let feedbackReady = true;
+  export let pendingReactionIds: Set<string> = new Set();
   export let isAuthenticated = false;
   export let allAuthors: string[] = [];
   export let difficultySortDirection: SortDirection = null;
@@ -365,6 +367,13 @@
                   dislikes={problem.dislikes}
                   feedback={userFeedback[problem.id]}
                   {isAuthenticated}
+                  disabled={!feedbackReady || pendingReactionIds.size > 0}
+                  busy={pendingReactionIds.has(problem.id)}
+                  disabledReason={!feedbackReady
+                    ? 'Reactions unavailable. Reload to try again.'
+                    : pendingReactionIds.size > 0
+                      ? 'Wait for the current reaction to save.'
+                      : null}
                   subject="problem"
                   iconSize={16}
                   onFeedback={(isLike) => onLike(problem.id!, isLike)}

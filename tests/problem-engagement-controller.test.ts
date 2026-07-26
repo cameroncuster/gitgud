@@ -8,7 +8,10 @@ import type {
 } from '../src/lib/problems/problemEngagementGateway.ts';
 import type { Problem } from '../src/lib/queries/problemQueries.ts';
 
-type Actor = { user: { id: string } | null };
+type Actor = {
+  user: { id: string } | null;
+  session?: { access_token: string } | null;
+};
 
 function actorStore(initial: Actor) {
   let actor = initial;
@@ -20,7 +23,10 @@ function actorStore(initial: Actor) {
       return () => listeners.delete(listener);
     },
     set(next: Actor) {
-      actor = next;
+      actor =
+        next.user && next.session === undefined
+          ? { ...next, session: { access_token: `${next.user.id}-token` } }
+          : next;
       for (const listener of listeners) listener(actor);
     },
     get listenerCount() {
@@ -39,11 +45,11 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-function problem(likes = 2, dislikes = 1): Problem {
+function problem(likes = 2, dislikes = 1, id = 'p'): Problem {
   return {
-    id: 'p',
-    name: 'Problem',
-    url: 'https://example.com/p',
+    id,
+    name: `Problem ${id}`,
+    url: `https://example.com/${id}`,
     addedBy: 'author',
     addedByUrl: '',
     likes,
@@ -54,10 +60,15 @@ function problem(likes = 2, dislikes = 1): Problem {
 
 function setup(
   options: Partial<ProblemEngagementGateway> = {},
-  initialActor: Actor = { user: null }
+  initialActor: Actor = { user: null },
+  problems: Problem[] = [problem()]
 ) {
-  const actor = actorStore(initialActor);
-  let collection = new ProblemCollection({ items: [problem()] });
+  const actor = actorStore(
+    initialActor.user && initialActor.session === undefined
+      ? { ...initialActor, session: { access_token: `${initialActor.user.id}-token` } }
+      : initialActor
+  );
+  let collection = new ProblemCollection({ items: problems });
   const errors: string[] = [];
   const calls: string[] = [];
   const gateway: ProblemEngagementGateway = {
@@ -166,37 +177,196 @@ test('problem reactions ignore unknown IDs without writes', async () => {
   assert.equal(writes, 0);
 });
 
-test('problem reactions update before RPC and null preserves optimism', async () => {
+test('problem reactions keep counts unchanged until the authoritative RPC row arrives', async () => {
   const pending = deferred<Problem | null>();
-  const context = setup({ updateFeedback: () => pending.promise }, { user: { id: 'actor' } });
+  let feedbackLoads = 0;
+  const context = setup(
+    {
+      loadFeedback: async (): Promise<ProblemFeedback> =>
+        ++feedbackLoads === 1 ? {} : { p: 'like' },
+      updateFeedback: () => pending.promise
+    },
+    { user: { id: 'actor' } }
+  );
   await settle();
-  context.calls.length = 0;
   const action = context.controller.react('p', true);
-  assert.equal(context.collection().sourceItems[0].likes, 3);
-  assert.equal(context.controller.state.feedback.p, 'like');
-  assert.deepEqual(context.calls, ['collection', 'state']);
-  pending.resolve(null);
+  assert.equal(context.collection().sourceItems[0].likes, 2);
+  assert.equal(context.controller.state.feedback.p, undefined);
+  assert.equal(context.controller.state.pendingReactionIds.has('p'), true);
+
+  pending.resolve(problem(7, 4));
   await action;
+  assert.equal(context.collection().sourceItems[0].likes, 7);
+  assert.equal(context.collection().sourceItems[0].dislikes, 4);
+  assert.equal(context.controller.state.feedback.p, 'like');
+  assert.equal(context.controller.state.pendingReactionIds.has('p'), false);
+});
+
+test('failed problem reactions leave counts untouched and show a visible error', async () => {
+  for (const updateFeedback of [
+    async () => null,
+    async () => Promise.reject(new Error('rpc threw'))
+  ]) {
+    const context = setup({ updateFeedback }, { user: { id: 'actor' } });
+    await settle();
+    await context.controller.react('p', true);
+    assert.equal(context.collection().sourceItems[0].likes, 2);
+    assert.equal(context.collection().sourceItems[0].dislikes, 1);
+    assert.equal(context.controller.state.feedback.p, undefined);
+    assert.equal(context.controller.state.pendingReactionIds.has('p'), false);
+    assert.deepEqual(context.errors, ['Couldn’t save reaction. Try again.']);
+  }
+});
+
+test('problem reactions ignore repeated clicks while a row write is pending', async () => {
+  const pending = deferred<Problem | null>();
+  let calls = 0;
+  let feedbackLoads = 0;
+  const context = setup(
+    {
+      loadFeedback: async (): Promise<ProblemFeedback> =>
+        ++feedbackLoads === 1 ? {} : { p: 'like' },
+      updateFeedback: () => ((calls += 1), pending.promise)
+    },
+    { user: { id: 'actor' } }
+  );
+  await settle();
+  const first = context.controller.react('p', true);
+  await context.controller.react('p', false);
+  assert.equal(calls, 1);
+  pending.resolve(problem(3, 1));
+  await first;
   assert.equal(context.collection().sourceItems[0].likes, 3);
   assert.equal(context.controller.state.feedback.p, 'like');
 });
 
-test('thrown problem reaction reloads actor feedback and solved state', async () => {
-  let load = 0;
+test('problem reactions serialize writes across different rows', async () => {
+  const pending = deferred<Problem | null>();
+  let writes = 0;
+  let feedbackLoads = 0;
   const context = setup(
     {
-      loadFeedback: async (): Promise<ProblemFeedback> => (++load === 1 ? {} : { p: 'dislike' }),
-      loadSolvedProblemIds: async () => new Set(load > 1 ? ['server'] : []),
-      updateFeedback: async () => {
-        throw new Error('rpc threw');
+      loadFeedback: async (): Promise<ProblemFeedback> =>
+        ++feedbackLoads === 1 ? {} : { p: 'like' },
+      updateFeedback: () => ((writes += 1), pending.promise)
+    },
+    { user: { id: 'actor' } },
+    [problem(), problem(4, 2, 'q')]
+  );
+  await settle();
+
+  const first = context.controller.react('p', true);
+  await context.controller.react('q', true);
+  assert.equal(writes, 1);
+  assert.equal(context.controller.state.pendingReactionIds.has('p'), true);
+  assert.equal(context.collection().sourceItems.find((item) => item.id === 'q')?.likes, 4);
+
+  pending.resolve(problem(3, 1));
+  await first;
+  assert.equal(context.controller.state.pendingReactionIds.size, 0);
+});
+
+test('problem reactions wait for feedback hydration before writing', async () => {
+  const feedback = deferred<ProblemFeedback>();
+  let writes = 0;
+  const context = setup({
+    loadFeedback: () => feedback.promise,
+    updateFeedback: async () => ((writes += 1), problem(3, 1))
+  });
+  context.actor.set({ user: { id: 'actor' } });
+  assert.equal(context.controller.state.feedbackReady, false);
+  await context.controller.react('p', true);
+  assert.equal(writes, 0);
+  feedback.resolve({});
+  await settle();
+  assert.equal(context.controller.state.feedbackReady, true);
+  await context.controller.react('p', true);
+  assert.equal(writes, 1);
+});
+
+test('actor changes cannot redirect a pending reaction write to the next account', async () => {
+  const pending = deferred<Problem | null>();
+  const actors: Array<{ userId: string; accessToken: string }> = [];
+  const context = setup(
+    {
+      updateFeedback: (_problemId, _isLike, actor) => {
+        actors.push(actor);
+        return pending.promise;
       }
+    },
+    { user: { id: 'one' } }
+  );
+  await settle();
+  const write = context.controller.react('p', true);
+  context.actor.set({ user: { id: 'two' } });
+  pending.resolve(problem(3, 1));
+  await write;
+  assert.deepEqual(actors, [{ userId: 'one', accessToken: 'one-token' }]);
+  assert.equal(context.collection().sourceItems[0].likes, 2);
+  assert.equal(context.controller.state.feedback.p, undefined);
+  assert.equal(context.controller.state.pendingReactionIds.size, 0);
+});
+
+test('direct actor switches clear solved state before the new hydration resolves', async () => {
+  let actorId = 'one';
+  const secondSolved = deferred<Set<string>>();
+  const context = setup(
+    {
+      loadSolvedProblemIds: async () => (actorId === 'one' ? new Set(['p']) : secondSolved.promise)
+    },
+    { user: { id: actorId } }
+  );
+  await settle();
+  assert.equal(context.controller.state.solvedProblemIds.has('p'), true);
+  assert.equal(context.collection().solvedProblemIds.has('p'), true);
+
+  actorId = 'two';
+  context.actor.set({ user: { id: actorId } });
+  assert.equal(context.controller.state.solvedProblemIds.size, 0);
+  assert.equal(context.collection().solvedProblemIds.size, 0);
+  secondSolved.resolve(new Set(['q']));
+  await settle();
+  assert.deepEqual([...context.controller.state.solvedProblemIds], ['q']);
+});
+
+test('successful problem reactions reload cross-tab feedback authoritatively', async () => {
+  let feedbackLoads = 0;
+  const context = setup(
+    {
+      loadFeedback: async () => (++feedbackLoads === 1 ? {} : {}),
+      updateFeedback: async () => problem(1, 1)
     },
     { user: { id: 'actor' } }
   );
   await settle();
   await context.controller.react('p', true);
+  assert.equal(context.collection().sourceItems[0].likes, 1);
+  assert.equal(context.controller.state.feedback.p, undefined);
+  assert.equal(feedbackLoads, 2);
+});
+
+test('problem feedback load failures block writes until another actor hydrates', async () => {
+  let writes = 0;
+  let actorId = 'one';
+  const context = setup({
+    loadFeedback: async () => {
+      if (actorId === 'one') throw new Error('offline');
+      return { p: 'dislike' };
+    },
+    updateFeedback: async () => ((writes += 1), problem(3, 1))
+  });
+  context.actor.set({ user: { id: actorId } });
+  await settle();
+  assert.equal(context.controller.state.feedbackReady, false);
+  await context.controller.react('p', true);
+  assert.equal(writes, 0);
+  assert.deepEqual(context.errors, ['Couldn’t load reactions. Reload to try again.']);
+
+  actorId = 'two';
+  context.actor.set({ user: { id: actorId } });
+  await settle();
+  assert.equal(context.controller.state.feedbackReady, true);
   assert.equal(context.controller.state.feedback.p, 'dislike');
-  assert.deepEqual([...context.controller.state.solvedProblemIds], ['server']);
 });
 
 test('problem solved successful add/remove keeps duplicate success optimistic', async () => {

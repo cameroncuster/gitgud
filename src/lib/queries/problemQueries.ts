@@ -126,14 +126,14 @@ export function createProblemQueries({
         .eq('user_id', user.id);
       if (error) {
         console.error('Error fetching user feedback:', error);
-        return {};
+        throw new Error('Failed to load problem feedback');
       }
       return Object.fromEntries(
         data.map((item) => [item.problem_id, item.feedback_type as 'like' | 'dislike' | null])
       );
     } catch (error) {
       console.error('Failed to fetch user feedback:', error);
-      return {};
+      throw error;
     }
   }
 
