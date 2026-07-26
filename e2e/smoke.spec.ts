@@ -139,7 +139,7 @@ test.describe('header session and appearance controls', () => {
     await page.goto('/');
     const mobileMenu = page.getByRole('button', { name: 'Open menu' });
     if (await mobileMenu.isVisible()) await mobileMenu.click();
-    await expect(page.getByRole('button', { name: 'Continue with GitHub' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Sign up' })).toBeVisible();
     await expect(page.getByText('Checking session…')).toHaveCount(0);
   });
 
@@ -151,7 +151,7 @@ test.describe('header session and appearance controls', () => {
     if (await mobileMenu.isVisible()) await mobileMenu.click();
     const error = page.getByRole('alert').filter({ hasText: 'Couldn’t open GitHub' });
     await expect(error).toBeVisible();
-    await page.getByRole('button', { name: 'Continue with GitHub' }).click();
+    await page.getByRole('button', { name: 'Sign up' }).click();
     await page.waitForURL(/\/auth\/callback/);
     await page.waitForURL(/\/$/);
     await expect(error).toHaveCount(0);
