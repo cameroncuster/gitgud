@@ -9,5 +9,4 @@
   pageTitle="Problems"
   defaultSolvedFilterState="all"
   initialProblems={data.problems}
-  rowBatchSize={50}
 />
