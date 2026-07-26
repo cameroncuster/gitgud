@@ -199,60 +199,55 @@ const THEME_TOGGLE = readFileSync(
   'utf8'
 );
 
-test('appearance is an explicit three-state theme toggle, not a single cycle button', () => {
-  // The theme control lives in Settings and now shows all three choices at once
-  // instead of cycling through them behind one button.
+test('appearance uses one theme button wired to the existing persistence path', () => {
   assert.match(SETTINGS, />\s*Appearance\s*</, 'settings must render an Appearance section');
-  // Settings wires the three-state ThemeToggle to direct selection, not cycling.
   assert.match(
     SETTINGS,
     /<ThemeToggle\s+preference=\{\$currentThemePreference\}\s+onSelect=\{selectThemePreference\}\s*\/>/,
-    'settings must use the three-state ThemeToggle wired to selectThemePreference'
+    'settings must wire ThemeToggle to selectThemePreference'
   );
-  // The single-button cycle helper must be gone from the settings page.
-  assert.doesNotMatch(
+  assert.match(
     SETTINGS,
-    /ThemeCycleButton|function cycleTheme/,
-    'settings must not keep the old single-target cycle control'
+    /Click to cycle System, Light, and Dark/,
+    'settings must explain the cycle interaction'
   );
 });
 
-test('the theme toggle exposes an accessible single-choice radio group with all three options', () => {
-  // A semantic radio group makes the three states a single-choice control for
-  // assistive tech and keyboard users.
-  assert.match(THEME_TOGGLE, /role="radiogroup"/, 'theme toggle must be a radiogroup');
-  const radios = [...THEME_TOGGLE.matchAll(/role="radio"/g)];
-  assert.equal(radios.length, 1, 'the toggle renders one templated role="radio" per option');
-  // All three options must be enumerated so they are simultaneously discoverable.
-  for (const value of ['system', 'light', 'dark']) {
-    assert.match(
-      THEME_TOGGLE,
-      new RegExp(`value:\\s*'${value}'`),
-      `theme toggle must offer the ${value} option`
-    );
-  }
-  // Selected state is exposed via aria-checked, and each option keeps a stable
-  // accessible name even when the visible label is hidden on narrow layouts.
-  assert.match(THEME_TOGGLE, /aria-checked=\{selected\}/, 'selection must use aria-checked');
-  assert.match(THEME_TOGGLE, /aria-label=\{option\.label\}/, 'each radio needs a stable name');
+test('the theme button exposes its current state and next action', () => {
+  assert.doesNotMatch(
+    THEME_TOGGLE,
+    /role="radiogroup"|role="radio"/,
+    'theme control must be one button'
+  );
+  assert.match(
+    THEME_TOGGLE,
+    /nextThemePreference\(preference\)/,
+    'the button must use the shared System, Light, Dark cycle'
+  );
+  assert.match(
+    THEME_TOGGLE,
+    /aria-label=\{`Theme: \$\{label\}\. Switch to \$\{nextLabel\}`\}/,
+    'the accessible name must expose the current state and next action'
+  );
+  assert.match(
+    THEME_TOGGLE,
+    /<span>\{label\}<\/span>/,
+    'the current preference must remain visible'
+  );
 });
 
-test('the theme toggle is keyboard operable with roving tabindex and focus-visible styling', () => {
-  // Arrow/Home/End move selection; only the selected radio is in the tab order.
-  assert.match(THEME_TOGGLE, /on:keydown=/, 'the toggle must handle keydown for arrow navigation');
-  assert.match(THEME_TOGGLE, /ArrowRight/, 'arrow keys must move between options');
-  assert.match(THEME_TOGGLE, /tabindex=\{/, 'the toggle must use roving tabindex');
+test('the theme button is keyboard operable with focus-visible styling', () => {
+  assert.match(THEME_TOGGLE, /type="button"/, 'the native button must remain keyboard operable');
   assert.match(
     THEME_TOGGLE,
     /focus-visible:outline-\[var\(--color-accent\)\]/,
-    'the toggle must draw a focus-visible accent outline'
+    'the button must draw a focus-visible accent outline'
   );
 });
 
-test('each theme option meets the 44px minimum touch target', () => {
-  // min-h-11 / min-w-11 are the 44px Tailwind targets used across the app.
-  assert.match(THEME_TOGGLE, /min-h-11/, 'theme options must be at least 44px tall');
-  assert.match(THEME_TOGGLE, /min-w-11/, 'theme options must be at least 44px wide');
+test('the theme button meets the 44px minimum touch target', () => {
+  assert.match(THEME_TOGGLE, /min-h-11/, 'theme button must be at least 44px tall');
+  assert.match(THEME_TOGGLE, /min-w-11/, 'theme button must be at least 44px wide');
 });
 
 test('the settings page leaves deliberate space above the footer', () => {
