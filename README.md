@@ -7,76 +7,37 @@
 <h1 align="center">gitgud</h1>
 
 <p align="center">
-  Community-curated competitive programming problems and contests.
+  Hand-picked competitive programming problems worth solving.
   <br>
-  <a href="https://www.gitgud.cc"><strong>Visit gitgud.cc</strong></a>
+  <a href="https://www.gitgud.cc"><strong>Explore gitgud.cc</strong></a>
   ·
-  <a href="VISION.md">Vision</a>
+  <a href="https://www.gitgud.cc/about">About</a>
   ·
   <a href="LICENSE">MIT License</a>
 </p>
 
-<p align="center">
-  <a href="https://github.com/cameroncuster/gitgud/actions/workflows/ci.yml"><img src="https://github.com/cameroncuster/gitgud/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/cameroncuster/gitgud" alt="MIT license"></a>
-</p>
+gitgud is a community-curated collection for competitive programmers who want to practice beyond the fundamentals. Problem archives are enormous, but problem quality varies. gitgud helps surface the problems that teach something memorable.
 
-gitgud helps competitive programmers find problems worth solving. Explore community recommendations from [Codeforces](https://codeforces.com/) and [Kattis](https://open.kattis.com/), filter by topic and difficulty, track progress, and discover contests and top problem solvers.
+## Canon Problems
 
-## Features
+Inspired by "Canon Events" from _Across the Spider-Verse_, **Canon Problems** are the problems that fundamentally change how you approach competitive programming.
 
-- Curated problems and contests with community feedback
-- Topic, source, author, status, and difficulty filters
-- GitHub sign-in, progress tracking, profiles, and leaderboard
-- Responsive Paper and Dark Ink themes
+gitgud brings those problems together through community recommendations, making it easier to spend your practice time on ideas and techniques worth learning. Explore recommendations from [Codeforces](https://codeforces.com/) and [Kattis](https://open.kattis.com/), find contests, and track the problems you've solved.
 
-See [VISION.md](VISION.md) for the product direction.
+## New to competitive programming?
 
-## Run locally
+Start with the fundamentals:
 
-Requires Node.js 24 and pnpm 10.
+- [CSES Problem Set](https://cses.fi/)
+- [CP-Algorithms](https://cp-algorithms.com/)
+- [USACO Guide](https://usaco.guide/)
+- [AtCoder Educational DP Contest](https://atcoder.jp/contests/dp)
+- [Codeforces EDU](https://codeforces.com/edu/courses)
 
-```bash
-git clone https://github.com/cameroncuster/gitgud.git
-cd gitgud
-corepack enable
-pnpm install --frozen-lockfile
-cat > .env <<'EOF'
-PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
-EOF
-pnpm dev
-```
+Once you're ready to work through a problem archive, read [Um_nik's guide to practicing competitive programming](https://codeforces.com/blog/entry/98806)—then come find the problems the community believes are worth your time.
 
-Set `PUBLIC_SUPABASE_URL` and the client-safe `PUBLIC_SUPABASE_PUBLISHABLE_KEY` in `.env`. Never expose a secret or service-role key. For a new database, follow the [SQL guide](sql/README.md).
+## Contribute
 
-## Validate
-
-```bash
-pnpm run lint
-pnpm run lint:es
-pnpm run check
-pnpm run test
-pnpm run test:coverage
-pnpm run build
-pnpm run check:performance
-pnpm run test:performance
-pnpm run test:e2e
-```
-
-CI runs the required quality, coverage, production build/performance, and desktop/mobile Playwright
-checks in parallel on Node.js 24. `test:coverage` measures every production TypeScript module under
-`src/`, including route modules, and enforces 98% lines, 95% branches, and 98% functions. It excludes
-only declaration files and does not claim execution coverage for Svelte components. After a
-production build, `check:performance` checks the existing Vercel output without rebuilding;
-`test:performance` performs both steps. The performance checks cover immutable JS/CSS and the
-deterministic full 280-problem homepage HTML fixture budgets. Live read-only Supabase smoke tests run
-when CI has the required repository variable and secret; otherwise those optional jobs exit cleanly.
-
-## Contributing
-
-Focused issues and pull requests are welcome. Read [AGENTS.md](AGENTS.md) for the development, security, database, and validation rules.
-
-## License
+gitgud is open source. [Issues and pull requests](https://github.com/cameroncuster/gitgud) are welcome.
 
 Released under the [MIT License](LICENSE). gitgud is an independent community project and is not affiliated with Codeforces or Kattis.
