@@ -172,13 +172,28 @@
         <button
           bind:this={appearanceButton}
           type="button"
-          class="rounded border border-[var(--color-border)] bg-transparent px-3 py-2 text-sm font-bold text-[var(--color-text)] hover:bg-[var(--color-tertiary)]"
+          class="flex min-h-11 min-w-11 items-center justify-center rounded border border-[var(--color-border)] bg-transparent text-[var(--color-text)] hover:bg-[var(--color-tertiary)]"
+          aria-label="Appearance"
+          title="Appearance"
           aria-haspopup="true"
           aria-expanded={appearanceOpen}
           aria-controls="appearance-popover"
           on:click={() => (appearanceOpen = !appearanceOpen)}
         >
-          Appearance
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            class="h-5 w-5"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+          >
+            <circle cx="12" cy="12" r="4"></circle>
+            <path
+              d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42"
+            ></path>
+          </svg>
         </button>
         {#if appearanceOpen}
           <div
@@ -222,7 +237,28 @@
             rel="noopener noreferrer external"
             class="text-sm font-medium text-[var(--color-username)]">@{username}</a
           >
-          <a href={resolve('/settings')} class="p-2" aria-label="Settings">Settings</a>
+          <a
+            href={resolve('/settings')}
+            class="flex min-h-11 min-w-11 items-center justify-center rounded-full text-[var(--color-text)] hover:bg-[var(--color-tertiary)] hover:text-[var(--color-accent)]"
+            title="Settings"
+            aria-label="Settings"
+          >
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              class="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
+              ></path>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+          </a>
           <button
             class="rounded border border-[var(--color-border)] px-3 py-2 text-sm font-bold disabled:cursor-wait disabled:opacity-70"
             on:click={handleLogout}
@@ -311,7 +347,28 @@
           {:else if user}
             <div class="flex flex-wrap items-center gap-3">
               <a href={githubUrl} target="_blank" rel="noopener noreferrer external">@{username}</a>
-              <a href={resolve('/settings')} class="flex min-h-11 items-center">Settings</a>
+              <a
+                href={resolve('/settings')}
+                class="flex min-h-11 min-w-11 items-center justify-center rounded-full text-[var(--color-text)] hover:bg-[var(--color-tertiary)] hover:text-[var(--color-accent)]"
+                title="Settings"
+                aria-label="Settings"
+              >
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  class="h-5 w-5"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
+                  ></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+              </a>
               <button
                 class="min-h-11 border border-[var(--color-border)] px-3 disabled:cursor-wait disabled:opacity-70"
                 on:click={handleLogout}

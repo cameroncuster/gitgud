@@ -169,6 +169,27 @@ test('error status uses the semantic error color', () => {
   );
 });
 
+test('appearance is controlled from the header instead of duplicated in settings', () => {
+  assert.doesNotMatch(
+    SETTINGS,
+    />\s*Appearance\s*</,
+    'settings must not render an Appearance section'
+  );
+  assert.doesNotMatch(
+    SETTINGS,
+    /name="settings-appearance"/,
+    'settings must not duplicate theme radios'
+  );
+});
+
+test('the settings page leaves deliberate space above the footer', () => {
+  assert.match(
+    SETTINGS,
+    /<section class="[^"]*mb-16[^"]*md:mb-20[^"]*">\s*<h2[^>]*>\s*Import solved problems/,
+    'the final settings card must retain responsive footer separation'
+  );
+});
+
 test('the privacy toggle has a keyboard-visible accent ring, not invisible primary', () => {
   const toggles = [...SETTINGS.matchAll(/<button[^>]*role="switch"[\s\S]*?>/g)].map((m) => m[0]);
   assert.equal(toggles.length, 1, 'expected exactly one role="switch" toggle');

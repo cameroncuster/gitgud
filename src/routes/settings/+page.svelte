@@ -5,12 +5,6 @@
   import type { Unsubscriber } from 'svelte/store';
   import { currentActor, getCurrentActor, resolveCurrentActor } from '$lib/auth/currentActor';
   import {
-    currentTheme,
-    setThemePreference,
-    THEME_PREFERENCES,
-    type ThemePreference
-  } from '$lib/services/theme';
-  import {
     fetchUserPreferences,
     updateLeaderboardPrivacyForUser,
     type UserPreferences
@@ -27,11 +21,6 @@
   type ImportProvider = 'codeforces' | 'kattis';
 
   const importProviders: ImportProvider[] = ['codeforces', 'kattis'];
-  const appearanceDescriptions: Record<ThemePreference, string> = {
-    system: 'Follow your device appearance and update when it changes.',
-    light: 'Always use the Paper theme.',
-    dark: 'Always use the Dark Ink theme.'
-  };
 
   let preferences: UserPreferences = { hideFromLeaderboard: false, theme: 'system' };
   let loading = true;
@@ -52,7 +41,7 @@
   let codeforcesPreview: SolveMatchResult | null = null;
   let kattisPreview: KattisSolveMatchResult | null = null;
   let fileSelectionRevision = 0;
-  let preferenceSaveRevision = 0;
+  let privacySaveRevision = 0;
   $: importPreview = importProvider === 'codeforces' ? codeforcesPreview : kattisPreview;
 
   function clearImportState(): void {
@@ -151,30 +140,17 @@
     }
   }
 
-  async function selectAppearance(theme: ThemePreference): Promise<void> {
-    const revision = ++preferenceSaveRevision;
-    preferences = { ...preferences, theme };
-    saving = true;
-    error = null;
-    success = null;
-    const saved = await setThemePreference(theme);
-    if (revision !== preferenceSaveRevision) return;
-    if (saved) success = 'Saved';
-    else error = 'Failed to save';
-    saving = false;
-  }
-
   async function toggleHideFromLeaderboard(): Promise<void> {
     const userId = getCurrentActor().user?.id;
     if (!userId) return;
-    const revision = ++preferenceSaveRevision;
+    const revision = ++privacySaveRevision;
     const nextValue = !preferences.hideFromLeaderboard;
     preferences = { ...preferences, hideFromLeaderboard: nextValue };
     saving = true;
     error = null;
     success = null;
     const saved = await updateLeaderboardPrivacyForUser(userId, nextValue);
-    if (revision !== preferenceSaveRevision) return;
+    if (revision !== privacySaveRevision) return;
     if (saved) success = 'Saved';
     else error = 'Failed to save';
     saving = false;
@@ -242,43 +218,7 @@
       </div>
     </section>
 
-    <section class="mt-6 overflow-hidden border-2 border-[var(--color-border)]">
-      <h2 class="border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-4 font-bold">
-        Appearance
-      </h2>
-      <fieldset class="bg-[var(--color-secondary)] p-4">
-        <legend class="sr-only">Choose appearance</legend>
-        <div class="grid gap-3 md:grid-cols-3">
-          {#each THEME_PREFERENCES as theme (theme)}
-            <label
-              class="flex min-h-28 cursor-pointer gap-3 border-2 border-[var(--color-border)] p-4 has-[:checked]:border-[var(--color-accent)] has-[:checked]:bg-[var(--color-tertiary)]"
-            >
-              <input
-                type="radio"
-                name="settings-appearance"
-                value={theme}
-                checked={preferences.theme === theme}
-                disabled={saving}
-                on:change={() => selectAppearance(theme)}
-              />
-              <span>
-                <span class="block font-bold text-[var(--color-heading)] capitalize">{theme}</span>
-                <span class="mt-1 block text-sm text-[var(--color-text-muted)]">
-                  {appearanceDescriptions[theme]}
-                </span>
-                {#if preferences.theme === theme}
-                  <span class="mt-2 block text-xs text-[var(--color-text)]">
-                    Currently resolved to {$currentTheme}.
-                  </span>
-                {/if}
-              </span>
-            </label>
-          {/each}
-        </div>
-      </fieldset>
-    </section>
-
-    <section class="mt-6 overflow-hidden border-2 border-[var(--color-border)]">
+    <section class="mt-6 mb-16 overflow-hidden border-2 border-[var(--color-border)] md:mb-20">
       <h2 class="border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-4 font-bold">
         Import solved problems
       </h2>
