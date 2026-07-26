@@ -1,425 +1,362 @@
 <script lang="ts">
-  import { page } from '$app/state';
   import { afterNavigate } from '$app/navigation';
   import { resolve } from '$app/paths';
+  import { page } from '$app/state';
   import { currentActor, signInWithGithub, signOut } from '$lib/auth/currentActor';
-  import { onMount } from 'svelte';
-
-  let isMounted = false;
+  import {
+    currentThemePreference,
+    setThemePreference,
+    THEME_PREFERENCES,
+    type ThemePreference
+  } from '$lib/services/theme';
 
   let mobileMenuOpen = false;
   let mobileMenuButton: HTMLButtonElement | null = null;
+  let appearanceOpen = false;
+  let appearanceButton: HTMLButtonElement | null = null;
+  let appearancePanel: HTMLDivElement | null = null;
+  let loginBusy = false;
+  let loginError = page.url.pathname === '/' && page.url.searchParams.get('auth_error') === 'true';
+  let logoutBusy = false;
+  let logoutError = false;
+  let themeSaveError = false;
+  let themeSaveRevision = 0;
+  let failedThemePreference: ThemePreference | null = null;
 
-  let username = '';
-  let githubUrl = '';
+  $: user = $currentActor.user;
+  $: username = user
+    ? user.user_metadata?.user_name ||
+      user.user_metadata?.preferred_username ||
+      user.user_metadata?.name ||
+      user.email?.split('@')[0] ||
+      'User'
+    : '';
+  $: githubUrl = user ? user.user_metadata?.html_url || `https://github.com/${username}` : '';
 
-  onMount(() => {
-    isMounted = true;
+  const navigation = [
+    { href: '/', label: 'Problems' },
+    { href: '/contests', label: 'Contests' },
+    { href: '/leaderboard', label: 'Leaderboard' },
+    { href: '/about', label: 'About' }
+  ] as const;
 
-    const unsubscribe = currentActor.subscribe((actor) => {
-      const value = actor.user;
-      if (isMounted) {
-        if (value) {
-          if (value.user_metadata) {
-            if (value.user_metadata.user_name) {
-              username = value.user_metadata.user_name;
-            } else if (value.user_metadata.preferred_username) {
-              username = value.user_metadata.preferred_username;
-            } else if (value.user_metadata.name) {
-              username = value.user_metadata.name;
-            } else if (value.email) {
-              username = value.email.split('@')[0];
-            } else {
-              username = 'User';
-            }
-
-            if (value.app_metadata && value.app_metadata.provider === 'github') {
-              githubUrl = `https://github.com/${username}`;
-            } else if (value.user_metadata.html_url) {
-              githubUrl = value.user_metadata.html_url;
-            } else if (
-              value.user_metadata.avatar_url &&
-              value.user_metadata.avatar_url.includes('github')
-            ) {
-              githubUrl = `https://github.com/${username}`;
-            } else {
-              githubUrl = `https://github.com/${username}`;
-            }
-          } else if (value.email) {
-            username = value.email.split('@')[0];
-            githubUrl = '';
-          } else {
-            username = 'User';
-            githubUrl = '';
-          }
-        } else {
-          username = '';
-          githubUrl = '';
-        }
-      }
-    });
-
-    return () => {
-      isMounted = false;
-      unsubscribe();
-    };
-  });
-
-  async function handleLogin() {
+  async function handleLogin(): Promise<void> {
+    if (loginBusy) return;
+    loginBusy = true;
+    loginError = false;
     try {
       await signInWithGithub();
       mobileMenuOpen = false;
-    } catch (error) {
-      console.error('Login error:', error);
+    } catch {
+      loginBusy = false;
+      loginError = true;
     }
   }
 
-  async function handleLogout() {
+  async function handleLogout(): Promise<void> {
+    if (logoutBusy) return;
+    logoutBusy = true;
+    logoutError = false;
     try {
       await signOut();
       mobileMenuOpen = false;
-    } catch (error) {
-      console.error('Logout error:', error);
+    } catch {
+      logoutError = true;
+    } finally {
+      logoutBusy = false;
     }
   }
 
-  function toggleMobileMenu() {
-    mobileMenuOpen = !mobileMenuOpen;
+  async function selectAppearance(preference: ThemePreference): Promise<void> {
+    const revision = ++themeSaveRevision;
+    const userId = user?.id;
+    themeSaveError = false;
+    failedThemePreference = null;
+    const saved = await setThemePreference(preference);
+    if (revision !== themeSaveRevision || !userId || user?.id !== userId) return;
+    if (!saved) {
+      themeSaveError = true;
+      failedThemePreference = preference;
+    }
   }
 
-  // The mobile menu is a disclosure, not a modal: no focus trap and the rest of
-  // the page stays interactive. Escape closes it and returns focus to the toggle
-  // so keyboard users are not stranded.
-  function handleMobileMenuKeydown(event: KeyboardEvent) {
-    if (event.key === 'Escape' && mobileMenuOpen) {
+  function retryThemeSave(): void {
+    if (failedThemePreference) void selectAppearance(failedThemePreference);
+  }
+
+  function handleWindowKeydown(event: KeyboardEvent): void {
+    if (event.key !== 'Escape') return;
+    if (appearanceOpen) {
+      appearanceOpen = false;
+      appearanceButton?.focus();
+    } else if (mobileMenuOpen) {
       mobileMenuOpen = false;
       mobileMenuButton?.focus();
     }
   }
 
+  function handleWindowPointerDown(event: PointerEvent): void {
+    const target = event.target as Node;
+    if (
+      appearanceOpen &&
+      !appearancePanel?.contains(target) &&
+      !appearanceButton?.contains(target)
+    ) {
+      appearanceOpen = false;
+    }
+  }
+
   afterNavigate(() => {
     mobileMenuOpen = false;
+    appearanceOpen = false;
+    loginError = page.url.pathname === '/' && page.url.searchParams.get('auth_error') === 'true';
   });
 </script>
 
-<svelte:window on:keydown={handleMobileMenuKeydown} />
+<svelte:window on:keydown={handleWindowKeydown} on:pointerdown={handleWindowPointerDown} />
 
 <header
   class="sticky top-0 z-50 w-full border-b border-[var(--color-border)] bg-[var(--color-secondary)] py-3"
 >
   <div class="mx-auto flex max-w-[1200px] items-center justify-between px-3 sm:px-4 md:px-5">
-    <div class="flex items-center">
-      <a
-        href={resolve('/')}
-        aria-label="Home"
-        class="flex items-center gap-2 pr-2 text-xl font-bold text-[var(--color-heading)] no-underline lg:pr-4"
-      >
-        <img src="/favicon.png" alt="gitgud Logo" class="h-12 w-12 object-contain" />
-        <span class="flex font-bold tracking-wide">
-          <span class="text-[var(--color-accent)]">gitgud</span><span
-            class="hidden text-[var(--color-heading)] sm:inline">.cc</span
-          >
-        </span>
-      </a>
-    </div>
+    <a
+      href={resolve('/')}
+      aria-label="Home"
+      class="flex items-center gap-2 pr-2 text-xl font-bold text-[var(--color-heading)] no-underline lg:pr-4"
+    >
+      <img src="/favicon.png" alt="" class="h-12 w-12 object-contain" />
+      <span class="flex font-bold tracking-wide">
+        <span class="text-[var(--color-accent)]">gitgud</span><span
+          class="hidden text-[var(--color-heading)] sm:inline">.cc</span
+        >
+      </span>
+    </a>
 
-    <!-- Mobile menu button -->
     <button
       bind:this={mobileMenuButton}
-      class="flex items-center rounded-md border-2 border-[var(--color-border)] px-2 py-1 text-[var(--color-text)] transition-colors hover:bg-[var(--color-tertiary)] lg:hidden"
+      class="flex min-h-11 min-w-11 items-center justify-center rounded-md border-2 border-[var(--color-border)] text-[var(--color-text)] hover:bg-[var(--color-tertiary)] lg:hidden"
       aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
       aria-expanded={mobileMenuOpen}
       aria-controls="mobile-menu"
-      on:click={toggleMobileMenu}
+      on:click={() => (mobileMenuOpen = !mobileMenuOpen)}
     >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="20"
-        height="20"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        {#if mobileMenuOpen}
-          <path d="M18 6L6 18M6 6l12 12"></path>
-        {:else}
-          <path d="M3 12h18M3 6h18M3 18h18"></path>
-        {/if}
-      </svg>
+      <span aria-hidden="true">{mobileMenuOpen ? '×' : '☰'}</span>
     </button>
 
-    <!-- Desktop navigation -->
-    <nav class="hidden items-center gap-6 lg:flex lg:gap-4">
-      <ul class="m-0 flex list-none gap-2 p-0 lg:gap-3 xl:gap-4">
-        <li
-          class="relative {page.url.pathname === '/'
-            ? "after:absolute after:-bottom-2 after:left-0 after:h-0.5 after:w-full after:rounded-sm after:bg-[var(--color-accent)] after:content-['']"
-            : ''}"
-        >
-          <a
-            href={resolve('/')}
-            class="block py-2 text-sm font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] lg:text-base"
-            >Problems</a
-          >
-        </li>
-        <li
-          class="relative {page.url.pathname === '/contests'
-            ? "after:absolute after:-bottom-2 after:left-0 after:h-0.5 after:w-full after:rounded-sm after:bg-[var(--color-accent)] after:content-['']"
-            : ''}"
-        >
-          <a
-            href={resolve('/contests')}
-            class="block py-2 text-sm font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] lg:text-base"
-            >Contests</a
-          >
-        </li>
-        <li
-          class="relative {page.url.pathname === '/leaderboard'
-            ? "after:absolute after:-bottom-2 after:left-0 after:h-0.5 after:w-full after:rounded-sm after:bg-[var(--color-accent)] after:content-['']"
-            : ''}"
-        >
-          <a
-            href={resolve('/leaderboard')}
-            class="block py-2 text-sm font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] lg:text-base"
-            >Leaderboard</a
-          >
-        </li>
-        <li
-          class="relative {page.url.pathname === '/about'
-            ? "after:absolute after:-bottom-2 after:left-0 after:h-0.5 after:w-full after:rounded-sm after:bg-[var(--color-accent)] after:content-['']"
-            : ''}"
-        >
-          <a
-            href={resolve('/about')}
-            class="block py-2 text-sm font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] lg:text-base"
-            >About</a
-          >
-        </li>
-        {#if $currentActor.user && $currentActor.isAdmin}
-          <li
-            class="relative {page.url.pathname === '/submit'
-              ? "after:absolute after:-bottom-2 after:left-0 after:h-0.5 after:w-full after:rounded-sm after:bg-[var(--color-accent)] after:content-['']"
-              : ''}"
-          >
+    <nav class="hidden items-center gap-4 lg:flex" aria-label="Primary navigation">
+      <ul class="m-0 flex list-none items-center gap-3 p-0 xl:gap-4">
+        {#each navigation as item (item.href)}
+          <li class="relative">
+            <a
+              href={resolve(item.href)}
+              aria-current={page.url.pathname === item.href ? 'page' : undefined}
+              class="block py-2 text-sm font-bold text-[var(--color-heading)] no-underline hover:text-[var(--color-accent)] lg:text-base {page
+                .url.pathname === item.href
+                ? 'border-b-2 border-[var(--color-accent)]'
+                : ''}">{item.label}</a
+            >
+          </li>
+        {/each}
+        {#if user && $currentActor.isAdmin}
+          <li>
             <a
               href={resolve('/submit')}
-              class="block py-2 text-sm font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] lg:text-base"
+              class="block py-2 text-base font-bold text-[var(--color-heading)] hover:text-[var(--color-accent)]"
               >Submit</a
             >
           </li>
         {/if}
       </ul>
-      <div
-        class="mr-4 flex min-w-[70px] items-center justify-end gap-3 transition-opacity duration-300 sm:mr-2 md:mr-0 {$currentActor.initialized
-          ? 'visible opacity-100'
-          : 'invisible opacity-0'}"
-        style="will-change: opacity;"
-      >
-        {#if $currentActor.user}
-          <div class="flex items-center gap-3">
-            <a
-              href={githubUrl}
-              target="_blank"
-              rel="noopener noreferrer external"
-              class="text-sm font-medium text-[var(--color-username)] transition-colors duration-200 hover:text-[color-mix(in_oklab,var(--color-username)_80%,white)]"
-            >
-              @{username}
-            </a>
-            <a
-              href={resolve('/settings')}
-              class="flex items-center justify-center rounded-full p-1.5 text-[var(--color-text)] transition-colors hover:bg-[var(--color-tertiary)] hover:text-[var(--color-accent)]"
-              title="Settings"
-              aria-label="Settings"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                class="h-5 w-5"
-                aria-hidden="true"
-              >
-                <path
-                  d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
-                ></path>
-                <circle cx="12" cy="12" r="3"></circle>
-              </svg>
-            </a>
-            <button
-              class="cursor-pointer rounded border border-[var(--color-border)] bg-transparent px-3 py-1.5 text-sm font-bold text-[var(--color-text)] transition-colors hover:bg-[var(--color-tertiary)]"
-              on:click={handleLogout}
-            >
-              Logout
-            </button>
-          </div>
-        {:else}
-          <button
-            class="cursor-pointer rounded border border-[var(--color-accent)] bg-[var(--color-accent)] px-3 py-1.5 text-sm font-bold text-[var(--color-on-accent)] transition-colors hover:brightness-110"
-            on:click={handleLogin}
-            title="Login with GitHub"
+
+      <div class="relative">
+        <button
+          bind:this={appearanceButton}
+          type="button"
+          class="rounded border border-[var(--color-border)] bg-transparent px-3 py-2 text-sm font-bold text-[var(--color-text)] hover:bg-[var(--color-tertiary)]"
+          aria-haspopup="true"
+          aria-expanded={appearanceOpen}
+          aria-controls="appearance-popover"
+          on:click={() => (appearanceOpen = !appearanceOpen)}
+        >
+          Appearance
+        </button>
+        {#if appearanceOpen}
+          <div
+            bind:this={appearancePanel}
+            id="appearance-popover"
+            class="absolute right-0 mt-2 w-44 border-2 border-[var(--color-border)] bg-[var(--color-secondary)] p-2 shadow-lg"
           >
-            <span>Sign in</span>
-          </button>
+            <fieldset>
+              <legend class="sr-only">Appearance</legend>
+              {#each THEME_PREFERENCES as preference (preference)}
+                <label
+                  class="flex cursor-pointer items-center gap-2 rounded px-2 py-2 text-sm capitalize hover:bg-[var(--color-tertiary)]"
+                >
+                  <input
+                    type="radio"
+                    name="desktop-appearance"
+                    value={preference}
+                    checked={$currentThemePreference === preference}
+                    on:change={() => void selectAppearance(preference)}
+                  />
+                  {preference}
+                </label>
+              {/each}
+            </fieldset>
+          </div>
+        {/if}
+      </div>
+
+      <div class="flex min-w-44 items-center justify-end gap-3">
+        {#if !$currentActor.initialized}
+          <button
+            type="button"
+            disabled
+            class="rounded border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-muted)]"
+            aria-label="Checking session">Checking session…</button
+          >
+        {:else if user}
+          <a
+            href={githubUrl}
+            target="_blank"
+            rel="noopener noreferrer external"
+            class="text-sm font-medium text-[var(--color-username)]">@{username}</a
+          >
+          <a href={resolve('/settings')} class="p-2" aria-label="Settings">Settings</a>
+          <button
+            class="rounded border border-[var(--color-border)] px-3 py-2 text-sm font-bold disabled:cursor-wait disabled:opacity-70"
+            on:click={handleLogout}
+            disabled={logoutBusy}
+            aria-busy={logoutBusy}>{logoutBusy ? 'Signing out…' : 'Logout'}</button
+          >
+        {:else}
+          <div>
+            <button
+              type="button"
+              class="rounded border border-[var(--color-accent)] bg-[var(--color-accent)] px-3 py-2 text-sm font-bold text-[var(--color-on-accent)] disabled:cursor-wait disabled:opacity-70"
+              on:click={handleLogin}
+              disabled={loginBusy}
+              aria-busy={loginBusy}
+            >
+              {#if loginBusy}<span
+                  class="mr-2 inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent"
+                  aria-hidden="true"
+                ></span>{/if}
+              {loginBusy ? 'Opening GitHub…' : 'Continue with GitHub'}
+            </button>
+            {#if loginError}
+              <p class="mt-1 max-w-48 text-xs text-[var(--color-error)]" role="alert">
+                Couldn’t open GitHub. Try again.
+              </p>
+            {/if}
+          </div>
         {/if}
       </div>
     </nav>
   </div>
 
-  <!-- Mobile menu -->
   {#if mobileMenuOpen}
     <div
       id="mobile-menu"
       class="mt-3 border-t border-[var(--color-border)] bg-[var(--color-secondary)] px-4 py-4 lg:hidden"
     >
-      <nav class="flex flex-col gap-4">
-        <ul class="m-0 flex list-none flex-col gap-4 p-0">
-          <li>
-            <a
-              href={resolve('/')}
-              class="block py-2 text-base font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] {page
-                .url.pathname === '/'
-                ? 'text-[var(--color-accent)]'
-                : ''}">Problems</a
-            >
-          </li>
-          <li>
-            <a
-              href={resolve('/contests')}
-              class="block py-2 text-base font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] {page
-                .url.pathname === '/contests'
-                ? 'text-[var(--color-accent)]'
-                : ''}">Contests</a
-            >
-          </li>
-          <li>
-            <a
-              href={resolve('/leaderboard')}
-              class="block py-2 text-base font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] {page
-                .url.pathname === '/leaderboard'
-                ? 'text-[var(--color-accent)]'
-                : ''}">Leaderboard</a
-            >
-          </li>
-          <li>
-            <a
-              href={resolve('/about')}
-              class="block py-2 text-base font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] {page
-                .url.pathname === '/about'
-                ? 'text-[var(--color-accent)]'
-                : ''}">About</a
-            >
-          </li>
-          {#if $currentActor.user && $currentActor.isAdmin}
+      <nav class="flex flex-col gap-4" aria-label="Mobile navigation">
+        <ul class="m-0 flex list-none flex-col gap-1 p-0">
+          {#each navigation as item (item.href)}
             <li>
               <a
-                href={resolve('/submit')}
-                class="block py-2 text-base font-bold text-[var(--color-heading)] no-underline transition-colors duration-200 hover:text-[var(--color-accent)] {page
-                  .url.pathname === '/submit'
+                href={resolve(item.href)}
+                class="flex min-h-11 items-center text-base font-bold text-[var(--color-heading)] {page
+                  .url.pathname === item.href
                   ? 'text-[var(--color-accent)]'
-                  : ''}">Submit</a
+                  : ''}">{item.label}</a
               >
+            </li>
+          {/each}
+          {#if user && $currentActor.isAdmin}
+            <li>
+              <a href={resolve('/submit')} class="flex min-h-11 items-center font-bold">Submit</a>
             </li>
           {/if}
         </ul>
-        <div
-          class="mt-2 flex flex-col items-start justify-start gap-3 px-1 transition-opacity duration-300 {$currentActor.initialized
-            ? 'visible opacity-100'
-            : 'invisible opacity-0'}"
-          style="will-change: opacity;"
-        >
-          {#if $currentActor.user}
-            <div class="flex items-center gap-3">
-              <a
-                href={githubUrl}
-                target="_blank"
-                rel="noopener noreferrer external"
-                class="text-sm font-medium text-[var(--color-username)] transition-colors duration-200 hover:text-[color-mix(in_oklab,var(--color-username)_80%,white)]"
+
+        <fieldset class="border-t border-[var(--color-border)] pt-3">
+          <legend class="mb-1 font-bold text-[var(--color-heading)]">Appearance</legend>
+          <div class="grid grid-cols-3 gap-2">
+            {#each THEME_PREFERENCES as preference (preference)}
+              <label
+                class="flex min-h-11 cursor-pointer items-center justify-center gap-2 border border-[var(--color-border)] px-2 capitalize has-[:checked]:border-[var(--color-accent)] has-[:checked]:bg-[var(--color-tertiary)]"
               >
-                @{username}
-              </a>
-              <a
-                href={resolve('/settings')}
-                class="flex items-center justify-center rounded-full p-1.5 text-[var(--color-text)] transition-colors hover:bg-[var(--color-tertiary)] hover:text-[var(--color-accent)]"
-                title="Settings"
-                aria-label="Settings"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  class="h-5 w-5"
-                  aria-hidden="true"
-                >
-                  <path
-                    d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
-                  ></path>
-                  <circle cx="12" cy="12" r="3"></circle>
-                </svg>
-              </a>
-            </div>
-            <button
-              class="cursor-pointer rounded border border-[var(--color-border)] bg-transparent px-3 py-1.5 text-sm font-bold text-[var(--color-text)] transition-colors hover:bg-[var(--color-tertiary)]"
-              on:click={handleLogout}
+                <input
+                  type="radio"
+                  name="mobile-appearance"
+                  value={preference}
+                  checked={$currentThemePreference === preference}
+                  on:change={() => void selectAppearance(preference)}
+                />
+                {preference}
+              </label>
+            {/each}
+          </div>
+        </fieldset>
+
+        <div class="border-t border-[var(--color-border)] pt-3">
+          {#if !$currentActor.initialized}
+            <p
+              role="status"
+              class="flex min-h-11 items-center text-sm text-[var(--color-text-muted)]"
             >
-              Logout
-            </button>
+              Checking session…
+            </p>
+          {:else if user}
+            <div class="flex flex-wrap items-center gap-3">
+              <a href={githubUrl} target="_blank" rel="noopener noreferrer external">@{username}</a>
+              <a href={resolve('/settings')} class="flex min-h-11 items-center">Settings</a>
+              <button
+                class="min-h-11 border border-[var(--color-border)] px-3 disabled:cursor-wait disabled:opacity-70"
+                on:click={handleLogout}
+                disabled={logoutBusy}
+                aria-busy={logoutBusy}>{logoutBusy ? 'Signing out…' : 'Logout'}</button
+              >
+            </div>
           {:else}
             <button
-              class="cursor-pointer rounded border border-[var(--color-accent)] bg-[var(--color-accent)] px-3 py-1.5 text-sm font-bold text-[var(--color-on-accent)] transition-colors hover:brightness-110"
+              type="button"
+              class="min-h-11 border border-[var(--color-accent)] bg-[var(--color-accent)] px-3 font-bold text-[var(--color-on-accent)] disabled:opacity-70"
               on:click={handleLogin}
-              title="Login with GitHub"
+              disabled={loginBusy}
+              aria-busy={loginBusy}
             >
-              <span>Sign in</span>
+              {#if loginBusy}<span
+                  class="mr-2 inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent"
+                  aria-hidden="true"
+                ></span>{/if}
+              {loginBusy ? 'Opening GitHub…' : 'Continue with GitHub'}
             </button>
+            {#if loginError}
+              <p class="mt-2 text-sm text-[var(--color-error)]" role="alert">
+                Couldn’t open GitHub. Try again.
+              </p>
+            {/if}
           {/if}
         </div>
       </nav>
     </div>
   {/if}
+
+  {#if themeSaveError || logoutError}
+    <div
+      class="mx-auto mt-2 flex max-w-[1200px] items-center justify-end gap-2 px-3 text-sm text-[var(--color-error)]"
+      role="alert"
+    >
+      <span>{themeSaveError ? 'Appearance could not sync.' : 'Couldn’t sign out. Try again.'}</span>
+      {#if themeSaveError}
+        <button
+          type="button"
+          class="min-h-11 border border-[var(--color-error)] px-3 font-bold"
+          on:click={retryThemeSave}>Retry</button
+        >
+      {/if}
+    </div>
+  {/if}
 </header>
-
-<style>
-  @keyframes slideDown {
-    from {
-      opacity: 0;
-      transform: translateY(-10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  div.lg\:hidden {
-    animation: slideDown 0.2s ease-out;
-  }
-
-  header {
-    left: 0;
-    right: 0;
-  }
-
-  a[href*='github.com'] {
-    color: var(--color-username) !important;
-    text-decoration: none;
-    position: relative;
-  }
-
-  a[href*='github.com']:hover {
-    color: color-mix(in oklab, var(--color-username) 80%, white) !important;
-  }
-
-  li.relative a:hover {
-    text-decoration: none;
-  }
-</style>

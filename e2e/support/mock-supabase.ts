@@ -79,6 +79,10 @@ let insertSeq = 0;
 // Idempotent (a repeat insert of an existing pair is a unique violation the app
 // treats as already-solved) and reset per scenario so imports never leak.
 let solvedByUser = new Map<string, Set<string>>();
+let preferencesByUser = new Map<
+  string,
+  { id: string; user_id: string; hide_from_leaderboard: boolean; theme: string }
+>();
 let participationByUser = new Map<string, Set<string>>();
 let problemFeedbackByUser = new Map<string, Map<string, 'like' | 'dislike'>>();
 let contestFeedbackByUser = new Map<string, Map<string, 'like' | 'dislike'>>();
@@ -104,6 +108,7 @@ function resetState(): void {
   insertedContests = [];
   insertSeq = 0;
   solvedByUser = new Map();
+  preferencesByUser = new Map();
   participationByUser = new Map();
   problemFeedbackByUser = new Map();
   contestFeedbackByUser = new Map();
@@ -293,6 +298,24 @@ function handleExistenceCheck(
   url: URL,
   table: 'problems' | 'contests'
 ): void {
+  const filter = url.searchParams.get('url') || '';
+  if (table === 'problems' && filter.startsWith('in.(')) {
+    const urls = new Set(
+      filter
+        .slice(4, -1)
+        .split(',')
+        .map((value) => value.replace(/^"|"$/g, ''))
+    );
+    sendJson(
+      res,
+      200,
+      problemRows
+        .filter((row) => urls.has(row.url))
+        .map(({ id, url: problemUrl, name }) => ({ id, url: problemUrl, name }))
+    );
+    return;
+  }
+
   const wantUrl = eqFilter(url, 'url');
   const store = table === 'problems' ? insertedProblems : insertedContests;
   const rows = store.filter((r) => r.url === wantUrl).map((r) => ({ id: r.id }));
@@ -393,6 +416,51 @@ function handleCodeforcesUserStatus(res: http.ServerResponse): void {
     { verdict: 'WRONG_ANSWER', problem: { contestId: 1000, index: 'C' } }
   ];
   sendJson(res, 200, { status: 'OK', result });
+}
+
+function handlePreferencesRead(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  url: URL
+): void {
+  const caller = userByToken.get(bearerToken(req));
+  const userId = eqFilter(url, 'user_id') || caller?.id;
+  const row = userId ? preferencesByUser.get(userId) : undefined;
+  if (String(req.headers.accept || '').includes('application/vnd.pgrst.object+json')) {
+    if (row) sendJson(res, 200, row);
+    else sendJson(res, 406, { code: 'PGRST116', message: 'no rows' });
+    return;
+  }
+  sendJson(res, 200, row ? [row] : []);
+}
+
+async function handlePreferencesWrite(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  body: string
+): Promise<void> {
+  const caller = userByToken.get(bearerToken(req));
+  if (!caller) {
+    sendJson(res, 401, { code: 401, message: 'missing user' });
+    return;
+  }
+  const parsed = JSON.parse(body || '{}') as {
+    user_id?: string;
+    hide_from_leaderboard?: boolean;
+    theme?: string;
+  };
+  if (parsed.user_id && parsed.user_id !== caller.id) {
+    sendJson(res, 403, { code: '42501', message: 'row-level security violation' });
+    return;
+  }
+  const previous = preferencesByUser.get(caller.id);
+  preferencesByUser.set(caller.id, {
+    id: previous?.id || `preference-${caller.id}`,
+    user_id: caller.id,
+    hide_from_leaderboard: parsed.hide_from_leaderboard ?? previous?.hide_from_leaderboard ?? false,
+    theme: parsed.theme ?? previous?.theme ?? 'system'
+  });
+  sendJson(res, req.method === 'POST' ? 201 : 200, []);
 }
 
 // --- user_solved_problems (read + idempotent user-scoped insert) -------------
@@ -720,6 +788,15 @@ const server = http.createServer(async (req, res) => {
   }
 
   // Current-actor interaction reads and isolated writes.
+  if (url.pathname === '/rest/v1/user_preferences') {
+    const body = await readBody(req);
+    if (req.method === 'POST' || req.method === 'PATCH') {
+      await handlePreferencesWrite(req, res, body);
+    } else {
+      handlePreferencesRead(req, res, url);
+    }
+    return;
+  }
   if (url.pathname === '/rest/v1/user_solved_problems') {
     if (req.method === 'POST') {
       const body = await readBody(req);

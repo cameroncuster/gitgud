@@ -46,7 +46,7 @@ async function gotoSettings(page: Page) {
 // The import section is the card whose header holds the exact section title.
 // Scoping to it keeps assertions off the unrelated Privacy/Theme cards.
 const importCard = (page: Page) =>
-  page.locator('div.mt-6', {
+  page.locator('section', {
     has: page.getByText('Import solved problems', { exact: true })
   });
 
@@ -138,6 +138,118 @@ test.describe('confirm (server-derived, idempotent)', () => {
     card = importCard(page);
     await card.getByRole('button', { name: new RegExp(`Import ${TRACKED_MATCHES}`) }).click();
     await expect(card.getByText(/Imported 0 newly solved/)).toBeVisible();
+  });
+});
+
+test.describe('Kattis local paste and file import', () => {
+  async function selectKattis(page: Page): Promise<void> {
+    await page.getByRole('radio', { name: 'Kattis' }).check();
+  }
+
+  test('paste preview reports counts without contacting Kattis', async ({ page }) => {
+    const kattisRequests: string[] = [];
+    page.on('request', (request) => {
+      const url = new URL(request.url());
+      if (url.hostname === 'open.kattis.com' || url.hostname.endsWith('.kattis.com')) {
+        kattisRequests.push(request.url());
+      }
+    });
+    await seedMemberSession(page);
+    await gotoSettings(page);
+    await selectKattis(page);
+
+    await page
+      .getByRole('textbox', { name: 'Kattis problem IDs or URLs' })
+      .fill('gamma missing gamma https://open.kattis.com/problems/gamma');
+    await page.getByRole('button', { name: /^Preview$/ }).click();
+
+    const card = importCard(page);
+    await expect(card.getByText(/1 solved problem matched/i)).toBeVisible();
+    await expect(card.getByText(/1 unmatched/i)).toBeVisible();
+    await expect(card.getByText(/2 duplicates removed/i)).toBeVisible();
+    expect(await getSolvedWriteAttempts()).toBe(0);
+    expect(kattisRequests).toEqual([]);
+  });
+
+  test('local HTML file is parsed in-browser and imports the re-derived tracked UUID', async ({
+    page
+  }) => {
+    await seedMemberSession(page);
+    await gotoSettings(page);
+    await selectKattis(page);
+
+    await page.getByLabel(/Choose local .txt or .html file/i).setInputFiles({
+      name: 'kattis-solves.html',
+      mimeType: 'text/html',
+      buffer: Buffer.from(
+        '<a href="https://open.kattis.com/problems/gamma">Gamma</a>' +
+          '<a href="https://evil.test/problems/fabricated">Ignore</a>'
+      )
+    });
+    await expect(page.getByText(/Loaded kattis-solves.html/i)).toBeVisible();
+    await page.getByRole('button', { name: /^Preview$/ }).click();
+    await expect(importCard(page).getByText(/1 solved problem matched/i)).toBeVisible();
+    await page.getByRole('button', { name: 'Import 1' }).click();
+    await expect(importCard(page).getByText(/Imported 1 newly solved problem/i)).toBeVisible();
+  });
+
+  test('invalid replacement clears the previous local-file payload', async ({ page }) => {
+    await seedMemberSession(page);
+    await gotoSettings(page);
+    await selectKattis(page);
+    const fileInput = page.getByLabel(/Choose local .txt or .html file/i);
+
+    await fileInput.setInputFiles({
+      name: 'old.txt',
+      mimeType: 'text/plain',
+      buffer: Buffer.from('gamma')
+    });
+    await expect(page.getByText(/Loaded old.txt/i)).toBeVisible();
+    await fileInput.setInputFiles({
+      name: 'too-large.txt',
+      mimeType: 'text/plain',
+      buffer: Buffer.alloc(2_000_001, 'a')
+    });
+    await expect(importCard(page).getByText(/File is too large/i)).toBeVisible();
+    await expect(page.getByText(/Loaded old.txt/i)).toHaveCount(0);
+    await page.getByRole('button', { name: /^Preview$/ }).click();
+    await expect(page.getByText(/Paste Kattis problem IDs or choose a file/i)).toBeVisible();
+    expect(await getSolvedWriteAttempts()).toBe(0);
+  });
+
+  test('the latest local file wins when reads complete out of order', async ({ page }) => {
+    await page.addInitScript(() => {
+      const readFile = File.prototype.text;
+      File.prototype.text = async function () {
+        const contents = await readFile.call(this);
+        await new Promise((resolve) => setTimeout(resolve, this.name === 'slow.txt' ? 150 : 0));
+        return contents;
+      };
+    });
+    await seedMemberSession(page);
+    await gotoSettings(page);
+    await selectKattis(page);
+    const fileInput = page.getByLabel(/Choose local .txt or .html file/i);
+
+    await fileInput.setInputFiles({
+      name: 'slow.txt',
+      mimeType: 'text/plain',
+      buffer: Buffer.from('missing')
+    });
+    await fileInput.setInputFiles({
+      name: 'latest.txt',
+      mimeType: 'text/plain',
+      buffer: Buffer.from('gamma')
+    });
+    await expect(page.getByText(/Loaded latest.txt/i)).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Kattis problem IDs or URLs' })).toHaveValue(
+      'gamma'
+    );
+    await page.waitForTimeout(200);
+    await expect(page.getByText(/Loaded latest.txt/i)).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Kattis problem IDs or URLs' })).toHaveValue(
+      'gamma'
+    );
   });
 });
 

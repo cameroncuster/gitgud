@@ -21,29 +21,73 @@
   // can never turn this into an open redirect.
 
   onMount(async () => {
-    // GitHub/Supabase surface OAuth failures either as an `error` in the URL
-    // hash or as an `auth_error` query param; in both cases send the user home.
-    const errorInHash = /(?:^|[#&])error(?:_code|_description)?=/.test(page.url.hash);
-    const errorInQuery = page.url.searchParams.has('auth_error');
-    if (errorInHash || errorInQuery) {
-      await goto(AUTH_ERROR_PATH, { replaceState: true });
-      return;
-    }
+    try {
+      const errorInHash = /(?:^|[#&])error(?:_code|_description)?=/.test(page.url.hash);
+      const errorInQuery = page.url.searchParams.has('auth_error');
+      if (errorInHash || errorInQuery) {
+        await goto(AUTH_ERROR_PATH, { replaceState: true });
+        return;
+      }
 
-    const target = sanitizeRedirect(page.url.searchParams.get('next')) as ResolvedPathname;
-
-    // Resolve the session the client parsed from the hash. On success forward to
-    // the validated target; if no session materialized, treat it as a failed
-    // sign-in rather than silently landing on an authless callback URL.
-    const { data } = await supabase.auth.getSession();
-    if (data.session) {
-      await goto(target, { replaceState: true });
-    } else {
-      await goto(AUTH_ERROR_PATH, { replaceState: true });
+      const target = sanitizeRedirect(page.url.searchParams.get('next')) as ResolvedPathname;
+      const { data, error } = await supabase.auth.getSession();
+      if (data.session && !error) {
+        await goto(target, { replaceState: true });
+      } else {
+        await goto(AUTH_ERROR_PATH, { replaceState: true });
+      }
+    } catch {
+      try {
+        await goto(AUTH_ERROR_PATH, { replaceState: true });
+      } catch {
+        window.location.assign(AUTH_ERROR_PATH);
+      }
     }
   });
 </script>
 
-<div class="flex min-h-[40vh] items-center justify-center">
-  <p class="text-[var(--color-heading)]">Signing you in…</p>
+<svelte:head>
+  <title>Finishing sign-in</title>
+</svelte:head>
+
+<div class="flex min-h-[55vh] items-center justify-center px-4">
+  <section
+    class="w-full max-w-lg border-2 border-[var(--color-border)] bg-[var(--color-secondary)] p-8 text-center"
+    aria-labelledby="callback-title"
+  >
+    <div class="mb-6 flex items-center justify-center gap-4 text-lg font-bold" aria-hidden="true">
+      <span class="border border-[var(--color-border)] px-3 py-2">GitHub</span>
+      <span>→</span>
+      <span class="text-[var(--color-accent)]">gitgud</span>
+    </div>
+    <h1 id="callback-title" class="text-2xl font-bold">Finishing secure sign-in</h1>
+    <p class="mt-3 text-[var(--color-text-muted)]">
+      Verifying your GitHub session. You’ll return automatically.
+    </p>
+    <div class="mt-6 flex items-center justify-center gap-3" role="status" aria-live="polite">
+      <span
+        class="callback-spinner h-5 w-5 rounded-full border-2 border-[var(--color-border)] border-t-[var(--color-accent)]"
+        aria-hidden="true"
+      ></span>
+      <span>Verification in progress</span>
+    </div>
+  </section>
 </div>
+
+<style>
+  .callback-spinner {
+    animation: callback-spin 0.8s linear infinite;
+  }
+
+  @keyframes callback-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .callback-spinner {
+      animation: none;
+    }
+  }
+</style>

@@ -20,16 +20,24 @@
       }
     </style>
 
-    <!-- Apply persisted theme before first paint. Runs in <head>, so it only
-         touches document.documentElement (always present) — never document.body. -->
+    <!-- Resolve the local preference synchronously before first paint. -->
     <script>
       (function () {
+        var preference = 'system';
         try {
-          var storedTheme = localStorage.getItem('gitgud-theme');
-          document.documentElement.dataset.theme = storedTheme === 'dark' ? 'dark' : 'light';
+          var stored = localStorage.getItem('gitgud-theme');
+          if (stored === 'light' || stored === 'dark' || stored === 'system') preference = stored;
         } catch (e) {
-          document.documentElement.dataset.theme = 'light';
+          preference = 'system';
         }
+        var resolved =
+          preference === 'system'
+            ? window.matchMedia('(prefers-color-scheme: dark)').matches
+              ? 'dark'
+              : 'light'
+            : preference;
+        document.documentElement.dataset.theme = resolved;
+        document.documentElement.style.colorScheme = resolved;
       })();
     </script>
     %sveltekit.head%

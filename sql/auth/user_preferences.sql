@@ -3,11 +3,16 @@ CREATE TABLE IF NOT EXISTS user_preferences (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   hide_from_leaderboard BOOLEAN NOT NULL DEFAULT false,
-  theme TEXT NOT NULL DEFAULT 'light',
+  theme TEXT NOT NULL DEFAULT 'system',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(user_id)
 );
+ALTER TABLE user_preferences ALTER COLUMN theme SET DEFAULT 'system';
+ALTER TABLE user_preferences DROP CONSTRAINT IF EXISTS user_preferences_theme_check;
+ALTER TABLE user_preferences
+ADD CONSTRAINT user_preferences_theme_check
+CHECK (theme IN ('system', 'light', 'dark')) NOT VALID;
 -- Create RLS policies for user_preferences table
 ALTER TABLE user_preferences ENABLE ROW LEVEL SECURITY;
 -- Users can read their own preferences
@@ -25,7 +30,7 @@ UPDATE USING (auth.uid() = user_id);
 -- Create function to automatically create user preferences on new user creation
 CREATE OR REPLACE FUNCTION public.handle_new_user_preferences() RETURNS TRIGGER AS $$ BEGIN
 INSERT INTO public.user_preferences (user_id, hide_from_leaderboard, theme)
-VALUES (NEW.id, false, 'light');
+VALUES (NEW.id, false, 'system');
 RETURN NEW;
 END;
 $$ LANGUAGE plpgsql

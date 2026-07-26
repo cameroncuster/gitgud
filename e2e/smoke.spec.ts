@@ -1,6 +1,7 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { collect, expectClean, waitForShell } from './support/harness.ts';
 import { setScenario } from './support/scenario.ts';
+import { resetMockStore, seedMemberSession } from './support/auth.ts';
 
 // Shell, navigation, guard, and theme behavior. These run in the `data`
 // scenario against the mock Supabase backend, which is reachable and returns
@@ -10,6 +11,7 @@ import { setScenario } from './support/scenario.ts';
 
 test.beforeEach(async () => {
   await setScenario('data');
+  await resetMockStore();
 });
 
 const PUBLIC_ROUTES = [
@@ -115,6 +117,100 @@ test.describe('accessible sortable/filterable table headers', () => {
   });
 });
 
+test.describe('header session and appearance controls', () => {
+  async function initialHtml(page: Page): Promise<string> {
+    let html = '';
+    await page.route('/', async (route) => {
+      const response = await route.fetch();
+      html = await response.text();
+      await route.fulfill({ response, body: html });
+    });
+    await page.goto('/');
+    return html;
+  }
+
+  test('the server-rendered shell has a stable session status instead of an empty auth slot', async ({
+    page
+  }) => {
+    expect(await initialHtml(page)).toContain('Checking session…');
+  });
+
+  test('anonymous users see the GitHub action after session resolution', async ({ page }) => {
+    await page.goto('/');
+    const mobileMenu = page.getByRole('button', { name: 'Open menu' });
+    if (await mobileMenu.isVisible()) await mobileMenu.click();
+    await expect(page.getByRole('button', { name: 'Continue with GitHub' })).toBeVisible();
+    await expect(page.getByText('Checking session…')).toHaveCount(0);
+  });
+
+  test('callback failure marker shows a retryable login error and retry clears it', async ({
+    page
+  }) => {
+    await page.goto('/?auth_error=true');
+    const mobileMenu = page.getByRole('button', { name: 'Open menu' });
+    if (await mobileMenu.isVisible()) await mobileMenu.click();
+    const error = page.getByRole('alert').filter({ hasText: 'Couldn’t open GitHub' });
+    await expect(error).toBeVisible();
+    await page.getByRole('button', { name: 'Continue with GitHub' }).click();
+    await page.waitForURL(/\/auth\/callback/);
+    await page.waitForURL(/\/$/);
+    await expect(error).toHaveCount(0);
+  });
+
+  test('desktop appearance popover uses radios and Escape restores focus', async ({
+    page,
+    viewport
+  }) => {
+    test.skip(!!viewport && viewport.width < 1024, 'desktop appearance popover only');
+    await page.goto('/');
+    const button = page.getByRole('button', { name: 'Appearance' });
+    await button.click();
+    await expect(page.getByRole('radio', { name: 'System' })).toBeChecked();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#appearance-popover')).toHaveCount(0);
+    await expect(button).toBeFocused();
+  });
+
+  test('mobile appearance choices meet the 44px target minimum', async ({ page, viewport }) => {
+    test.skip(!!viewport && viewport.width >= 1024, 'mobile appearance controls only');
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Open menu' }).click();
+    const system = page.getByRole('radio', { name: 'System' });
+    const target = system.locator('..');
+    const box = await target.boundingBox();
+    expect(box?.height).toBeGreaterThanOrEqual(44);
+    expect(box?.width).toBeGreaterThanOrEqual(44);
+  });
+});
+
+test.describe('OAuth callback treatment', () => {
+  test('failed callback session resolution returns home with a visible auth error', async ({
+    page
+  }) => {
+    await page.route('**/auth/v1/token**', (route) => route.abort());
+    await page.goto('/auth/callback');
+    await page.waitForURL(/\?auth_error=true$/);
+    const mobileMenu = page.getByRole('button', { name: 'Open menu' });
+    if (await mobileMenu.isVisible()) await mobileMenu.click();
+    await expect(page.getByRole('alert').filter({ hasText: 'Couldn’t open GitHub' })).toBeVisible();
+  });
+
+  test('server renders the secure GitHub to gitgud progress status', async ({ page }) => {
+    let html = '';
+    await page.route('/auth/callback', async (route) => {
+      const response = await route.fetch();
+      html = await response.text();
+      await route.fulfill({ response, body: html });
+    });
+    await page.goto('/auth/callback');
+    expect(html).toContain('GitHub');
+    expect(html).toContain('gitgud');
+    expect(html).toContain('Finishing secure sign-in');
+    expect(html).toContain('Verifying your GitHub session. You’ll return automatically.');
+    expect(html).toContain('Verification in progress');
+  });
+});
+
 test.describe('desktop navigation', () => {
   // The desktop nav is hidden below the lg breakpoint, so this behavior is
   // meaningful only on the desktop project.
@@ -159,6 +255,22 @@ test.describe('mobile navigation', () => {
     await page.waitForURL(/\/leaderboard$/);
     // Navigating closes the menu, so the open-menu button is shown again.
     await expect(page.getByRole('button', { name: 'Open menu' })).toBeVisible();
+  });
+});
+
+test.describe('signed-in settings appearance', () => {
+  test('uses an sr-only h1 and persists the selected account appearance', async ({ page }) => {
+    await seedMemberSession(page);
+    await page.goto('/settings');
+    await expect(page.locator('h1.sr-only')).toHaveText('Settings');
+    await page.getByRole('radio', { name: 'Dark' }).check();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('gitgud-theme'))).toBe('dark');
+    await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+
+    await page.reload();
+    await expect(page.getByRole('radio', { name: 'Dark' })).toBeChecked();
+    await expect(page.getByText(/Currently resolved to dark/i)).toBeVisible();
   });
 });
 
@@ -331,8 +443,27 @@ test.describe('unknown route (404)', () => {
 });
 
 test.describe('theme startup', () => {
-  test('defaults to the light (Paper) theme with no stored preference', async ({ page }) => {
+  test('defaults to System and follows the OS preference', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
     await page.goto('/');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await expect
+      .poll(() => page.evaluate(() => localStorage.getItem('gitgud-theme')))
+      .toBe('system');
+  });
+
+  test('System responds to OS changes while explicit choices do not', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'light' });
+    await page.goto('/');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+
+    const appearanceButton = page.getByRole('button', { name: 'Appearance' });
+    if (await appearanceButton.isVisible()) await appearanceButton.click();
+    else await page.getByRole('button', { name: 'Open menu' }).click();
+    await page.getByRole('radio', { name: 'Light' }).check();
+    await page.emulateMedia({ colorScheme: 'dark' });
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   });
 
@@ -344,5 +475,16 @@ test.describe('theme startup', () => {
     });
     await page.goto('/');
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await expect(page.locator('html')).toHaveCSS('color-scheme', 'dark');
+  });
+
+  test('invalid stored preferences normalize to System', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.addInitScript(() => localStorage.setItem('gitgud-theme', 'invalid'));
+    await page.goto('/');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await expect
+      .poll(() => page.evaluate(() => localStorage.getItem('gitgud-theme')))
+      .toBe('system');
   });
 });
