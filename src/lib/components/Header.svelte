@@ -206,7 +206,7 @@
                   class="mr-2 inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent"
                   aria-hidden="true"
                 ></span>{/if}
-              {loginBusy ? 'Opening GitHub…' : 'Continue with GitHub'}
+              {loginBusy ? 'Opening GitHub…' : 'Sign up'}
             </button>
             {#if loginError}
               <p class="mt-1 max-w-48 text-xs text-[var(--color-error)]" role="alert">
@@ -297,7 +297,7 @@
                   class="mr-2 inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent"
                   aria-hidden="true"
                 ></span>{/if}
-              {loginBusy ? 'Opening GitHub…' : 'Continue with GitHub'}
+              {loginBusy ? 'Opening GitHub…' : 'Sign up'}
             </button>
             {#if loginError}
               <p class="mt-2 text-sm text-[var(--color-error)]" role="alert">
