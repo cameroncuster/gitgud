@@ -60,7 +60,7 @@ test.describe('live read-only Supabase smoke', () => {
 
   test('contests loads real contests from Supabase', async ({ page }) => {
     await loadResolved(page, '/contests');
-    await expect(page.getByRole('columnheader', { name: /Contest/i })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'Contest', exact: true })).toBeVisible();
     expect(await page.locator('table tbody tr').count()).toBeGreaterThan(0);
   });
 
