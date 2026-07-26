@@ -4,7 +4,7 @@ import {
   type SupabaseClient,
   type SupabaseClientOptions
 } from '@supabase/supabase-js';
-import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
+import { PUBLIC_SUPABASE_PUBLISHABLE_KEY, PUBLIC_SUPABASE_URL } from '$env/static/public';
 import { env as publicEnv } from '$env/dynamic/public';
 import {
   codeforcesUserStatusUrl,
@@ -127,7 +127,7 @@ export function _createUserSolvesGet({
 
     let problems: unknown;
     try {
-      const anon = createAnonClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
+      const anon = createAnonClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
         auth: { persistSession: false, autoRefreshToken: false }
       });
       const query = await anon.from('problems').select('id, url, name');
