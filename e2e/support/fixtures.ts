@@ -97,14 +97,14 @@ export const LARGE_PROBLEMS: ProblemRow[] = Array.from({ length: 280 }, (_, inde
   const isLast = number === 280;
   return {
     id: `large-${String(number).padStart(3, '0')}`,
-    name: isLast ? 'Beyond First Batch' : `Large Fixture Problem ${number}`,
+    name: isLast ? 'Full List Boundary Problem' : `Large Fixture Problem ${number}`,
     difficulty: isLast ? 700 : 1000 + number,
     url:
       number % 2 === 0
         ? `https://open.kattis.com/problems/large-${number}`
         : `https://codeforces.com/contest/2000/problem/${number}`,
-    added_by: isLast ? 'beyond-author' : `author-${number % 10}`,
-    added_by_url: `https://example.test/users/${isLast ? 'beyond-author' : `author-${number % 10}`}`,
+    added_by: isLast ? 'full-list-author' : `author-${number % 10}`,
+    added_by_url: `https://example.test/users/${isLast ? 'full-list-author' : `author-${number % 10}`}`,
     likes: 281 - number,
     dislikes: 0,
     type: number % 3 === 0 ? 'graph' : 'math'

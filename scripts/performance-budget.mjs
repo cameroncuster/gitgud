@@ -16,10 +16,10 @@ export const STATIC_BUDGETS = Object.freeze({
 });
 /** @type {Readonly<Required<FixtureBudgets>>} */
 export const HOMEPAGE_FIXTURE_BUDGETS = Object.freeze({
-  rows: 50,
+  rows: 280,
   totalProblems: 280,
-  htmlBytes: 24_000,
-  gzipBytes: 2_000
+  htmlBytes: 125_000,
+  gzipBytes: 6_000
 });
 
 /**
@@ -87,9 +87,7 @@ export function renderHomepageTableFixture(rowCount = HOMEPAGE_FIXTURE_BUDGETS.r
     const name = escapeHtml(`Fixture Problem ${id} <quality>`);
     return `<tr data-problem-id="fixture-${id}"><td><button aria-label="Mark as solved">✓</button></td><td>${source}</td><td><a href="https://example.test/problems/${id}">${name}</a></td><td>${800 + (index % 28) * 100}</td><td>dynamic programming</td><td><a href="https://example.test/users/author-${index % 20}">@author-${index % 20}</a></td><td><button aria-label="Like, ${index % 17} likes">${index % 17}</button><button aria-label="Dislike, ${index % 5} dislikes">${index % 5}</button></td></tr>`;
   });
-  const remaining = Math.max(HOMEPAGE_FIXTURE_BUDGETS.totalProblems - rowCount, 0);
-  const nextCount = Math.min(rowCount, remaining);
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Problems fixture</title></head><body><main><h1>Problems</h1><table><thead><tr><th>Solved</th><th>Source</th><th>Problem</th><th>Difficulty</th><th>Topic</th><th>Recommender</th><th>Feedback</th></tr></thead><tbody id="problem-table-body">${rows.join('')}</tbody></table><button type="button" aria-controls="problem-table-body" aria-label="Show ${nextCount} more problems">Show ${nextCount} more</button><p role="status" aria-live="polite">${rowCount} of ${HOMEPAGE_FIXTURE_BUDGETS.totalProblems} problems shown</p></main></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Problems fixture</title></head><body><main><h1>Problems</h1><table><thead><tr><th>Solved</th><th>Source</th><th>Problem</th><th>Difficulty</th><th>Topic</th><th>Recommender</th><th>Feedback</th></tr></thead><tbody id="problem-table-body">${rows.join('')}</tbody></table></main></body></html>`;
 }
 
 export function measureHomepageFixture(rowCount = HOMEPAGE_FIXTURE_BUDGETS.rows) {
@@ -122,8 +120,8 @@ export function budgetFailures(
       budgets.largestJavaScriptGzipBytes
     ],
     ['largest immutable CSS gzip', summary.largestCss?.gzipBytes ?? 0, budgets.largestCssGzipBytes],
-    ['initial homepage fixture HTML', fixture.htmlBytes, fixtureBudgets.htmlBytes],
-    ['initial homepage fixture gzip', fixture.gzipBytes, fixtureBudgets.gzipBytes]
+    ['full homepage fixture HTML', fixture.htmlBytes, fixtureBudgets.htmlBytes],
+    ['full homepage fixture gzip', fixture.gzipBytes, fixtureBudgets.gzipBytes]
   ];
   return checks
     .filter(([, actual, budget]) => actual > budget)

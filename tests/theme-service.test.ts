@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { get, writable } from 'svelte/store';
 import { createThemeService } from '../src/lib/services/theme.ts';
-import type { ResolvedTheme, ThemePreference } from '../src/lib/services/appearance.ts';
+import {
+  nextThemePreference,
+  type ResolvedTheme,
+  type ThemePreference
+} from '../src/lib/services/appearance.ts';
 import type { UserPreferences } from '../src/lib/services/user.ts';
 
 function setup(
@@ -69,6 +73,12 @@ function setup(
     }
   };
 }
+
+test('theme preferences cycle from System to Light to Dark', () => {
+  assert.equal(nextThemePreference('system'), 'light');
+  assert.equal(nextThemePreference('light'), 'dark');
+  assert.equal(nextThemePreference('dark'), 'system');
+});
 
 test('initialization normalizes missing and invalid local preferences to System', () => {
   for (const value of [null, 'paper']) {

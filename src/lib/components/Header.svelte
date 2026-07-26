@@ -3,18 +3,12 @@
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
   import { currentActor, signInWithGithub, signOut } from '$lib/auth/currentActor';
-  import {
-    currentThemePreference,
-    setThemePreference,
-    THEME_PREFERENCES,
-    type ThemePreference
-  } from '$lib/services/theme';
+  import ThemeCycleButton from '$lib/components/ThemeCycleButton.svelte';
+  import { nextThemePreference, type ThemePreference } from '$lib/services/appearance';
+  import { currentThemePreference, setThemePreference } from '$lib/services/theme';
 
   let mobileMenuOpen = false;
   let mobileMenuButton: HTMLButtonElement | null = null;
-  let appearanceOpen = false;
-  let appearanceButton: HTMLButtonElement | null = null;
-  let appearancePanel: HTMLDivElement | null = null;
   let loginBusy = false;
   let loginError = page.url.pathname === '/' && page.url.searchParams.get('auth_error') === 'true';
   let logoutBusy = false;
@@ -67,7 +61,7 @@
     }
   }
 
-  async function selectAppearance(preference: ThemePreference): Promise<void> {
+  async function selectThemePreference(preference: ThemePreference): Promise<void> {
     const revision = ++themeSaveRevision;
     const userId = user?.id;
     themeSaveError = false;
@@ -80,40 +74,27 @@
     }
   }
 
+  function cycleTheme(): void {
+    void selectThemePreference(nextThemePreference($currentThemePreference));
+  }
+
   function retryThemeSave(): void {
-    if (failedThemePreference) void selectAppearance(failedThemePreference);
+    if (failedThemePreference) void selectThemePreference(failedThemePreference);
   }
 
   function handleWindowKeydown(event: KeyboardEvent): void {
-    if (event.key !== 'Escape') return;
-    if (appearanceOpen) {
-      appearanceOpen = false;
-      appearanceButton?.focus();
-    } else if (mobileMenuOpen) {
-      mobileMenuOpen = false;
-      mobileMenuButton?.focus();
-    }
-  }
-
-  function handleWindowPointerDown(event: PointerEvent): void {
-    const target = event.target as Node;
-    if (
-      appearanceOpen &&
-      !appearancePanel?.contains(target) &&
-      !appearanceButton?.contains(target)
-    ) {
-      appearanceOpen = false;
-    }
+    if (event.key !== 'Escape' || !mobileMenuOpen) return;
+    mobileMenuOpen = false;
+    mobileMenuButton?.focus();
   }
 
   afterNavigate(() => {
     mobileMenuOpen = false;
-    appearanceOpen = false;
     loginError = page.url.pathname === '/' && page.url.searchParams.get('auth_error') === 'true';
   });
 </script>
 
-<svelte:window on:keydown={handleWindowKeydown} on:pointerdown={handleWindowPointerDown} />
+<svelte:window on:keydown={handleWindowKeydown} />
 
 <header
   class="sticky top-0 z-50 w-full border-b border-[var(--color-border)] bg-[var(--color-secondary)] py-3"
@@ -168,61 +149,8 @@
         {/if}
       </ul>
 
-      <div class="relative">
-        <button
-          bind:this={appearanceButton}
-          type="button"
-          class="flex min-h-11 min-w-11 items-center justify-center rounded border border-[var(--color-border)] bg-transparent text-[var(--color-text)] hover:bg-[var(--color-tertiary)]"
-          aria-label="Appearance"
-          title="Appearance"
-          aria-haspopup="true"
-          aria-expanded={appearanceOpen}
-          aria-controls="appearance-popover"
-          on:click={() => (appearanceOpen = !appearanceOpen)}
-        >
-          <svg
-            aria-hidden="true"
-            viewBox="0 0 24 24"
-            class="h-5 w-5"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-          >
-            <circle cx="12" cy="12" r="4"></circle>
-            <path
-              d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42"
-            ></path>
-          </svg>
-        </button>
-        {#if appearanceOpen}
-          <div
-            bind:this={appearancePanel}
-            id="appearance-popover"
-            class="absolute right-0 mt-2 w-44 border-2 border-[var(--color-border)] bg-[var(--color-secondary)] p-2 shadow-lg"
-          >
-            <fieldset>
-              <legend class="sr-only">Appearance</legend>
-              {#each THEME_PREFERENCES as preference (preference)}
-                <label
-                  class="flex cursor-pointer items-center gap-2 rounded px-2 py-2 text-sm capitalize hover:bg-[var(--color-tertiary)]"
-                >
-                  <input
-                    type="radio"
-                    name="desktop-appearance"
-                    value={preference}
-                    checked={$currentThemePreference === preference}
-                    on:change={() => void selectAppearance(preference)}
-                  />
-                  {preference}
-                </label>
-              {/each}
-            </fieldset>
-          </div>
-        {/if}
-      </div>
-
       <div class="flex min-w-44 items-center justify-end gap-3">
+        <ThemeCycleButton preference={$currentThemePreference} onCycle={cycleTheme} />
         {#if !$currentActor.initialized}
           <button
             type="button"
@@ -316,27 +244,8 @@
           {/if}
         </ul>
 
-        <fieldset class="border-t border-[var(--color-border)] pt-3">
-          <legend class="mb-1 font-bold text-[var(--color-heading)]">Appearance</legend>
-          <div class="grid grid-cols-3 gap-2">
-            {#each THEME_PREFERENCES as preference (preference)}
-              <label
-                class="flex min-h-11 cursor-pointer items-center justify-center gap-2 border border-[var(--color-border)] px-2 capitalize has-[:checked]:border-[var(--color-accent)] has-[:checked]:bg-[var(--color-tertiary)]"
-              >
-                <input
-                  type="radio"
-                  name="mobile-appearance"
-                  value={preference}
-                  checked={$currentThemePreference === preference}
-                  on:change={() => void selectAppearance(preference)}
-                />
-                {preference}
-              </label>
-            {/each}
-          </div>
-        </fieldset>
-
-        <div class="border-t border-[var(--color-border)] pt-3">
+        <div class="flex flex-wrap items-center gap-3 border-t border-[var(--color-border)] pt-3">
+          <ThemeCycleButton preference={$currentThemePreference} onCycle={cycleTheme} />
           {#if !$currentActor.initialized}
             <p
               role="status"
@@ -406,7 +315,7 @@
       class="mx-auto mt-2 flex max-w-[1200px] items-center justify-end gap-2 px-3 text-sm text-[var(--color-error)]"
       role="alert"
     >
-      <span>{themeSaveError ? 'Appearance could not sync.' : 'Couldn’t sign out. Try again.'}</span>
+      <span>{themeSaveError ? 'Theme could not sync.' : 'Couldn’t sign out. Try again.'}</span>
       {#if themeSaveError}
         <button
           type="button"

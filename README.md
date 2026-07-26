@@ -70,7 +70,7 @@ checks in parallel on Node.js 24. `test:coverage` measures every production Type
 only declaration files and does not claim execution coverage for Svelte components. After a
 production build, `check:performance` checks the existing Vercel output without rebuilding;
 `test:performance` performs both steps. The performance checks cover immutable JS/CSS and the
-deterministic 280-problem homepage HTML fixture budgets. Live read-only Supabase smoke tests run
+deterministic full 280-problem homepage HTML fixture budgets. Live read-only Supabase smoke tests run
 when CI has the required repository variable and secret; otherwise those optional jobs exit cleanly.
 
 ## Contributing

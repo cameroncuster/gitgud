@@ -32,12 +32,12 @@ test('asset collection includes only immutable JavaScript and CSS in stable orde
   assert.equal(summarizeAssets(assets).assetCount, 2);
 });
 
-test('homepage fixture models the deterministic initial 50-row batch', () => {
+test('homepage fixture models the complete deterministic problem list', () => {
   const html = renderHomepageTableFixture();
-  assert.equal((html.match(/data-problem-id=/g) ?? []).length, 50);
+  assert.equal((html.match(/data-problem-id=/g) ?? []).length, 280);
   assert.match(html, /Fixture Problem 1 &lt;quality&gt;/);
-  assert.match(html, /aria-controls="problem-table-body"/);
-  assert.match(html, />50 of 280 problems shown</);
+  assert.match(html, /Fixture Problem 280 &lt;quality&gt;/);
+  assert.doesNotMatch(html, /more problems|problems shown/);
   assert.deepEqual(measureHomepageFixture(), measureHomepageFixture());
 });
 
@@ -55,6 +55,6 @@ test('budget failures name only exceeded limits', () => {
       { totalGzipBytes: 100, largestJavaScriptGzipBytes: 50, largestCssGzipBytes: 21 },
       { htmlBytes: 300, gzipBytes: 29 }
     ),
-    ['total immutable JS/CSS gzip: 101 > 100 bytes', 'initial homepage fixture gzip: 30 > 29 bytes']
+    ['total immutable JS/CSS gzip: 101 > 100 bytes', 'full homepage fixture gzip: 30 > 29 bytes']
   );
 });

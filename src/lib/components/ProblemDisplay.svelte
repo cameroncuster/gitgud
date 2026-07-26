@@ -11,11 +11,6 @@
   import { createProblemEngagementController } from '$lib/problems/problemEngagementController';
   import { problemEngagementGateway } from '$lib/problems/problemEngagementGateway.supabase';
   import ProblemTable from '$lib/components/ProblemTable.svelte';
-  import {
-    initialProblemVisibleCount,
-    nextProblemBatchCount,
-    nextProblemVisibleCount
-  } from '$lib/components/problemPagination';
   import TopicSidebar from '$lib/components/TopicSidebar.svelte';
   import {
     NEW_PROBLEM_TOPIC,
@@ -29,11 +24,8 @@
   // Problems provided by a server-side load (e.g. the homepage). When present, the
   // initial list renders without a client-side round-trip after hydration.
   export let initialProblems: Problem[] | null = null;
-  export let rowBatchSize: number | null = null;
 
   let collection = new ProblemCollection({ defaultSolvedFilter: defaultSolvedFilterState });
-  let visibleRowCount = initialProblemVisibleCount(rowBatchSize);
-  let hasRevealedRows = false;
   const problemTableBodyId = 'problem-table-body';
   let loading: boolean = false;
   let error: string | null = null;
@@ -55,41 +47,25 @@
     reportError: (message) => (error = message)
   });
 
-  function resetVisibleRows(): void {
-    visibleRowCount = initialProblemVisibleCount(rowBatchSize);
-    hasRevealedRows = false;
-  }
-
   function handleTopicSelect(topic: string | null): void {
     collection = collection.selectTopic(topic as ProblemTopic | null);
-    resetVisibleRows();
     if (isMobile) sidebarOpen = false;
   }
 
   function handleDifficultySort(): void {
     collection = collection.cycleDifficultySort();
-    resetVisibleRows();
   }
 
   function handleSolvedFilter(): void {
     collection = collection.cycleSolvedFilter();
-    resetVisibleRows();
   }
 
   function handleAuthorFilter(author: string | null): void {
     collection = collection.selectAuthor(author);
-    resetVisibleRows();
   }
 
   function handleSourceFilter(): void {
     collection = collection.cycleSourceFilter();
-    resetVisibleRows();
-  }
-
-  function showMoreProblems(): void {
-    if (!rowBatchSize || nextBatchCount === 0) return;
-    visibleRowCount = nextProblemVisibleCount(visibleRowCount, fullRows.length, rowBatchSize);
-    hasRevealedRows = true;
   }
 
   function toggleSidebar(): void {
@@ -151,13 +127,7 @@
     collection = collection.withSourceItems(initialProblems);
   }
 
-  $: fullRows = collection.rows;
-  $: visibleRows = fullRows.slice(0, visibleRowCount);
-  $: nextBatchCount = rowBatchSize
-    ? nextProblemBatchCount(visibleRowCount, fullRows.length, rowBatchSize)
-    : 0;
-  $: showPaginationControl =
-    !!rowBatchSize && fullRows.length > rowBatchSize && (nextBatchCount > 0 || hasRevealedRows);
+  $: rows = collection.rows;
 
   onMount(() => {
     const unsubscribeEngagement = engagement.subscribe((state) => {
@@ -225,7 +195,7 @@
         <div class="w-full min-w-0 px-0 py-2 pb-6">
           <div class="problem-table-container w-full">
             <ProblemTable
-              problems={visibleRows}
+              problems={rows}
               bodyId={problemTableBodyId}
               {userFeedback}
               {userSolvedProblems}
@@ -242,25 +212,6 @@
               onAuthorFilter={handleAuthorFilter}
               onSourceFilter={handleSourceFilter}
             />
-            {#if showPaginationControl}
-              <div class="flex flex-col items-center gap-2 py-4">
-                <button
-                  type="button"
-                  class="rounded border-2 border-[var(--color-border)] bg-[var(--color-tertiary)] px-4 py-2 font-mono font-bold text-[var(--color-text)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)] aria-disabled:cursor-default aria-disabled:opacity-70"
-                  aria-controls={problemTableBodyId}
-                  aria-label={nextBatchCount > 0
-                    ? `Show ${nextBatchCount} more problems`
-                    : 'All problems shown'}
-                  aria-disabled={nextBatchCount === 0}
-                  on:click={showMoreProblems}
-                >
-                  {nextBatchCount > 0 ? `Show ${nextBatchCount} more` : 'All problems shown'}
-                </button>
-                <p class="text-sm text-[var(--color-text-muted)]" role="status" aria-live="polite">
-                  {visibleRows.length} of {fullRows.length} problems shown
-                </p>
-              </div>
-            {/if}
           </div>
         </div>
       </div>

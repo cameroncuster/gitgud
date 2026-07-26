@@ -157,33 +157,36 @@ test.describe('header session and appearance controls', () => {
     await expect(error).toHaveCount(0);
   });
 
-  test('desktop appearance popover uses radios and Escape restores focus', async ({
+  test('desktop theme icon cycles System, Light, Dark, then System', async ({ page, viewport }) => {
+    test.skip(!!viewport && viewport.width < 1024, 'desktop theme control only');
+    await page.goto('/');
+    const system = page.getByRole('button', { name: 'Theme: System. Switch to Light' });
+    const target = await system.boundingBox();
+    expect(target?.height).toBeGreaterThanOrEqual(44);
+    expect(target?.width).toBeGreaterThanOrEqual(44);
+    await expect(system).toHaveText('');
+    await system.click();
+    await page.getByRole('button', { name: 'Theme: Light. Switch to Dark' }).click();
+    await page.getByRole('button', { name: 'Theme: Dark. Switch to System' }).click();
+    await expect(
+      page.getByRole('button', { name: 'Theme: System. Switch to Light' })
+    ).toBeVisible();
+    await expect(page.getByRole('radio')).toHaveCount(0);
+  });
+
+  test('mobile theme icon remains secondary and meets the 44px target minimum', async ({
     page,
     viewport
   }) => {
-    test.skip(!!viewport && viewport.width < 1024, 'desktop appearance popover only');
-    await page.goto('/');
-    const button = page.getByRole('button', { name: 'Appearance' });
-    const target = await button.boundingBox();
-    expect(target?.height).toBeGreaterThanOrEqual(44);
-    expect(target?.width).toBeGreaterThanOrEqual(44);
-    await expect(button).toHaveText('');
-    await button.click();
-    await expect(page.getByRole('radio', { name: 'System' })).toBeChecked();
-    await page.keyboard.press('Escape');
-    await expect(page.locator('#appearance-popover')).toHaveCount(0);
-    await expect(button).toBeFocused();
-  });
-
-  test('mobile appearance choices meet the 44px target minimum', async ({ page, viewport }) => {
-    test.skip(!!viewport && viewport.width >= 1024, 'mobile appearance controls only');
+    test.skip(!!viewport && viewport.width >= 1024, 'mobile theme control only');
     await page.goto('/');
     await page.getByRole('button', { name: 'Open menu' }).click();
-    const system = page.getByRole('radio', { name: 'System' });
-    const target = system.locator('..');
-    const box = await target.boundingBox();
+    const theme = page.getByRole('button', { name: 'Theme: System. Switch to Light' });
+    const box = await theme.boundingBox();
     expect(box?.height).toBeGreaterThanOrEqual(44);
     expect(box?.width).toBeGreaterThanOrEqual(44);
+    await expect(theme).toHaveText('');
+    await expect(page.getByRole('radio')).toHaveCount(0);
   });
 });
 
@@ -272,27 +275,27 @@ test.describe('signed-in settings layout and appearance', () => {
     await expect(page.locator('h1.sr-only')).toHaveText('Settings');
     await expect(page.getByRole('heading', { name: 'Appearance' })).toHaveCount(0);
 
-    const appearanceButton = page.getByRole('button', { name: 'Appearance' });
-    if (await appearanceButton.isVisible()) await appearanceButton.click();
-    else {
+    let themeButton = page.getByRole('button', { name: 'Theme: System. Switch to Light' });
+    if (!(await themeButton.isVisible())) {
       await page.getByRole('button', { name: 'Open menu' }).click();
+      themeButton = page.getByRole('button', { name: 'Theme: System. Switch to Light' });
     }
     const settingsLink = page.getByRole('link', { name: 'Settings' });
     const settingsTarget = await settingsLink.boundingBox();
     expect(settingsTarget?.height).toBeGreaterThanOrEqual(44);
     expect(settingsTarget?.width).toBeGreaterThanOrEqual(44);
     await expect(settingsLink).toHaveText('');
-    await page.getByRole('radio', { name: 'Dark' }).check();
+    await themeButton.click();
+    await page.getByRole('button', { name: 'Theme: Light. Switch to Dark' }).click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     await expect.poll(() => page.evaluate(() => localStorage.getItem('gitgud-theme'))).toBe('dark');
 
     await page.reload();
     if (viewport && viewport.width < 1024) {
       await page.getByRole('button', { name: 'Open menu' }).click();
-    } else {
-      await page.getByRole('button', { name: 'Appearance' }).click();
     }
-    await expect(page.getByRole('radio', { name: 'Dark' })).toBeChecked();
+    await expect(page.getByRole('button', { name: 'Theme: Dark. Switch to System' })).toBeVisible();
+    await expect(page.getByRole('radio', { name: /^(System|Light|Dark)$/ })).toHaveCount(0);
 
     const lastCard = page.locator('main section').last();
     const footer = page.locator('footer');
@@ -488,10 +491,12 @@ test.describe('theme startup', () => {
     await page.emulateMedia({ colorScheme: 'dark' });
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 
-    const appearanceButton = page.getByRole('button', { name: 'Appearance' });
-    if (await appearanceButton.isVisible()) await appearanceButton.click();
-    else await page.getByRole('button', { name: 'Open menu' }).click();
-    await page.getByRole('radio', { name: 'Light' }).check();
+    let themeButton = page.getByRole('button', { name: 'Theme: System. Switch to Light' });
+    if (!(await themeButton.isVisible())) {
+      await page.getByRole('button', { name: 'Open menu' }).click();
+      themeButton = page.getByRole('button', { name: 'Theme: System. Switch to Light' });
+    }
+    await themeButton.click();
     await page.emulateMedia({ colorScheme: 'dark' });
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   });
