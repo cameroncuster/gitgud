@@ -69,7 +69,14 @@ test('route load factories return fetched data once', async () => {
   ];
   const loadContests = mock.fn(async () => contests);
   const loadLeaderboard = mock.fn(async () => entries);
-  assert.deepEqual(await _createContestsLoad(loadContests)(), { contests });
+  let contestHeaders: Record<string, string> = {};
+  assert.deepEqual(
+    await _createContestsLoad(loadContests)({
+      setHeaders: (headers) => (contestHeaders = headers)
+    }),
+    { contests }
+  );
+  assert.equal(contestHeaders['cache-control'], 'no-store');
   assert.deepEqual(await _createLeaderboardLoad(loadLeaderboard)(), { entries });
   assert.equal(loadContests.mock.callCount(), 1);
   assert.equal(loadLeaderboard.mock.callCount(), 1);
@@ -119,7 +126,13 @@ test('composed singleton services preserve anonymous read and write guards', asy
   assert.deepEqual(await contestEngagementGateway.loadFeedback(), {});
   assert.deepEqual([...(await contestEngagementGateway.loadParticipatedContestIds())], []);
   assert.equal(await problemEngagementGateway.setSolved('p', true), false);
-  assert.equal(await problemEngagementGateway.updateFeedback('p', true), null);
+  assert.equal(
+    await problemEngagementGateway.updateFeedback('p', true, {
+      userId: 'actor',
+      accessToken: 'token'
+    }),
+    null
+  );
   assert.equal(await contestEngagementGateway.setParticipation('c', true), false);
   assert.equal(await contestEngagementGateway.updateFeedback('c', true), null);
 });

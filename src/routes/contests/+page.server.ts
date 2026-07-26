@@ -1,8 +1,15 @@
 import { fetchContests } from '$lib/queries/contestQueries';
 import type { PageServerLoad } from './$types';
 
+type ContestsLoadEvent = {
+  setHeaders: (headers: Record<string, string>) => void;
+};
+
 export function _createContestsLoad(loadContests: typeof fetchContests) {
-  return async () => ({ contests: await loadContests() });
+  return async ({ setHeaders }: ContestsLoadEvent) => {
+    setHeaders({ 'cache-control': 'no-store' });
+    return { contests: await loadContests() };
+  };
 }
 
 // Server-only load: SSR ships the initial contests in the HTML and the

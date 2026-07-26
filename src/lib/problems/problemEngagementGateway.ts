@@ -2,6 +2,7 @@ import type { Problem, ProblemRecord } from '../queries/problemQueries.ts';
 import type { Reaction } from '../engagement/reactionTransition.ts';
 
 export type ProblemFeedback = Record<string, Reaction>;
+export type ReactionActor = Readonly<{ userId: string; accessToken: string }>;
 
 type DatabaseError = { code?: string };
 type QueryResult<T> = { data: T; error: DatabaseError | null };
@@ -24,7 +25,11 @@ export type ProblemEngagementClient = {
 export type ProblemEngagementGateway = {
   loadFeedback: () => Promise<ProblemFeedback>;
   loadSolvedProblemIds: () => Promise<Set<string>>;
-  updateFeedback: (problemId: string, isLike: boolean) => Promise<Problem | null>;
+  updateFeedback: (
+    problemId: string,
+    isLike: boolean,
+    actor: ReactionActor
+  ) => Promise<Problem | null>;
   setSolved: (problemId: string, isSolved: boolean) => Promise<boolean>;
 };
 
@@ -33,6 +38,7 @@ export type CreateProblemEngagementGatewayOptions = {
   getCurrentUser: () => { id: string } | null;
   loadFeedback: () => Promise<ProblemFeedback>;
   loadSolvedProblemIds: () => Promise<Set<string>>;
+  createFeedbackClient: (accessToken: string) => Pick<ProblemEngagementClient, 'rpc'>;
   mapProblemRecord: (record: ProblemRecord) => Problem;
 };
 
@@ -41,6 +47,7 @@ export function createProblemEngagementGateway({
   getCurrentUser,
   loadFeedback,
   loadSolvedProblemIds,
+  createFeedbackClient,
   mapProblemRecord
 }: CreateProblemEngagementGatewayOptions): ProblemEngagementGateway {
   async function setSolved(problemId: string, isSolved: boolean): Promise<boolean> {
@@ -79,14 +86,19 @@ export function createProblemEngagementGateway({
     }
   }
 
-  async function updateFeedback(problemId: string, isLike: boolean): Promise<Problem | null> {
-    if (!getCurrentUser()) {
-      console.error('Cannot update feedback: User not authenticated');
+  async function updateFeedback(
+    problemId: string,
+    isLike: boolean,
+    actor: ReactionActor
+  ): Promise<Problem | null> {
+    if (getCurrentUser()?.id !== actor.userId || !actor.accessToken) {
+      console.error('Cannot update feedback: Actor changed or is not authenticated');
       return null;
     }
 
     try {
-      const { data, error } = await client.rpc('update_problem_feedback', {
+      const feedbackClient = createFeedbackClient(actor.accessToken);
+      const { data, error } = await feedbackClient.rpc('update_problem_feedback', {
         p_problem_id: problemId,
         p_is_like: isLike
       });

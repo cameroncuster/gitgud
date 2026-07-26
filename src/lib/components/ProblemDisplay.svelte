@@ -29,7 +29,10 @@
   const problemTableBodyId = 'problem-table-body';
   let loading: boolean = false;
   let error: string | null = null;
+  let interactionError: string | null = null;
   let userFeedback: Record<string, 'like' | 'dislike' | null> = {};
+  let feedbackReady = true;
+  let pendingReactionIds: Set<string> = new Set();
   let userSolvedProblems: Set<string> = new Set();
   let sidebarOpen = false; // Default closed on mobile
   let isMobile = false;
@@ -44,7 +47,7 @@
     getCollection: () => collection,
     setCollection: (nextCollection) => (collection = nextCollection),
     applySolvedToCollection: !targetUserId,
-    reportError: (message) => (error = message)
+    reportError: (message) => (interactionError = message)
   });
 
   function handleTopicSelect(topic: string | null): void {
@@ -78,6 +81,7 @@
   }
 
   async function handleLike(problemId: string, isLike: boolean): Promise<void> {
+    interactionError = null;
     await engagement.react(problemId, isLike);
   }
 
@@ -133,6 +137,14 @@
     const unsubscribeEngagement = engagement.subscribe((state) => {
       isAuthenticated = state.isAuthenticated;
       userFeedback = state.feedback;
+      if (
+        state.feedbackReady &&
+        interactionError === 'Couldn’t load reactions. Reload to try again.'
+      ) {
+        interactionError = null;
+      }
+      feedbackReady = state.feedbackReady;
+      pendingReactionIds = state.pendingReactionIds;
       userSolvedProblems = state.solvedProblemIds;
     });
     engagement.start();
@@ -180,6 +192,14 @@
       <p class="text-lg text-red-500">{error}</p>
     </div>
   {:else}
+    {#if interactionError}
+      <p
+        class="mx-auto my-2 max-w-[1200px] border border-[var(--color-error)] px-3 py-2 text-sm text-[var(--color-error)]"
+        role="alert"
+      >
+        {interactionError}
+      </p>
+    {/if}
     <div class="relative flex min-h-[calc(100vh-2rem)]">
       <TopicSidebar
         topics={[...collection.topicOptions]}
@@ -199,6 +219,8 @@
               bodyId={problemTableBodyId}
               {userFeedback}
               {userSolvedProblems}
+              {feedbackReady}
+              {pendingReactionIds}
               {isAuthenticated}
               allAuthors={collection.availableAuthors}
               difficultySortDirection={collection.difficultySortDirection}

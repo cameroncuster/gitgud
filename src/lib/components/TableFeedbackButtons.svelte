@@ -3,6 +3,9 @@
   export let dislikes: number;
   export let feedback: 'like' | 'dislike' | null | undefined = null;
   export let isAuthenticated: boolean;
+  export let disabled = false;
+  export let busy = false;
+  export let disabledReason: string | null = null;
   export let subject: 'problem' | 'contest';
   export let iconSize: 16 | 18;
   export let onFeedback: (isLike: boolean) => Promise<void>;
@@ -18,16 +21,19 @@
           ? 'border-[color-mix(in_oklab,var(--color-like)_50%,transparent)] bg-[color-mix(in_oklab,var(--color-like)_10%,transparent)] text-[var(--color-like)]'
           : 'border-[var(--color-border)] bg-transparent text-[var(--color-text)] hover:border-[color-mix(in_oklab,var(--color-like)_50%,transparent)] hover:bg-[color-mix(in_oklab,var(--color-like)_10%,transparent)] hover:text-[var(--color-like)]'
       }
-      ${!isAuthenticated ? 'cursor-not-allowed opacity-50' : ''}`}
-  on:click={() => isAuthenticated && onFeedback(true)}
+      ${!isAuthenticated || disabled ? 'cursor-not-allowed opacity-50' : ''}`}
+  on:click={() => isAuthenticated && !disabled && onFeedback(true)}
   title={!isAuthenticated
     ? `Sign in to like ${subject}s`
-    : hasLiked
-      ? 'Undo like'
-      : `Like this ${subject}`}
+    : disabledReason
+      ? disabledReason
+      : hasLiked
+        ? 'Undo like'
+        : `Like this ${subject}`}
   aria-pressed={hasLiked}
-  aria-label={`Like${hasLiked ? ' (liked)' : ''}, ${likes} ${likes === 1 ? 'like' : 'likes'}`}
-  disabled={!isAuthenticated}
+  aria-busy={busy}
+  aria-label={`Like${hasLiked ? ' (liked)' : ''}, ${likes} ${likes === 1 ? 'like' : 'likes'}${disabledReason ? `. ${disabledReason}` : ''}`}
+  disabled={!isAuthenticated || disabled}
 >
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -56,16 +62,19 @@
           ? 'border-[color-mix(in_oklab,var(--color-dislike)_50%,transparent)] bg-[color-mix(in_oklab,var(--color-dislike)_10%,transparent)] text-[var(--color-dislike)]'
           : 'border-[var(--color-border)] bg-transparent text-[var(--color-text)] hover:border-[color-mix(in_oklab,var(--color-dislike)_50%,transparent)] hover:bg-[color-mix(in_oklab,var(--color-dislike)_10%,transparent)] hover:text-[var(--color-dislike)]'
       }
-      ${!isAuthenticated ? 'cursor-not-allowed opacity-50' : ''}`}
-  on:click={() => isAuthenticated && onFeedback(false)}
+      ${!isAuthenticated || disabled ? 'cursor-not-allowed opacity-50' : ''}`}
+  on:click={() => isAuthenticated && !disabled && onFeedback(false)}
   title={!isAuthenticated
     ? `Sign in to dislike ${subject}s`
-    : hasDisliked
-      ? 'Undo dislike'
-      : `Dislike this ${subject}`}
+    : disabledReason
+      ? disabledReason
+      : hasDisliked
+        ? 'Undo dislike'
+        : `Dislike this ${subject}`}
   aria-pressed={hasDisliked}
-  aria-label={`Dislike${hasDisliked ? ' (disliked)' : ''}, ${dislikes} ${dislikes === 1 ? 'dislike' : 'dislikes'}`}
-  disabled={!isAuthenticated}
+  aria-busy={busy}
+  aria-label={`Dislike${hasDisliked ? ' (disliked)' : ''}, ${dislikes} ${dislikes === 1 ? 'dislike' : 'dislikes'}${disabledReason ? `. ${disabledReason}` : ''}`}
+  disabled={!isAuthenticated || disabled}
 >
   <svg
     xmlns="http://www.w3.org/2000/svg"

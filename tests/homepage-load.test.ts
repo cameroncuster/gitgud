@@ -24,26 +24,14 @@ async function invoke(successful: boolean, problems: Problem[]) {
   return { data, headers };
 }
 
-test('homepage publicly caches successful non-empty results', async () => {
-  const result = await invoke(true, [problem]);
-  assert.deepEqual(result.data, { problems: [problem] });
-  assert.equal(
-    result.headers['cache-control'],
-    'public, max-age=0, s-maxage=60, stale-while-revalidate=300'
-  );
-});
-
-test('homepage publicly caches a successful empty result', async () => {
-  const result = await invoke(true, []);
-  assert.deepEqual(result.data, { problems: [] });
-  assert.equal(
-    result.headers['cache-control'],
-    'public, max-age=0, s-maxage=60, stale-while-revalidate=300'
-  );
-});
-
-test('homepage explicitly disables caching after a failed read', async () => {
-  const result = await invoke(false, []);
-  assert.deepEqual(result.data, { problems: [] });
-  assert.equal(result.headers['cache-control'], 'private, no-store');
+test('homepage never caches mutable reaction counts', async () => {
+  for (const [successful, problems] of [
+    [true, [problem]],
+    [true, []],
+    [false, []]
+  ] as const) {
+    const result = await invoke(successful, [...problems]);
+    assert.deepEqual(result.data, { problems: [...problems] });
+    assert.equal(result.headers['cache-control'], 'no-store');
+  }
 });

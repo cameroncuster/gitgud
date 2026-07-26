@@ -286,9 +286,15 @@ test.describe('signed-in settings layout and appearance', () => {
     expect(settingsTarget?.width).toBeGreaterThanOrEqual(44);
     await expect(settingsLink).toHaveText('');
     await themeButton.click();
+    const darkPreferenceSaved = page.waitForResponse((response) => {
+      if (!response.url().includes('/rest/v1/user_preferences') || !response.ok()) return false;
+      const body = response.request().postData();
+      return body?.includes('"theme":"dark"') ?? false;
+    });
     await page.getByRole('button', { name: 'Theme: Light. Switch to Dark' }).click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     await expect.poll(() => page.evaluate(() => localStorage.getItem('gitgud-theme'))).toBe('dark');
+    await darkPreferenceSaved;
 
     await page.reload();
     if (viewport && viewport.width < 1024) {
