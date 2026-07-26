@@ -26,6 +26,17 @@ Start with the fundamentals:
 
 Once you're ready to work through a problem archive, read [Um_nik's guide to practicing competitive programming](https://codeforces.com/blog/entry/98806)—then come find the problems the community believes are worth your time.
 
+## Quality
+
+The instrumented TypeScript runtime (`src/**/*.ts`) is held to 100% line, branch,
+and function coverage. CI enforces the thresholds on Node 24:
+
+```bash
+pnpm run test:coverage
+```
+
+New behavior should ship with regression coverage that keeps this scope at 100%.
+
 ## Contribute
 
 gitgud is open source. [Issues and pull requests](https://github.com/cameroncuster/gitgud) are welcome.

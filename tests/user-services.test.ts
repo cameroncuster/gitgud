@@ -696,6 +696,56 @@ test('Kattis import rejects anonymous actors, changed sessions, and query failur
     fetchMatchesResponse: async () => Response.json({})
   });
   assert.equal((await failed.previewKattisImport('gamma')).success, false);
+
+  const anonymousConfirm = createUserSolvesService({
+    client: importClient([]).client,
+    resolveActor: async () => actor(false, false),
+    getActor: () => actor(false, false),
+    fetchMatchesResponse: async () => Response.json({})
+  });
+  assert.deepEqual(await anonymousConfirm.confirmKattisImport('gamma'), {
+    success: false,
+    imported: 0,
+    message: 'You must be signed in to import solves'
+  });
+
+  const thrown = createUserSolvesService({
+    client: importClient([], true).client,
+    resolveActor: async () => actor(),
+    getActor: () => actor(),
+    fetchMatchesResponse: async () => Response.json({})
+  });
+  assert.deepEqual(await thrown.previewKattisImport('gamma'), {
+    success: false,
+    message: 'Failed to match tracked Kattis problems'
+  });
+
+  const confirmFailed = createUserSolvesService({
+    client: importClient([{ data: null, error: { code: 'denied' } }]).client,
+    resolveActor: async () => actor(),
+    getActor: () => actor(),
+    fetchMatchesResponse: async () => Response.json({})
+  });
+  assert.deepEqual(await confirmFailed.confirmKattisImport('gamma'), {
+    success: false,
+    imported: 0,
+    message: 'Failed to match tracked Kattis problems'
+  });
+
+  const nullTracked = importClient([
+    { data: null, error: null },
+    { data: [{ problem_id: 'database-id' }], error: null }
+  ]);
+  const nullTrackedService = createUserSolvesService({
+    client: nullTracked.client,
+    resolveActor: async () => actor(),
+    getActor: () => actor(),
+    fetchMatchesResponse: async () => Response.json({})
+  });
+  assert.deepEqual(await nullTrackedService.previewKattisImport('gamma'), {
+    success: true,
+    result: { matched: [], unmatchedCount: 1, duplicateCount: 0, capped: false }
+  });
 });
 
 test('solve confirmation hides database errors and counts missing return data as zero', async () => {

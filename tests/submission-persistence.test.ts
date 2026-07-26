@@ -226,3 +226,106 @@ test('problem query errors and thrown database failures preserve messages', asyn
     message: 'client unavailable'
   });
 });
+
+test('thrown problem-existence queries are contained with Error and non-Error causes', async () => {
+  const throwing: SubmissionClient = {
+    from: () => {
+      throw new Error('client unavailable');
+    }
+  };
+  assert.deepEqual(
+    await createSubmissionPersistence(throwing).checkEquivalentProblemUrls('problem'),
+    {
+      duplicate: false,
+      error: 'client unavailable',
+      message: 'client unavailable'
+    }
+  );
+
+  const nonError: SubmissionClient = {
+    from: () => {
+      throw 'string failure';
+    }
+  };
+  assert.deepEqual(
+    await createSubmissionPersistence(nonError).checkEquivalentProblemUrls('problem'),
+    {
+      duplicate: false,
+      error: 'Unknown error checking problem existence',
+      message: 'Unknown error checking problem existence'
+    }
+  );
+  assert.deepEqual(await createSubmissionPersistence(nonError).checkContest('contest'), {
+    duplicate: false,
+    error: 'Unknown error',
+    message: 'Unknown error'
+  });
+});
+
+test('problem insert surfaces a duplicate-check query error before writing', async () => {
+  const mock = client([{ data: null, error: { message: 'read denied' } }]);
+  assert.deepEqual(await createSubmissionPersistence(mock.mock).insertProblem(problem), {
+    success: false,
+    message: 'Error checking if problem exists: Database query error: read denied'
+  });
+  assert.equal(
+    mock.calls.some((call) => call.operation === 'insert'),
+    false
+  );
+});
+
+function cleanCheckThenInsert(insert: () => never | { select: () => unknown }): SubmissionClient {
+  return {
+    from: () => ({
+      select: () => ({ eq: async () => ({ data: [], error: null }) }),
+      insert
+    })
+  } as unknown as SubmissionClient;
+}
+
+test('problem and contest inserts contain thrown writes after a clean duplicate check', async () => {
+  assert.deepEqual(
+    await createSubmissionPersistence(
+      cleanCheckThenInsert(() => {
+        throw new Error('write exploded');
+      })
+    ).insertProblem(problem),
+    { success: false, message: 'write exploded' }
+  );
+  assert.deepEqual(
+    await createSubmissionPersistence(
+      cleanCheckThenInsert(() => {
+        throw 'string write failure';
+      })
+    ).insertProblem(problem),
+    { success: false, message: 'Unknown error inserting problem' }
+  );
+
+  assert.deepEqual(
+    await createSubmissionPersistence(
+      cleanCheckThenInsert(() => {
+        throw new Error('contest write exploded');
+      })
+    ).insertContest(contest),
+    { success: false, message: 'contest write exploded' }
+  );
+  assert.deepEqual(
+    await createSubmissionPersistence(
+      cleanCheckThenInsert(() => {
+        throw 'string contest failure';
+      })
+    ).insertContest(contest),
+    { success: false, message: 'Unknown error inserting contest' }
+  );
+});
+
+test('contest insert surfaces a database write error', async () => {
+  const mock = client([
+    { data: [], error: null },
+    { data: null, error: { message: 'write denied' } }
+  ]);
+  assert.deepEqual(await createSubmissionPersistence(mock.mock).insertContest(contest), {
+    success: false,
+    message: 'Database error: write denied'
+  });
+});

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { get, writable } from 'svelte/store';
-import { createThemeService } from '../src/lib/services/theme.ts';
+import { createThemeService, resolveInitialTheme } from '../src/lib/services/theme.ts';
 import {
   nextThemePreference,
   type ResolvedTheme,
@@ -73,6 +73,40 @@ function setup(
     }
   };
 }
+
+test('initial theme seeds from the SSR data-theme attribute only in the browser', (t) => {
+  assert.equal(
+    resolveInitialTheme(false, () => ({ dataset: { theme: 'dark' } })),
+    'light'
+  );
+  assert.equal(
+    resolveInitialTheme(true, () => ({ dataset: { theme: 'dark' } })),
+    'dark'
+  );
+  assert.equal(
+    resolveInitialTheme(true, () => ({ dataset: { theme: 'light' } })),
+    'light'
+  );
+  assert.equal(
+    resolveInitialTheme(true, () => ({ dataset: {} })),
+    'light'
+  );
+  assert.equal(
+    resolveInitialTheme(true, () => undefined),
+    'light'
+  );
+
+  const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: { documentElement: { dataset: { theme: 'dark' } } }
+  });
+  t.after(() => {
+    if (previousDocument) Object.defineProperty(globalThis, 'document', previousDocument);
+    else Reflect.deleteProperty(globalThis, 'document');
+  });
+  assert.equal(resolveInitialTheme(true), 'dark');
+});
 
 test('theme preferences cycle from System to Light to Dark', () => {
   assert.equal(nextThemePreference('system'), 'light');
@@ -291,6 +325,52 @@ test('storage denial does not prevent in-memory theme application', () => {
   assert.equal(get(themeStore), 'dark');
   service.applyThemePreference('light', false);
   assert.equal(get(themeStore), 'light');
+});
+
+test('browser services fall back to global storage and document when none are injected', (t) => {
+  const dataset: Record<string, string | undefined> = {};
+  const style = { colorScheme: '' };
+  const store = new Map<string, string>();
+  const previousLocalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => store.set(key, value)
+    }
+  });
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: { documentElement: { dataset, style } }
+  });
+  t.after(() => {
+    if (previousLocalStorage)
+      Object.defineProperty(globalThis, 'localStorage', previousLocalStorage);
+    else Reflect.deleteProperty(globalThis, 'localStorage');
+    if (previousDocument) Object.defineProperty(globalThis, 'document', previousDocument);
+    else Reflect.deleteProperty(globalThis, 'document');
+  });
+
+  const preferenceStore = writable<ThemePreference>('system');
+  const themeStore = writable<ResolvedTheme>('light');
+  const service = createThemeService({
+    isBrowser: true,
+    preferenceStore,
+    themeStore,
+    mediaQuery: {
+      matches: true,
+      addEventListener: () => {},
+      removeEventListener: () => {}
+    },
+    getActor: () => ({ user: null }),
+    fetchPreferences: async () => null,
+    updateThemeForUser: async () => false
+  });
+  assert.equal(service.initializeThemePreference(), 'system');
+  assert.equal(store.get('gitgud-theme'), 'system');
+  assert.equal(dataset.theme, 'dark');
+  assert.equal(style.colorScheme, 'dark');
 });
 
 test('save failures are contained and destroy removes the media listener', async () => {

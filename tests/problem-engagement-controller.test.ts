@@ -447,6 +447,103 @@ test('problem solved thrown writes reconcile unless the actor changed', async ()
   assert.equal(reloads, 2);
 });
 
+test('problem solved reconciliation is abandoned when the actor changes mid-reload', async () => {
+  let loads = 0;
+  const reload = deferred<Set<string>>();
+  const context = setup(
+    {
+      loadSolvedProblemIds: async () => {
+        loads++;
+        return loads === 2 ? reload.promise : new Set();
+      },
+      setSolved: async () => false
+    },
+    { user: { id: 'one' } }
+  );
+  await settle();
+  assert.equal(loads, 1);
+  const write = context.controller.setSolved('p', true);
+  assert.equal(context.controller.state.solvedProblemIds.has('p'), true);
+  await settle();
+  assert.equal(loads, 2);
+  context.actor.set({ user: { id: 'two' } });
+  await settle();
+  reload.resolve(new Set(['stale-one']));
+  await write;
+  assert.equal(context.controller.state.solvedProblemIds.has('stale-one'), false);
+});
+
+test('problem controller refreshes the access token when the same user re-syncs', async () => {
+  let feedbackLoads = 0;
+  let solvedLoads = 0;
+  const context = setup(
+    {
+      loadFeedback: async () => ((feedbackLoads += 1), {}),
+      loadSolvedProblemIds: async () => ((solvedLoads += 1), new Set()),
+      updateFeedback: async () => problem(3, 1)
+    },
+    { user: { id: 'actor' }, session: { access_token: 'first-token' } }
+  );
+  await settle();
+  assert.equal(feedbackLoads, 1);
+  assert.equal(solvedLoads, 1);
+
+  const actors: Array<{ userId: string; accessToken: string }> = [];
+  context.actor.set({ user: { id: 'actor' }, session: { access_token: 'refreshed-token' } });
+  await settle();
+  assert.equal(feedbackLoads, 1);
+  assert.equal(solvedLoads, 1);
+
+  const withCapture = setup(
+    {
+      updateFeedback: async (_id, _isLike, reactionActor) => {
+        actors.push(reactionActor);
+        return problem(3, 1);
+      }
+    },
+    { user: { id: 'actor' }, session: { access_token: 'first-token' } }
+  );
+  await settle();
+  withCapture.actor.set({ user: { id: 'actor' }, session: { access_token: 'refreshed-token' } });
+  await settle();
+  await withCapture.controller.react('p', true);
+  assert.deepEqual(actors, [{ userId: 'actor', accessToken: 'refreshed-token' }]);
+});
+
+test('problem controller blocks state and collection publications during unsubscribe', () => {
+  let listener: ((actor: Actor) => void) | null = null;
+  const actor = {
+    subscribe(next: (actor: Actor) => void) {
+      listener = next;
+      next({ user: { id: 'actor' }, session: { access_token: 'token' } });
+      return () => listener?.({ user: null });
+    }
+  };
+  let collection = new ProblemCollection({ items: [problem()] });
+  let collectionWrites = 0;
+  const controller = createProblemEngagementController({
+    actor,
+    gateway: {
+      loadFeedback: async () => ({}),
+      loadSolvedProblemIds: async () => new Set(),
+      updateFeedback: async () => null,
+      setSolved: async () => true
+    },
+    getCollection: () => collection,
+    setCollection: (next) => {
+      collection = next;
+      collectionWrites++;
+    },
+    applySolvedToCollection: true,
+    reportError: () => {}
+  });
+  controller.start();
+  const writesBeforeDispose = collectionWrites;
+  controller.dispose();
+  assert.equal(controller.state.isAuthenticated, true);
+  assert.equal(collectionWrites, writesBeforeDispose);
+});
+
 test('problem controller ignores stale actor loads and all loads after dispose', async () => {
   const firstFeedback = deferred<ProblemFeedback>();
   const secondFeedback = deferred<ProblemFeedback>();

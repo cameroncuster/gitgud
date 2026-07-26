@@ -102,6 +102,21 @@ test('Codeforces adapter surfaces server errors and HTTP fallback messages', asy
   }
 });
 
+test('Codeforces adapter accepts a bare fetch function as its dependency', async () => {
+  // A bare fetch function selects the function branch of the dependency
+  // normalizer; the default actor accessors provide no session, so resolution
+  // is blocked before the network call.
+  const fetchProblems: typeof fetch = async () => {
+    throw new Error('must not fetch without a session');
+  };
+  const adapter = createCodeforcesSubmitAdapter(persistence(), fetchProblems);
+  assert.equal(adapter.id, 'codeforces');
+  const [entry] = adapter.extract('https://codeforces.com/contest/1/problem/A');
+  const resolved = await adapter.resolve(entry, 'alice');
+  assert.equal(resolved.valid, false);
+  assert.equal(resolved.valid ? '' : resolved.reason, 'Authentication required');
+});
+
 test('provider adapters delegate commits by item kind and reject impossible Kattis contests', async () => {
   const calls: string[] = [];
   const store = persistence({
@@ -145,6 +160,14 @@ test('Kattis adapter fetches encoded canonical URL and parses successful HTML', 
   const resolved = await adapter.resolve(entry, 'alice');
   assert.equal(resolved.valid, true);
   assert.equal(requested, '/api/kattis?url=https%3A%2F%2Fopen.kattis.com%2Fproblems%2Fhello');
+});
+
+test('Kattis adapter treats a missing html field as empty page content', async () => {
+  const adapter = createKattisSubmitAdapter(persistence(), async () => Response.json({}));
+  const [entry] = adapter.extract('hello');
+  const resolved = await adapter.resolve(entry, 'alice');
+  assert.equal(resolved.valid, true);
+  assert.equal(resolved.valid && resolved.payload.name, 'Hello');
 });
 
 test('Kattis adapter falls back safely on proxy JSON, HTTP, and transport errors', async () => {

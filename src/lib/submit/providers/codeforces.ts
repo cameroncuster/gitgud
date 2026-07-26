@@ -20,7 +20,6 @@ function createProblemBatchResolver({
 }: CodeforcesSubmitDependencies): ProblemBatchResolver {
   return async (refs) => {
     const results = new Map<string, ProblemResolution>();
-    if (refs.length === 0) return results;
 
     await resolveActor();
     const accessToken = getActor().session?.access_token;

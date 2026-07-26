@@ -60,7 +60,7 @@ export function sortByScore<T extends ScoreSortable>(
 
   return [...itemsByScore.keys()]
     .sort((a, b) => (direction === 'asc' ? a - b : b - a))
-    .flatMap((score) => itemsByScore.get(score) ?? []);
+    .flatMap((score) => itemsByScore.get(score)!);
 }
 
 export function sortByDifficulty<T extends DifficultySortable>(

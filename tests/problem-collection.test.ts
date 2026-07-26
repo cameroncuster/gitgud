@@ -42,6 +42,18 @@ function ids(collection: ProblemCollection): string[] {
   return collection.rows.map((item) => item.id ?? '');
 }
 
+test('problem collection preserves source order and defaults to an empty list', () => {
+  const ordered = new ProblemCollection({
+    items: [problems[3], problems[0]],
+    preserveSourceOrder: true
+  });
+  assert.deepEqual(
+    ordered.sourceItems.map((item) => item.id),
+    ['d', 'b']
+  );
+  assert.deepEqual(new ProblemCollection({ preserveSourceOrder: true }).sourceItems, []);
+});
+
 test('problem collection applies every current filter together', () => {
   const solvedProblemIds = new Set(['a', 'c']);
   const topics = [null, 'graph', 'misc', NEW_PROBLEM_TOPIC] as const;

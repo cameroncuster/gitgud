@@ -7,6 +7,7 @@ import {
   mapKattisDifficulty,
   parseKattisProblem,
   parseKattisProblemId,
+  parseKattisProblemPage,
   type KattisIngestionDependencies
 } from '../src/lib/providers/kattis/ingestion.ts';
 
@@ -93,6 +94,48 @@ test('fetch or parse failure logs and remains a valid title-cased fallback row',
   assert.equal(row.valid && row.payload.difficulty, undefined);
   assert.equal(row.valid && row.payload.addedByUrl, 'https://open.kattis.com/users/');
   assert.equal(logs[0][0], 'Error fetching Kattis problem HTML:');
+});
+
+test('parseKattisProblemPage reads the title and difficulty from the DOM', (t) => {
+  const makeDocument = (h1: string | null, difficulty: string | null) => ({
+    querySelector: (selector: string) => {
+      if (selector === 'h1') return h1 === null ? null : { textContent: h1 };
+      return difficulty === null ? null : { textContent: difficulty };
+    }
+  });
+  let next: ReturnType<typeof makeDocument>;
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'DOMParser');
+  Object.defineProperty(globalThis, 'DOMParser', {
+    configurable: true,
+    value: class {
+      parseFromString() {
+        return next;
+      }
+    }
+  });
+  t.after(() => {
+    if (previous) Object.defineProperty(globalThis, 'DOMParser', previous);
+    else Reflect.deleteProperty(globalThis, 'DOMParser');
+  });
+
+  next = makeDocument('  Two Stones  ', ' 4.5 ');
+  assert.deepEqual(parseKattisProblemPage('<html />', 'twostones'), {
+    name: 'Two Stones',
+    rating: 4.5
+  });
+  next = makeDocument(null, null);
+  assert.deepEqual(parseKattisProblemPage('<html />', 'twostones'), {
+    name: 'twostones',
+    rating: 5
+  });
+});
+
+test('a successful resolve without a handle uses the generic profile URL', async () => {
+  const service = ingestion();
+  const [entry] = service.extract('hello');
+  const row = await service.resolve(entry, '');
+  assert.equal(row.valid, true);
+  assert.equal(row.valid && row.payload.addedByUrl, 'https://open.kattis.com');
 });
 
 test('invalid entries and duplicate errors avoid page fetches', async () => {

@@ -229,6 +229,7 @@ export function createSubmissionWorkflow(
             row.id === originalRow.id ? { ...row, status: 'committing' } : row
           )
         });
+        if (state.sequence !== requestSequence) return 'stale';
 
         let result;
         try {
@@ -252,6 +253,7 @@ export function createSubmissionWorkflow(
               : row
           )
         });
+        if (state.sequence !== requestSequence) return 'stale';
       }
       publish({ done: true });
       return 'complete';

@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { mock, test } from 'node:test';
 import type { Session, SupabaseClient } from '@supabase/supabase-js';
-import { createAuthorization, type AuthorizationResult } from '../src/lib/server/authorization.ts';
+import {
+  createAuthorization,
+  requireUser as productionRequireUser,
+  type AuthorizationResult
+} from '../src/lib/server/authorization.ts';
 import { createCurrentActor } from '../src/lib/auth/currentActor.ts';
 
 type Result = { data: unknown; error: { code?: string } | null };
@@ -332,6 +336,38 @@ test('current actor contains getSession rejection and ignores a detached listene
   assert.equal(actor.getCurrentActor().user, null);
 });
 
+test('current actor discards a listener the bootstrap superseded via a synchronous auth event', async () => {
+  let unsubscribed = 0;
+  let deactivatedListener = false;
+  const getSession = mock.fn(async () => ({ data: { session: session('user', 'token') } }));
+  const onAuthStateChange = mock.fn((listener: (event: string, next: Session | null) => void) => {
+    // Emit synchronously during registration so actorVersion advances before the
+    // post-subscribe version check, exercising the superseded-listener branch.
+    listener('SIGNED_IN', session('user', 'refreshed'));
+    deactivatedListener = true;
+    return { data: { subscription: { unsubscribe: () => unsubscribed++ } } };
+  });
+  const client = {
+    auth: {
+      getSession,
+      onAuthStateChange,
+      signInWithOAuth: async () => ({ error: null }),
+      signOut: async () => ({ error: null })
+    },
+    from: () => ({
+      select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) })
+    })
+  } as unknown as SupabaseClient;
+
+  const actor = createCurrentActor({ client });
+  const resolved = await actor.resolveCurrentActor();
+  assert.equal(deactivatedListener, true);
+  assert.equal(unsubscribed, 1);
+  assert.equal(resolved.initialized, true);
+  actor.stopCurrentActor();
+  assert.equal(unsubscribed, 1);
+});
+
 test('current actor default redirect uses the browser origin', async (t) => {
   const fake = actorClient({ initial: null });
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'window');
@@ -368,4 +404,21 @@ test('oauth and sign-out preserve redirects and surface provider failures', asyn
   });
   await assert.rejects(() => failed.signInWithGithub(), oauthError);
   await assert.rejects(() => failed.signOut(), logoutError);
+});
+
+test('the production requireUser wiring builds a real client and fails closed', async (t) => {
+  const original = globalThis.fetch;
+  t.after(() => {
+    globalThis.fetch = original;
+  });
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify({ error: 'invalid token' }), {
+      status: 401,
+      headers: { 'content-type': 'application/json' }
+    })) as typeof fetch;
+  const result = await productionRequireUser(
+    new Request('https://gitgud.test/api', { headers: { authorization: 'Bearer tok' } })
+  );
+  assert.equal(result.authorized, false);
+  if (!result.authorized) assert.equal(result.response.status, 401);
 });
