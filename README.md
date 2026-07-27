@@ -6,6 +6,12 @@
 
 <h1 align="center">gitgud</h1>
 
+<p align="center">
+  <a href="#quality">
+    <img src="https://img.shields.io/badge/TypeScript%20coverage-100%25%20lines%20%7C%20branches%20%7C%20functions-brightgreen" alt="TypeScript coverage: 100% lines, branches, and functions">
+  </a>
+</p>
+
 gitgud is a community-curated collection for competitive programmers who want to practice beyond the fundamentals. Problem archives are enormous, but problem quality varies. gitgud helps surface the problems that teach something memorable.
 
 ## Canon Problems
