@@ -7,6 +7,12 @@
 <h1 align="center">gitgud</h1>
 
 <p align="center">
+  <a href="https://github.com/cameroncuster/gitgud/actions/workflows/ci.yml">
+    <img src="https://github.com/cameroncuster/gitgud/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status">
+  </a>
+  <a href="https://github.com/cameroncuster/gitgud/actions/workflows/codeql.yml">
+    <img src="https://github.com/cameroncuster/gitgud/actions/workflows/codeql.yml/badge.svg?branch=main" alt="CodeQL status">
+  </a>
   <a href="#quality">
     <img src="https://img.shields.io/badge/TypeScript%20coverage-100%25%20lines%20%7C%20branches%20%7C%20functions-brightgreen" alt="TypeScript coverage: 100% lines, branches, and functions">
   </a>
