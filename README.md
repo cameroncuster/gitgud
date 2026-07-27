@@ -13,9 +13,7 @@
   <a href="https://github.com/cameroncuster/gitgud/actions/workflows/codeql.yml">
     <img src="https://github.com/cameroncuster/gitgud/actions/workflows/codeql.yml/badge.svg?branch=main" alt="CodeQL status">
   </a>
-  <a href="#quality">
-    <img src="https://img.shields.io/badge/TypeScript%20coverage-100%25%20lines%20%7C%20branches%20%7C%20functions-brightgreen" alt="TypeScript coverage: 100% lines, branches, and functions">
-  </a>
+  <img src="https://img.shields.io/badge/TypeScript%20coverage-100%25%20lines%20%7C%20branches%20%7C%20functions-brightgreen" alt="TypeScript coverage: 100% lines, branches, and functions">
 </p>
 
 gitgud is a community-curated collection for competitive programmers who want to practice beyond the fundamentals. Problem archives are enormous, but problem quality varies. gitgud helps surface the problems that teach something memorable.
@@ -37,17 +35,6 @@ Start with the fundamentals:
 - [Codeforces EDU](https://codeforces.com/edu/courses)
 
 Once you're ready to work through a problem archive, read [Um_nik's guide to practicing competitive programming](https://codeforces.com/blog/entry/98806)—then come find the problems the community believes are worth your time.
-
-## Quality
-
-The instrumented TypeScript runtime (`src/**/*.ts`) is held to 100% line, branch,
-and function coverage. CI enforces the thresholds on Node 24:
-
-```bash
-pnpm run test:coverage
-```
-
-New behavior should ship with regression coverage that keeps this scope at 100%.
 
 ## Contribute
 
