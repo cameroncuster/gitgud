@@ -55,9 +55,13 @@ test('@sanity GitHub sign-in persists an admin session and logout revokes access
 
   await page.goto('/submit');
   await expect(page.getByLabel(/Problem URLs/i)).toBeVisible();
-  await openMobileMenu(page);
 
+  await page.goto('/settings');
+  await expect(page.getByRole('heading', { name: 'Privacy', exact: true })).toBeVisible();
+  await openMobileMenu(page);
   await page.getByRole('button', { name: 'Logout' }).click();
+  await expect(page.getByRole('heading', { name: 'Privacy', exact: true })).toHaveCount(0);
+  await page.waitForURL(/\/$/);
   await expect
     .poll(() => page.evaluate((key) => localStorage.getItem(key), SUPABASE_STORAGE_KEY))
     .toBeNull();

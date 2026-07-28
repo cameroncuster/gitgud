@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { goto } from '$app/navigation';
+  import { resolve } from '$app/paths';
   import { onMount } from 'svelte';
   import { currentActor, getCurrentActor, resolveCurrentActor } from '$lib/auth/currentActor';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
@@ -24,10 +26,6 @@
 
   let preferences: UserPreferences = { hideFromLeaderboard: false, theme: 'system' };
   let loading = true;
-  // Appearance is available to everyone; the account-only sections below render
-  // only when a session exists. Anonymous visitors reach Settings to change the
-  // localStorage theme without ever triggering an account query.
-  $: user = $currentActor.user;
   let saving = false;
   let error: string | null = null;
   let success: string | null = null;
@@ -180,17 +178,31 @@
   }
 
   onMount(() => {
+    let authorizedUserId: string | null = null;
+    const unsubscribe = currentActor.subscribe((actor) => {
+      if (authorizedUserId && actor.initialized && actor.user?.id !== authorizedUserId) {
+        loading = true;
+        preferences = { hideFromLeaderboard: false, theme: 'system' };
+        codeforcesPreview = null;
+        kattisPreview = null;
+        void goto(resolve('/'), { replaceState: true });
+      }
+    });
+
     const initialize = async () => {
       const actor = await resolveCurrentActor();
-      // Only signed-in visitors have account preferences to load; anonymous
-      // visitors skip the query entirely and keep the default preferences.
-      if (actor.user) {
-        const loaded = await fetchUserPreferences();
-        if (loaded) preferences = loaded;
+      if (!actor.user) {
+        await goto(resolve('/'), { replaceState: true });
+        return;
       }
+      authorizedUserId = actor.user.id;
+      const loaded = await fetchUserPreferences();
+      if (getCurrentActor().user?.id !== authorizedUserId) return;
+      if (loaded) preferences = loaded;
       loading = false;
     };
     void initialize();
+    return unsubscribe;
   });
 </script>
 
@@ -230,9 +242,7 @@
       {#if error}<p class="text-sm text-[var(--color-error)]">{error}</p>{/if}
     </div>
 
-    <section
-      class="overflow-hidden border-2 border-[var(--color-border)] {user ? '' : 'mb-16 md:mb-20'}"
-    >
+    <section class="overflow-hidden border-2 border-[var(--color-border)]">
       <h2 class="border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-4 font-bold">
         Appearance
       </h2>
@@ -262,170 +272,164 @@
       {/if}
     </section>
 
-    {#if user}
-      <section class="mt-6 overflow-hidden border-2 border-[var(--color-border)]">
-        <h2
-          class="border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-4 font-bold"
-        >
-          Privacy
-        </h2>
-        <div class="flex items-center justify-between gap-4 bg-[var(--color-secondary)] p-4">
-          <div>
-            <p class="font-medium text-[var(--color-text)]">Hide from leaderboard</p>
-            <p class="text-sm text-[var(--color-text-muted)]">
-              Your profile will not be visible on the public leaderboard.
-            </p>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={preferences.hideFromLeaderboard}
-            class="min-h-11 min-w-16 border-2 border-[var(--color-border)] px-2 font-medium focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
-            on:click={() => void toggleHideFromLeaderboard()}
-            disabled={saving}>{preferences.hideFromLeaderboard ? 'On' : 'Off'}</button
-          >
+    <section class="mt-6 overflow-hidden border-2 border-[var(--color-border)]">
+      <h2 class="border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-4 font-bold">
+        Privacy
+      </h2>
+      <div class="flex items-center justify-between gap-4 bg-[var(--color-secondary)] p-4">
+        <div>
+          <p class="font-medium text-[var(--color-text)]">Hide from leaderboard</p>
+          <p class="text-sm text-[var(--color-text-muted)]">
+            Your profile will not be visible on the public leaderboard.
+          </p>
         </div>
-      </section>
-
-      <section class="mt-6 mb-16 overflow-hidden border-2 border-[var(--color-border)] md:mb-20">
-        <h2
-          class="border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-4 font-bold"
+        <button
+          type="button"
+          role="switch"
+          aria-checked={preferences.hideFromLeaderboard}
+          class="min-h-11 min-w-16 border-2 border-[var(--color-border)] px-2 font-medium focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
+          on:click={() => void toggleHideFromLeaderboard()}
+          disabled={saving}>{preferences.hideFromLeaderboard ? 'On' : 'Off'}</button
         >
-          Import solved problems
-        </h2>
-        <div class="bg-[var(--color-secondary)] p-4">
-          <fieldset>
-            <legend class="mb-2 font-medium">Source</legend>
-            <div class="flex gap-2">
-              {#each importProviders as provider (provider)}
-                <label
-                  class="flex min-h-11 cursor-pointer items-center gap-2 border-2 border-[var(--color-border)] px-3 capitalize has-[:checked]:border-[var(--color-accent)]"
-                >
-                  <input
-                    type="radio"
-                    name="import-provider"
-                    value={provider}
-                    checked={importProvider === provider}
-                    on:change={() => {
-                      importProvider = provider;
-                      fileSelectionRevision++;
-                      clearImportState();
-                    }}
-                  />
-                  {provider}
-                </label>
-              {/each}
-            </div>
-          </fieldset>
+      </div>
+    </section>
 
-          {#if importProvider === 'codeforces'}
-            <p class="my-3 text-sm text-[var(--color-text-muted)]">
-              Import accepted submissions from your public Codeforces handle. Existing behavior is
-              unchanged and only tracked problems are matched.
-            </p>
-            <label class="block">
-              <span class="sr-only">Codeforces handle</span>
-              <input
-                type="text"
-                bind:value={cfHandle}
-                placeholder="Codeforces handle"
-                autocomplete="off"
-                class="w-full border-2 border-[var(--color-border)] bg-[var(--color-primary)] px-3 py-2"
-                disabled={importPreviewing || importing}
-              />
-            </label>
-          {:else}
-            <p class="my-3 text-sm text-[var(--color-text-muted)]">
-              Paste Kattis problem IDs or canonical problem URLs, or choose a local .txt/.html file.
-              Files stay in your browser; gitgud never contacts Kattis for this import.
-            </p>
-            <label class="block">
-              <span class="mb-1 block font-medium">Kattis problem IDs or URLs</span>
-              <textarea
-                bind:value={kattisInput}
-                on:input={() => {
-                  fileSelectionRevision++;
-                  kattisIsHtml = false;
-                  selectedFileName = '';
-                  clearImportState();
-                }}
-                rows="6"
-                maxlength="1000000"
-                placeholder="gamma&#10;https://open.kattis.com/problems/twostones"
-                class="w-full border-2 border-[var(--color-border)] bg-[var(--color-primary)] p-3"
-                disabled={importPreviewing || importing}></textarea>
-            </label>
-            <label
-              class="mt-3 inline-flex min-h-11 cursor-pointer items-center border-2 border-[var(--color-border)] px-3 font-medium"
-            >
-              Choose local .txt or .html file
-              <input
-                type="file"
-                accept=".txt,.html,.htm,text/plain,text/html"
-                class="sr-only"
-                on:change={handleKattisFile}
-                disabled={importPreviewing || importing}
-              />
-            </label>
-            {#if selectedFileName}
-              <p class="mt-2 text-sm text-[var(--color-text-muted)]">Loaded {selectedFileName}</p>
-            {/if}
-          {/if}
-
-          <button
-            type="button"
-            class="mt-3 min-h-11 border-2 border-[var(--color-border)] bg-[var(--color-tertiary)] px-4 font-medium disabled:opacity-50"
-            on:click={runPreview}
-            disabled={importPreviewing || importing}
-            >{importPreviewing ? 'Loading…' : 'Preview'}</button
-          >
-
-          <div class="mt-3" role="status" aria-live="polite">
-            {#if importError}<p class="text-sm text-[var(--color-error)]">{importError}</p>{/if}
-            {#if importSuccess}<p class="text-sm text-[var(--color-success)]">
-                {importSuccess}
-              </p>{/if}
+    <section class="mt-6 mb-16 overflow-hidden border-2 border-[var(--color-border)] md:mb-20">
+      <h2 class="border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-4 font-bold">
+        Import solved problems
+      </h2>
+      <div class="bg-[var(--color-secondary)] p-4">
+        <fieldset>
+          <legend class="mb-2 font-medium">Source</legend>
+          <div class="flex gap-2">
+            {#each importProviders as provider (provider)}
+              <label
+                class="flex min-h-11 cursor-pointer items-center gap-2 border-2 border-[var(--color-border)] px-3 capitalize has-[:checked]:border-[var(--color-accent)]"
+              >
+                <input
+                  type="radio"
+                  name="import-provider"
+                  value={provider}
+                  checked={importProvider === provider}
+                  on:change={() => {
+                    importProvider = provider;
+                    fileSelectionRevision++;
+                    clearImportState();
+                  }}
+                />
+                {provider}
+              </label>
+            {/each}
           </div>
+        </fieldset>
 
-          {#if importPreview}
-            <div class="mt-4 border-t-2 border-[var(--color-border)] pt-4">
-              <p>
-                <strong>{importPreview.matched.length}</strong> solved problem{importPreview.matched
-                  .length === 1
-                  ? ''
-                  : 's'} matched.
-              </p>
-              {#if importProvider === 'codeforces'}
-                {#if codeforcesPreview && codeforcesPreview.unmatchedCount > 0}
-                  <p class="text-sm text-[var(--color-text-muted)]">
-                    {codeforcesPreview.unmatchedCount} solved problem{codeforcesPreview.unmatchedCount ===
-                    1
-                      ? ''
-                      : 's'} not tracked here.
-                  </p>
-                {/if}
-              {:else if kattisPreview}
+        {#if importProvider === 'codeforces'}
+          <p class="my-3 text-sm text-[var(--color-text-muted)]">
+            Import accepted submissions from your public Codeforces handle. Existing behavior is
+            unchanged and only tracked problems are matched.
+          </p>
+          <label class="block">
+            <span class="sr-only">Codeforces handle</span>
+            <input
+              type="text"
+              bind:value={cfHandle}
+              placeholder="Codeforces handle"
+              autocomplete="off"
+              class="w-full border-2 border-[var(--color-border)] bg-[var(--color-primary)] px-3 py-2"
+              disabled={importPreviewing || importing}
+            />
+          </label>
+        {:else}
+          <p class="my-3 text-sm text-[var(--color-text-muted)]">
+            Paste Kattis problem IDs or canonical problem URLs, or choose a local .txt/.html file.
+            Files stay in your browser; gitgud never contacts Kattis for this import.
+          </p>
+          <label class="block">
+            <span class="mb-1 block font-medium">Kattis problem IDs or URLs</span>
+            <textarea
+              bind:value={kattisInput}
+              on:input={() => {
+                fileSelectionRevision++;
+                kattisIsHtml = false;
+                selectedFileName = '';
+                clearImportState();
+              }}
+              rows="6"
+              maxlength="1000000"
+              placeholder="gamma&#10;https://open.kattis.com/problems/twostones"
+              class="w-full border-2 border-[var(--color-border)] bg-[var(--color-primary)] p-3"
+              disabled={importPreviewing || importing}></textarea>
+          </label>
+          <label
+            class="mt-3 inline-flex min-h-11 cursor-pointer items-center border-2 border-[var(--color-border)] px-3 font-medium"
+          >
+            Choose local .txt or .html file
+            <input
+              type="file"
+              accept=".txt,.html,.htm,text/plain,text/html"
+              class="sr-only"
+              on:change={handleKattisFile}
+              disabled={importPreviewing || importing}
+            />
+          </label>
+          {#if selectedFileName}
+            <p class="mt-2 text-sm text-[var(--color-text-muted)]">Loaded {selectedFileName}</p>
+          {/if}
+        {/if}
+
+        <button
+          type="button"
+          class="mt-3 min-h-11 border-2 border-[var(--color-border)] bg-[var(--color-tertiary)] px-4 font-medium disabled:opacity-50"
+          on:click={runPreview}
+          disabled={importPreviewing || importing}
+          >{importPreviewing ? 'Loading…' : 'Preview'}</button
+        >
+
+        <div class="mt-3" role="status" aria-live="polite">
+          {#if importError}<p class="text-sm text-[var(--color-error)]">{importError}</p>{/if}
+          {#if importSuccess}<p class="text-sm text-[var(--color-success)]">
+              {importSuccess}
+            </p>{/if}
+        </div>
+
+        {#if importPreview}
+          <div class="mt-4 border-t-2 border-[var(--color-border)] pt-4">
+            <p>
+              <strong>{importPreview.matched.length}</strong> solved problem{importPreview.matched
+                .length === 1
+                ? ''
+                : 's'} matched.
+            </p>
+            {#if importProvider === 'codeforces'}
+              {#if codeforcesPreview && codeforcesPreview.unmatchedCount > 0}
                 <p class="text-sm text-[var(--color-text-muted)]">
-                  {kattisPreview.unmatchedCount} unmatched. {kattisPreview.duplicateCount} duplicate{kattisPreview.duplicateCount ===
+                  {codeforcesPreview.unmatchedCount} solved problem{codeforcesPreview.unmatchedCount ===
                   1
                     ? ''
-                    : 's'} removed.
-                  {#if kattisPreview.capped}Input was capped for safety.{/if}
+                    : 's'} not tracked here.
                 </p>
               {/if}
-              {#if importPreview.matched.length > 0}
-                <button
-                  type="button"
-                  class="mt-3 min-h-11 border-2 border-[var(--color-border)] bg-[var(--color-accent)] px-4 font-medium text-[var(--color-on-accent)] disabled:opacity-50"
-                  on:click={runImport}
-                  disabled={importing}
-                  >{importing ? 'Importing…' : `Import ${importPreview.matched.length}`}</button
-                >
-              {/if}
-            </div>
-          {/if}
-        </div>
-      </section>
-    {/if}
+            {:else if kattisPreview}
+              <p class="text-sm text-[var(--color-text-muted)]">
+                {kattisPreview.unmatchedCount} unmatched. {kattisPreview.duplicateCount} duplicate{kattisPreview.duplicateCount ===
+                1
+                  ? ''
+                  : 's'} removed.
+                {#if kattisPreview.capped}Input was capped for safety.{/if}
+              </p>
+            {/if}
+            {#if importPreview.matched.length > 0}
+              <button
+                type="button"
+                class="mt-3 min-h-11 border-2 border-[var(--color-border)] bg-[var(--color-accent)] px-4 font-medium text-[var(--color-on-accent)] disabled:opacity-50"
+                on:click={runImport}
+                disabled={importing}
+                >{importing ? 'Importing…' : `Import ${importPreview.matched.length}`}</button
+              >
+            {/if}
+          </div>
+        {/if}
+      </div>
+    </section>
   {/if}
 </div>

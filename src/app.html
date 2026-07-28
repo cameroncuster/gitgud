@@ -4,11 +4,8 @@
     <meta charset="utf-8" />
     <link rel="icon" href="%sveltekit.assets%/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <!-- Flash-prevention base styles. Deliberately does NOT redefine the color
-         custom properties: those live in app.css (light :root + dark
-         html[data-theme='dark']) so the persisted theme wins the cascade.
-         Defining them here unlayered would override app.css's layered dark
-         palette and pin the page to light. -->
+    <!-- Flash-prevention base styles. Theme tokens live in app.css; redefining
+         them here would override its layered dark palette. -->
     <style>
       body {
         background-color: var(--color-primary);
@@ -20,22 +17,10 @@
       }
     </style>
 
-    <!-- Resolve the local preference synchronously before first paint. -->
+    <!-- Everyone starts on System until an authenticated database preference loads. -->
     <script>
       (function () {
-        var preference = 'system';
-        try {
-          var stored = localStorage.getItem('gitgud-theme');
-          if (stored === 'light' || stored === 'dark' || stored === 'system') preference = stored;
-        } catch (e) {
-          preference = 'system';
-        }
-        var resolved =
-          preference === 'system'
-            ? window.matchMedia('(prefers-color-scheme: dark)').matches
-              ? 'dark'
-              : 'light'
-            : preference;
+        var resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         document.documentElement.dataset.theme = resolved;
         document.documentElement.style.colorScheme = resolved;
       })();

@@ -7,7 +7,8 @@
   import {
     destroyThemeService,
     initializeThemePreference,
-    loadThemePreference
+    loadThemePreference,
+    resetThemePreference
   } from '$lib/services/theme';
 
   onMount(() => {
@@ -17,9 +18,11 @@
     const actorUnsubscribe = currentActor.subscribe(async (actor) => {
       if (actor.user && actor.user.id !== themedUserId) {
         themedUserId = actor.user.id;
+        resetThemePreference();
         await loadThemePreference();
       } else if (!actor.user) {
         themedUserId = null;
+        resetThemePreference();
       }
     });
 
