@@ -259,18 +259,10 @@ test('each theme position meets the 44px minimum touch target', () => {
 });
 
 test('the settings page leaves deliberate space above the footer', () => {
-  // Signed-in: the Import card is last and carries the responsive bottom margin.
   assert.match(
     SETTINGS,
     /<section class="[^"]*mb-16[^"]*md:mb-20[^"]*">\s*<h2[^>]*>\s*Import solved problems/,
-    'the final signed-in settings card must retain responsive footer separation'
-  );
-  // Anonymous: only Appearance renders, so it must pick up the same margin when
-  // no user is present (the `user ? '' : 'mb-16 md:mb-20'` branch).
-  assert.match(
-    SETTINGS,
-    /user\s*\?\s*''\s*:\s*'mb-16 md:mb-20'/,
-    'the Appearance card must retain footer separation when it is the last card for anonymous visitors'
+    'the final settings card must retain responsive footer separation'
   );
 });
 
@@ -315,43 +307,43 @@ test('the settings init has no fixed timeout / artificial delay', () => {
   );
 });
 
-test('the settings init resolves the actor and loads preferences only for signed-in users', () => {
+test('the settings init redirects anonymous and signed-out visitors', () => {
   assert.match(
     SETTINGS,
     /import\s*\{[^}]*resolveCurrentActor[^}]*\}\s*from '\$lib\/auth\/currentActor';/,
     'init must resolve auth through the currentActor module'
   );
-  // Anonymous visitors are NOT redirected away — Settings is reachable so they
-  // can change the localStorage theme. The old redirect must be gone.
-  assert.doesNotMatch(
-    SETTINGS,
-    /goto\(resolve\('\/'\)\)/,
-    'init must not redirect anonymous visitors away from Settings'
-  );
-  // The account query only runs when a session exists (no account read for
-  // anonymous visitors).
   assert.match(
     SETTINGS,
-    /const actor = await resolveCurrentActor\(\);[\s\S]*?if \(actor\.user\)\s*\{[\s\S]*?fetchUserPreferences\(\)/,
-    'init must gate fetchUserPreferences behind a resolved session'
+    /if \(!actor\.user\)\s*\{\s*await goto\(resolve\('\/'\), \{ replaceState: true \}\);\s*return;/,
+    'anonymous direct navigation must replace Settings with home'
+  );
+  assert.match(
+    SETTINGS,
+    /actor\.user\?\.id !== authorizedUserId[\s\S]*?loading = true;[\s\S]*?preferences = \{ hideFromLeaderboard: false, theme: 'system' \};[\s\S]*?codeforcesPreview = null;[\s\S]*?kattisPreview = null;[\s\S]*?goto\(resolve\('\/'\), \{ replaceState: true \}\)/,
+    'sign-out or account changes must hide and clear account data before redirecting home'
+  );
+  assert.match(
+    SETTINGS,
+    /authorizedUserId = actor\.user\.id;\s*const loaded = await fetchUserPreferences\(\);\s*if \(getCurrentActor\(\)\.user\?\.id !== authorizedUserId\) return;/,
+    'preference loads must be discarded if the authenticated identity changes'
   );
 });
 
-test('account-only sections are gated behind a session; Appearance is always rendered', () => {
-  // Appearance renders unconditionally (outside any {#if user}); the privacy
-  // and import sections live inside the {#if user} account gate.
-  const appearanceIdx = SETTINGS.search(/>\s*Appearance\s*</);
-  const gateIdx = SETTINGS.indexOf('{#if user}');
-  assert.ok(appearanceIdx !== -1, 'Appearance section must be present');
-  assert.ok(gateIdx !== -1, 'account sections must be gated by {#if user}');
-  assert.ok(
-    appearanceIdx < gateIdx,
-    'Appearance must render before (outside) the {#if user} account gate'
-  );
-  // The privacy toggle and import UI are account-only.
+test('all settings sections render only after the authenticated loading gate', () => {
   assert.match(
     SETTINGS,
-    /\{#if user\}[\s\S]*?Privacy[\s\S]*?Import solved problems[\s\S]*?\{\/if\}/,
-    'Privacy and Import must be inside the {#if user} account gate'
+    /\{#if loading\}[\s\S]*?\{:else\}[\s\S]*?Appearance/,
+    'Appearance must wait for auth'
+  );
+  assert.doesNotMatch(
+    SETTINGS,
+    /\{#if user\}/,
+    'authenticated Settings needs no per-section user fallback'
+  );
+  assert.match(
+    SETTINGS,
+    /Appearance[\s\S]*?Privacy[\s\S]*?Import solved problems/,
+    'all sections remain present'
   );
 });

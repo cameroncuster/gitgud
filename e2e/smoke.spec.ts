@@ -135,11 +135,14 @@ test.describe('header session and appearance controls', () => {
     expect(await initialHtml(page)).toContain('Checking session…');
   });
 
-  test('anonymous users see the Sign in action after session resolution', async ({ page }) => {
+  test('anonymous users see Sign in but no Settings entry after session resolution', async ({
+    page
+  }) => {
     await page.goto('/');
     const mobileMenu = page.getByRole('button', { name: 'Open menu' });
     if (await mobileMenu.isVisible()) await mobileMenu.click();
     await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Settings' })).toHaveCount(0);
     // The long-standing wording is restored; the later experiments are gone.
     await expect(page.getByRole('button', { name: 'Continue with GitHub' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Sign up' })).toHaveCount(0);
@@ -326,7 +329,7 @@ test.describe('signed-in settings layout and appearance', () => {
     await dark.click();
     await expect(dark).toBeChecked();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-    await expect.poll(() => page.evaluate(() => localStorage.getItem('gitgud-theme'))).toBe('dark');
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('gitgud-theme'))).toBeNull();
     await darkPreferenceSaved;
 
     await page.reload();
@@ -342,27 +345,20 @@ test.describe('signed-in settings layout and appearance', () => {
 });
 
 test.describe('anonymous guards', () => {
-  // /submit stays fully gated (redirect home). /settings is intentionally
-  // reachable for anonymous visitors so they can change the localStorage theme,
-  // but its account-only sections stay hidden — covered separately below.
-  test('anonymous /settings stays on the route, shows Appearance, and hides account-only sections', async ({
+  test('anonymous /settings redirects home without rendering settings or reading preferences', async ({
     page
   }) => {
-    // Fail the test if any account query fires for an anonymous visitor.
     const accountRequests: string[] = [];
     await page.route('**/rest/v1/user_preferences**', (route) => {
       accountRequests.push(route.request().url());
       return route.continue();
     });
     await page.goto('/settings');
-    // No redirect: the visitor stays on /settings.
-    await expect(page).toHaveURL(/\/settings$/);
-    // Appearance is available to everyone.
-    await expect(page.getByRole('heading', { name: 'Appearance' })).toBeVisible();
-    // The account-only sections are never rendered.
+    await page.waitForURL(/\/$/);
+    await expect(page.getByRole('heading', { name: 'Appearance' })).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Privacy', exact: true })).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Import solved problems' })).toHaveCount(0);
-    // And no account read was attempted.
+    await expect(page.getByRole('link', { name: 'Settings' })).toHaveCount(0);
     expect(accountRequests).toEqual([]);
   });
 
@@ -519,13 +515,13 @@ test.describe('unknown route (404)', () => {
 });
 
 test.describe('theme startup', () => {
-  test('defaults to System and follows the OS preference', async ({ page }) => {
+  test('defaults to System and follows the OS preference without a theme cache', async ({
+    page
+  }) => {
     await page.emulateMedia({ colorScheme: 'dark' });
     await page.goto('/');
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-    await expect
-      .poll(() => page.evaluate(() => localStorage.getItem('gitgud-theme')))
-      .toBe('system');
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('gitgud-theme'))).toBeNull();
   });
 
   test('System responds to OS changes while explicit choices do not', async ({ page }) => {
@@ -543,7 +539,7 @@ test.describe('theme startup', () => {
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   });
 
-  test('the Settings theme toggle directly selects left, middle, and right positions', async ({
+  test('the Settings theme toggle directly selects positions without a theme cache', async ({
     page
   }) => {
     await seedMemberSession(page);
@@ -562,9 +558,7 @@ test.describe('theme startup', () => {
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
     await system.click();
     await expect(system).toBeChecked();
-    await expect
-      .poll(() => page.evaluate(() => localStorage.getItem('gitgud-theme')))
-      .toBe('system');
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('gitgud-theme'))).toBeNull();
   });
 
   test('the Settings theme toggle supports arrow, Home, and End keys', async ({ page }) => {
@@ -588,65 +582,13 @@ test.describe('theme startup', () => {
     await expect(dark).toBeFocused();
   });
 
-  test('an anonymous visitor selects a Settings theme and it persists across reload', async ({
-    page,
-    viewport
-  }) => {
-    // No session is seeded. Fail if the anonymous flow triggers any account read.
-    const accountRequests: string[] = [];
-    await page.route('**/rest/v1/user_preferences**', (route) => {
-      accountRequests.push(route.request().url());
-      return route.continue();
-    });
-
-    // Reach Settings from the header without signing in.
+  test('ignores legacy local theme values and follows System', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'light' });
+    await page.addInitScript(() => localStorage.setItem('gitgud-theme', 'dark'));
     await page.goto('/');
-    if (viewport && viewport.width < 1024) {
-      await page.getByRole('button', { name: 'Open menu' }).click();
-    }
-    await page.getByRole('banner').getByRole('link', { name: 'Settings' }).click();
-    await expect(page).toHaveURL(/\/settings$/);
-    await expect(page.getByRole('heading', { name: 'Appearance' })).toBeVisible();
-
-    // Account-only sections stay hidden for anonymous visitors.
-    await expect(page.getByRole('heading', { name: 'Privacy', exact: true })).toHaveCount(0);
-    await expect(page.getByRole('heading', { name: 'Import solved problems' })).toHaveCount(0);
-
-    const group = page.getByRole('radiogroup', { name: 'Theme' });
-    await expect(group.getByRole('radio', { name: 'System' })).toBeChecked();
-
-    // Direct selection works without an account read.
-    await group.getByRole('radio', { name: 'Dark' }).click();
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
     await expect.poll(() => page.evaluate(() => localStorage.getItem('gitgud-theme'))).toBe('dark');
-
-    // The explicit Dark choice survives a reload via localStorage.
-    await page.reload();
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-    await expect(page.getByRole('radio', { name: 'Dark' })).toBeChecked();
-
-    // Anonymous persistence never triggers an account read.
-    expect(accountRequests).toEqual([]);
-  });
-
-  test('honors a stored Dark Ink preference before first paint', async ({ page }) => {
-    // Theme is controllable without auth via the same localStorage key the
-    // pre-paint script reads; set it before any navigation.
-    await page.addInitScript(() => {
-      window.localStorage.setItem('gitgud-theme', 'dark');
-    });
-    await page.goto('/');
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-    await expect(page.locator('html')).toHaveCSS('color-scheme', 'dark');
-  });
-
-  test('invalid stored preferences normalize to System', async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'dark' });
-    await page.addInitScript(() => localStorage.setItem('gitgud-theme', 'invalid'));
-    await page.goto('/');
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-    await expect
-      .poll(() => page.evaluate(() => localStorage.getItem('gitgud-theme')))
-      .toBe('system');
   });
 });

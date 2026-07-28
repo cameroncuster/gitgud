@@ -11,7 +11,6 @@ import {
 
 export { THEME_PREFERENCES, normalizeThemePreference, resolveTheme } from './appearance';
 export type { ResolvedTheme, ThemePreference } from './appearance';
-export const THEME_STORAGE_KEY = 'gitgud-theme';
 
 // Seed the theme from the SSR-applied data-theme attribute so the first paint
 // matches the server. Reads the DOM only in the browser; defaults to light
@@ -43,7 +42,6 @@ type ThemeServiceDependencies = {
     dataset: Record<string, string | undefined>;
     style: { colorScheme: string };
   };
-  storage?: Pick<Storage, 'getItem' | 'setItem'>;
   mediaQuery?: MediaQuery;
   getActor: () => { user: { id: string } | null };
   fetchPreferences: () => Promise<UserPreferences | null>;
@@ -55,7 +53,6 @@ export function createThemeService({
   preferenceStore,
   themeStore,
   documentElement,
-  storage,
   mediaQuery,
   getActor,
   fetchPreferences,
@@ -69,24 +66,7 @@ export function createThemeService({
 
   const getMediaQuery = () =>
     (activeMediaQuery ??= window.matchMedia('(prefers-color-scheme: dark)'));
-  const getStorage = () => storage ?? localStorage;
   const getDocumentElement = () => documentElement ?? document.documentElement;
-
-  function readStoredPreference(): string | null {
-    try {
-      return getStorage().getItem(THEME_STORAGE_KEY);
-    } catch {
-      return null;
-    }
-  }
-
-  function storePreference(preference: ThemePreference): void {
-    try {
-      getStorage().setItem(THEME_STORAGE_KEY, preference);
-    } catch {
-      // The applied in-memory preference still works when storage is unavailable.
-    }
-  }
 
   function applyResolvedTheme(): void {
     const resolved = resolveTheme(activePreference, getMediaQuery().matches);
@@ -111,22 +91,20 @@ export function createThemeService({
     }
   }
 
-  function applyThemePreference(value: unknown, persistLocally = true): ThemePreference {
+  function applyThemePreference(value: unknown): ThemePreference {
     const preference = normalizeThemePreference(value);
     activePreference = preference;
     preferenceRevision++;
     preferenceStore.set(preference);
     if (!isBrowser) return preference;
 
-    if (persistLocally) storePreference(preference);
     syncSystemListener();
     applyResolvedTheme();
     return preference;
   }
 
   function initializeThemePreference(): ThemePreference {
-    if (!isBrowser) return 'system';
-    return applyThemePreference(readStoredPreference());
+    return applyThemePreference('system');
   }
 
   function persistThemeInOrder(userId: string, preference: ThemePreference): Promise<boolean> {
@@ -148,9 +126,9 @@ export function createThemeService({
   }
 
   function setThemePreference(value: unknown): Promise<boolean> {
-    const preference = applyThemePreference(value);
     const userId = getActor().user?.id;
-    if (!userId) return Promise.resolve(true);
+    if (!isBrowser || !userId) return Promise.resolve(false);
+    const preference = applyThemePreference(value);
     return persistThemeInOrder(userId, preference);
   }
 
@@ -161,15 +139,17 @@ export function createThemeService({
     const userIdAtStart = getActor().user?.id;
     try {
       const preferences = await fetchPreferences();
+      if (!userIdAtStart || getActor().user?.id !== userIdAtStart) return;
+      if (revisionAtStart !== preferenceRevision) return;
+      applyThemePreference(preferences?.theme ?? 'system');
+    } catch (error) {
       if (
-        preferences &&
         userIdAtStart &&
         getActor().user?.id === userIdAtStart &&
         revisionAtStart === preferenceRevision
       ) {
-        applyThemePreference(preferences.theme);
+        applyThemePreference('system');
       }
-    } catch (error) {
       console.error('Failed to load theme preference:', error);
     }
   }
@@ -187,6 +167,7 @@ export function createThemeService({
     saveThemePreference,
     setThemePreference,
     loadThemePreference,
+    resetThemePreference: () => applyThemePreference('system'),
     destroy
   };
 }
@@ -197,6 +178,7 @@ export const {
   saveThemePreference,
   setThemePreference,
   loadThemePreference,
+  resetThemePreference,
   destroy: destroyThemeService
 } = createThemeService({
   isBrowser: browser,

@@ -12,7 +12,6 @@ import type { UserPreferences } from '../src/lib/services/user.ts';
 function setup(
   options: {
     user?: { id: string } | null;
-    stored?: string | null;
     systemDark?: boolean;
     preferences?: UserPreferences | null;
     fetchError?: Error;
@@ -24,8 +23,6 @@ function setup(
   const themeStore = writable<ResolvedTheme>('light');
   const dataset: Record<string, string | undefined> = {};
   const style = { colorScheme: '' };
-  const stored = new Map<string, string>();
-  if (options.stored != null) stored.set('gitgud-theme', options.stored);
   const listeners = new Set<() => void>();
   const mediaQuery = {
     matches: options.systemDark ?? false,
@@ -39,10 +36,6 @@ function setup(
     preferenceStore,
     themeStore,
     documentElement: { dataset, style },
-    storage: {
-      getItem: (key) => stored.get(key) ?? null,
-      setItem: (key, value) => stored.set(key, value)
-    },
     mediaQuery,
     getActor: () => ({ user: currentUser }),
     fetchPreferences: async () => {
@@ -64,7 +57,6 @@ function setup(
     themeStore,
     dataset,
     style,
-    stored,
     updated,
     mediaQuery,
     listeners,
@@ -114,16 +106,17 @@ test('theme preferences cycle from System to Light to Dark', () => {
   assert.equal(nextThemePreference('dark'), 'system');
 });
 
-test('initialization normalizes missing and invalid local preferences to System', () => {
-  for (const value of [null, 'paper']) {
-    const context = setup({ stored: value, systemDark: true });
-    assert.equal(context.service.initializeThemePreference(), 'system');
-    assert.equal(get(context.preferenceStore), 'system');
-    assert.equal(get(context.themeStore), 'dark');
-    assert.equal(context.dataset.theme, 'dark');
-    assert.equal(context.style.colorScheme, 'dark');
-    assert.equal(context.stored.get('gitgud-theme'), 'system');
-  }
+test('initialization and reset return to System and follow the OS', () => {
+  const context = setup({ systemDark: true });
+  assert.equal(context.service.initializeThemePreference(), 'system');
+  assert.equal(get(context.preferenceStore), 'system');
+  assert.equal(get(context.themeStore), 'dark');
+  assert.equal(context.dataset.theme, 'dark');
+  assert.equal(context.style.colorScheme, 'dark');
+  context.service.applyThemePreference('light');
+  assert.equal(context.service.resetThemePreference(), 'system');
+  assert.equal(get(context.preferenceStore), 'system');
+  assert.equal(get(context.themeStore), 'dark');
 });
 
 test('explicit light and dark choices remain semantic preferences', () => {
@@ -213,24 +206,53 @@ test('queued writes retain the actor captured by each selection', async () => {
   ]);
 });
 
-test('anonymous choices remain local and do not fetch account preferences', async () => {
-  const context = setup({ user: null, fetchError: new Error('must not fetch') });
-  assert.equal(await context.service.setThemePreference('dark'), true);
-  assert.equal(context.stored.get('gitgud-theme'), 'dark');
+test('anonymous choices are rejected and leave System active', async () => {
+  const context = setup({ user: null, systemDark: false });
+  context.service.initializeThemePreference();
+  assert.equal(await context.service.setThemePreference('dark'), false);
+  assert.equal(get(context.preferenceStore), 'system');
+  assert.equal(get(context.themeStore), 'light');
   assert.deepEqual(context.updated, []);
 });
 
 test('loaded account preference becomes authoritative after auth resolution', async () => {
-  const context = setup({
-    stored: 'light',
-    preferences: { hideFromLeaderboard: false, theme: 'dark' }
-  });
+  const context = setup({ preferences: { hideFromLeaderboard: false, theme: 'dark' } });
   context.service.initializeThemePreference();
-  assert.equal(get(context.themeStore), 'light');
+  assert.equal(get(context.preferenceStore), 'system');
   await context.service.loadThemePreference();
   assert.equal(get(context.preferenceStore), 'dark');
   assert.equal(get(context.themeStore), 'dark');
-  assert.equal(context.stored.get('gitgud-theme'), 'dark');
+});
+
+test('a completed preference read cannot cross actor boundaries', async () => {
+  let resolveFetch: ((preferences: UserPreferences) => void) | undefined;
+  let user = { id: 'actor-a' };
+  const preferenceStore = writable<ThemePreference>('system');
+  const themeStore = writable<ResolvedTheme>('light');
+  const service = createThemeService({
+    isBrowser: true,
+    preferenceStore,
+    themeStore,
+    documentElement: { dataset: {}, style: { colorScheme: '' } },
+    mediaQuery: {
+      matches: false,
+      addEventListener: () => {},
+      removeEventListener: () => {}
+    },
+    getActor: () => ({ user }),
+    fetchPreferences: () =>
+      new Promise((resolve) => {
+        resolveFetch = resolve;
+      }),
+    updateThemeForUser: async () => true
+  });
+  service.initializeThemePreference();
+  const loading = service.loadThemePreference();
+  user = { id: 'actor-b' };
+  resolveFetch?.({ hideFromLeaderboard: false, theme: 'dark' });
+  await loading;
+  assert.equal(get(preferenceStore), 'system');
+  assert.equal(get(themeStore), 'light');
 });
 
 test('local choices are not overwritten by distinct stale account fetches', async () => {
@@ -242,7 +264,6 @@ test('local choices are not overwritten by distinct stale account fetches', asyn
     preferenceStore,
     themeStore,
     documentElement: { dataset: {}, style: { colorScheme: '' } },
-    storage: { getItem: () => 'light', setItem: () => {} },
     mediaQuery: {
       matches: false,
       addEventListener: () => {},
@@ -266,13 +287,66 @@ test('local choices are not overwritten by distinct stale account fetches', asyn
   assert.equal(get(preferenceStore), 'dark');
 });
 
-test('missing and failed account reads leave the local preference untouched', async () => {
+test('missing and failed account reads fall back to System', async () => {
   for (const options of [{ preferences: null }, { fetchError: new Error('offline') }]) {
-    const context = setup({ stored: 'dark', ...options });
-    context.service.initializeThemePreference();
+    const context = setup({ systemDark: false, ...options });
+    context.service.applyThemePreference('dark');
     await context.service.loadThemePreference();
-    assert.equal(get(context.themeStore), 'dark');
+    assert.equal(get(context.preferenceStore), 'system');
+    assert.equal(get(context.themeStore), 'light');
   }
+});
+
+test('a failed account read cannot overwrite a newer explicit selection', async () => {
+  let rejectFetch: ((reason: Error) => void) | undefined;
+  const context = setup();
+  const service = createThemeService({
+    isBrowser: true,
+    preferenceStore: context.preferenceStore,
+    themeStore: context.themeStore,
+    documentElement: { dataset: {}, style: { colorScheme: '' } },
+    mediaQuery: context.mediaQuery,
+    getActor: () => ({ user: { id: 'actor' } }),
+    fetchPreferences: () =>
+      new Promise((_, reject) => {
+        rejectFetch = reject;
+      }),
+    updateThemeForUser: async () => true
+  });
+  const loading = service.loadThemePreference();
+  service.applyThemePreference('dark');
+  rejectFetch?.(new Error('offline'));
+  await loading;
+  assert.equal(get(context.preferenceStore), 'dark');
+  assert.equal(get(context.themeStore), 'dark');
+});
+
+test('a failed account read cannot affect a different actor', async () => {
+  let rejectFetch: ((reason: Error) => void) | undefined;
+  const context = setup({ user: { id: 'actor-a' } });
+  const service = createThemeService({
+    isBrowser: true,
+    preferenceStore: context.preferenceStore,
+    themeStore: context.themeStore,
+    documentElement: { dataset: {}, style: { colorScheme: '' } },
+    mediaQuery: context.mediaQuery,
+    getActor: () => ({ user: context.updated.length ? { id: 'actor-b' } : { id: 'actor-a' } }),
+    fetchPreferences: () =>
+      new Promise((_, reject) => {
+        rejectFetch = reject;
+      }),
+    updateThemeForUser: async (userId, preference) => {
+      context.updated.push({ userId, preference });
+      return true;
+    }
+  });
+  service.applyThemePreference('dark');
+  const loading = service.loadThemePreference();
+  await service.saveThemePreference('dark');
+  rejectFetch?.(new Error('offline'));
+  await loading;
+  assert.equal(get(context.preferenceStore), 'dark');
+  assert.equal(get(context.themeStore), 'dark');
 });
 
 test('saving requires a browser actor', async () => {
@@ -296,48 +370,20 @@ test('saving requires a browser actor', async () => {
   assert.equal(get(themeStore), 'light');
 });
 
-test('storage denial does not prevent in-memory theme application', () => {
-  const preferenceStore = writable<ThemePreference>('system');
-  const themeStore = writable<ResolvedTheme>('light');
-  const service = createThemeService({
-    isBrowser: true,
-    preferenceStore,
-    themeStore,
-    documentElement: { dataset: {}, style: { colorScheme: '' } },
-    storage: {
-      getItem: () => {
-        throw new Error('denied');
-      },
-      setItem: () => {
-        throw new Error('denied');
-      }
-    },
-    mediaQuery: {
-      matches: true,
-      addEventListener: () => {},
-      removeEventListener: () => {}
-    },
-    getActor: () => ({ user: null }),
-    fetchPreferences: async () => null,
-    updateThemeForUser: async () => false
-  });
-  assert.equal(service.initializeThemePreference(), 'system');
-  assert.equal(get(themeStore), 'dark');
-  service.applyThemePreference('light', false);
-  assert.equal(get(themeStore), 'light');
-});
-
-test('browser services fall back to global storage and document when none are injected', (t) => {
+test('browser theme service never accesses localStorage', (t) => {
   const dataset: Record<string, string | undefined> = {};
   const style = { colorScheme: '' };
-  const store = new Map<string, string>();
   const previousLocalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
   const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
   Object.defineProperty(globalThis, 'localStorage', {
     configurable: true,
     value: {
-      getItem: (key: string) => store.get(key) ?? null,
-      setItem: (key: string, value: string) => store.set(key, value)
+      getItem: () => {
+        throw new Error('theme service must not read localStorage');
+      },
+      setItem: () => {
+        throw new Error('theme service must not write localStorage');
+      }
     }
   });
   Object.defineProperty(globalThis, 'document', {
@@ -368,7 +414,9 @@ test('browser services fall back to global storage and document when none are in
     updateThemeForUser: async () => false
   });
   assert.equal(service.initializeThemePreference(), 'system');
-  assert.equal(store.get('gitgud-theme'), 'system');
+  service.applyThemePreference('light');
+  assert.equal(dataset.theme, 'light');
+  service.applyThemePreference('system');
   assert.equal(dataset.theme, 'dark');
   assert.equal(style.colorScheme, 'dark');
 });
