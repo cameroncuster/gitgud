@@ -48,6 +48,6 @@
   },
   "packageManager": "pnpm@10.34.1",
   "dependencies": {
-    "@supabase/supabase-js": "^2.110.8"
+    "@supabase/supabase-js": "^2.111.0"
   }
 }
