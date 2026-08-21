@@ -82,7 +82,7 @@
 
 <ResponsiveTableContainer variant="problem">
   <table
-    class="w-full min-w-[900px] table-fixed border-collapse overflow-hidden bg-[var(--color-secondary)] font-mono text-sm"
+    class="w-full min-w-[600px] table-fixed border-collapse overflow-hidden bg-[var(--color-secondary)] font-mono text-sm xl:min-w-[900px]"
   >
     <thead>
       <tr>
@@ -92,7 +92,7 @@
         >
           <button
             type="button"
-            class="flex w-full cursor-pointer items-center justify-center gap-1 p-3 font-bold transition-colors duration-200 hover:bg-[color-mix(in_oklab,var(--color-tertiary)_90%,var(--color-accent)_10%,transparent)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-accent)]"
+            class="flex w-full cursor-pointer items-center justify-center gap-1 p-2 font-bold transition-colors duration-200 hover:bg-[color-mix(in_oklab,var(--color-tertiary)_90%,var(--color-accent)_10%,transparent)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-accent)] md:p-3"
             on:click={onSolvedFilter}
             aria-label={solvedFilterLabel}
             title={solvedFilterLabel}
@@ -157,7 +157,7 @@
         >
           <button
             type="button"
-            class="flex w-full cursor-pointer items-center justify-center gap-1 p-3 font-bold transition-colors duration-200 hover:bg-[color-mix(in_oklab,var(--color-tertiary)_90%,var(--color-accent)_10%,transparent)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-accent)]"
+            class="flex w-full cursor-pointer items-center justify-center gap-1 p-2 font-bold transition-colors duration-200 hover:bg-[color-mix(in_oklab,var(--color-tertiary)_90%,var(--color-accent)_10%,transparent)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-accent)] md:p-3"
             on:click={onSourceFilter}
             aria-label={sourceFilterLabel}
             title={sourceFilterLabel}
@@ -201,7 +201,7 @@
         </th>
         <th
           scope="col"
-          class="sticky top-0 z-10 w-[25%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-3 text-left font-bold"
+          class="sticky top-0 z-10 w-[25%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-2 text-left font-bold md:p-3"
           >Problem</th
         >
         <th
@@ -211,7 +211,7 @@
         >
           <button
             type="button"
-            class="flex w-full cursor-pointer items-center justify-center gap-2 p-3 py-4 font-bold transition-colors duration-200 hover:bg-[color-mix(in_oklab,var(--color-tertiary)_90%,var(--color-accent)_10%,transparent)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-accent)]"
+            class="flex w-full cursor-pointer items-center justify-center gap-1 p-2 py-3 font-bold transition-colors duration-200 hover:bg-[color-mix(in_oklab,var(--color-tertiary)_90%,var(--color-accent)_10%,transparent)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-accent)] md:gap-2 md:p-3 md:py-4"
             on:click={onDifficultySort}
             aria-label={difficultySortLabel}
             title={difficultySortLabel}
@@ -233,11 +233,11 @@
           </button>
         </th>
         <th
-          class="sticky top-0 z-10 w-[10%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-3 text-left font-bold"
+          class="sticky top-0 z-10 w-[10%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-2 text-left font-bold md:p-3"
           >Topic</th
         >
         <th
-          class="sticky top-0 z-10 w-[24%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-3 text-left font-bold"
+          class="sticky top-0 z-10 w-[24%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-2 text-left font-bold md:p-3"
         >
           <div class="flex w-full items-center gap-2">
             <RecommendersFilter
@@ -249,7 +249,7 @@
           </div>
         </th>
         <th
-          class="sticky top-0 z-10 w-[20%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-3 text-right font-bold"
+          class="sticky top-0 z-10 w-[20%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-2 text-right font-bold md:p-3"
         ></th>
       </tr>
     </thead>
@@ -259,7 +259,7 @@
           class="problem-row"
           class:problem-row-solved={!!problem.id && userSolvedProblems.has(problem.id)}
         >
-          <td class="p-3 text-center">
+          <td class="p-2 text-center md:p-3">
             {#if problem.id}
               {@const isSolved = userSolvedProblems.has(problem.id)}
               <button
@@ -295,7 +295,7 @@
               </button>
             {/if}
           </td>
-          <td class="p-3 text-center">
+          <td class="p-2 text-center md:p-3">
             <span class="flex items-center justify-center">
               <img
                 src={problem.source === 'codeforces' ? codeforcesLogo : kattisLogo}
@@ -304,7 +304,7 @@
               />
             </span>
           </td>
-          <td class="truncate p-3">
+          <td class="truncate p-2 md:p-3">
             <a
               href={problem.url}
               target="_blank"
@@ -315,7 +315,7 @@
               {problem.name}
             </a>
           </td>
-          <td class="p-3 text-center">
+          <td class="p-2 text-center md:p-3">
             <span
               class="group relative inline-block rounded border px-2 py-1 font-bold
                   text-white
@@ -333,7 +333,7 @@
               </span>
             </span>
           </td>
-          <td class="p-3">
+          <td class="p-2 md:p-3">
             {#if problem.type}
               <span
                 class="inline-block rounded border border-[var(--color-border)] bg-[var(--color-tertiary)] px-2 py-1 text-sm text-[var(--color-text)]"
@@ -348,7 +348,7 @@
               </span>
             {/if}
           </td>
-          <td class="truncate p-3">
+          <td class="truncate p-2 md:p-3">
             <a
               href={problem.addedByUrl}
               target="_blank"
@@ -359,8 +359,8 @@
               @{problem.addedBy}
             </a>
           </td>
-          <td class="p-3 text-right">
-            <div class="flex justify-end gap-2">
+          <td class="p-2 text-right md:p-3">
+            <div class="flex justify-end gap-1 md:gap-2">
               {#if problem.id}
                 <TableFeedbackButtons
                   likes={problem.likes}
@@ -402,7 +402,13 @@
   }
 
   td:last-child {
-    min-width: 140px;
+    min-width: 104px;
+  }
+
+  @media (min-width: 768px) {
+    td:last-child {
+      min-width: 140px;
+    }
   }
 
   .w-full {
