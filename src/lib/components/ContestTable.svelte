@@ -82,13 +82,13 @@
 
 <ResponsiveTableContainer variant="contest">
   <table
-    class="w-full min-w-[340px] table-fixed border-collapse overflow-hidden bg-[var(--color-secondary)] font-mono text-sm lg:min-w-[900px]"
+    class="w-full min-w-[600px] table-fixed border-collapse overflow-hidden bg-[var(--color-secondary)] font-mono text-sm xl:min-w-[900px]"
   >
     <thead>
       <tr>
         <th
           scope="col"
-          class="sticky top-0 z-10 w-[11%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-0 text-center font-bold md:w-[8%] lg:w-[5%]"
+          class="sticky top-0 z-10 w-[7%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-0 text-center font-bold lg:w-[5%]"
         >
           <button
             type="button"
@@ -151,7 +151,7 @@
         </th>
         <th
           scope="col"
-          class="sticky top-0 z-10 w-[11%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-0 text-center font-bold md:w-[9%] lg:w-[6%]"
+          class="sticky top-0 z-10 w-[8%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-0 text-center font-bold lg:w-[6%]"
           style="min-width: 44px;"
         >
           <button
@@ -200,19 +200,19 @@
         </th>
         <th
           scope="col"
-          class="sticky top-0 z-10 w-[26%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-2 text-left font-bold md:w-[31%] md:p-3 lg:w-[34%]"
+          class="sticky top-0 z-10 w-[30%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-2 text-left font-bold md:p-3 lg:w-[34%]"
         >
           Contest
         </th>
         <th
-          class="sticky top-0 z-10 hidden w-[12%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-3 text-center font-bold lg:table-cell"
+          class="sticky top-0 z-10 w-[12%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-2 text-center font-bold md:p-3"
         >
           Duration
         </th>
         <th
           scope="col"
           aria-sort={difficultyAriaSort}
-          class="sticky top-0 z-10 w-[20%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-0 text-center font-bold md:w-[17%] lg:w-[15%]"
+          class="sticky top-0 z-10 w-[17%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-0 text-center font-bold lg:w-[15%]"
         >
           <button
             type="button"
@@ -234,11 +234,11 @@
                 <span>▼</span>
               </span>
             {/if}
-            <span class="hidden lg:inline">Difficulty</span>
+            <span>Difficulty</span>
           </button>
         </th>
         <th
-          class="sticky top-0 z-10 hidden w-[20%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-3 text-left font-bold md:table-cell lg:w-[21%]"
+          class="sticky top-0 z-10 w-[21%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-2 text-left font-bold md:p-3"
         >
           <div class="flex w-full items-center gap-2">
             <RecommendersFilter
@@ -250,7 +250,7 @@
           </div>
         </th>
         <th
-          class="sticky top-0 z-10 w-[32%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-2 text-right font-bold md:w-[15%] md:p-3 lg:w-[5%]"
+          class="sticky top-0 z-10 w-[5%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-2 text-right font-bold md:p-3"
         ></th>
       </tr>
     </thead>
@@ -316,7 +316,7 @@
               {contest.name}
             </a>
           </td>
-          <td class="hidden p-3 text-center lg:table-cell">
+          <td class="p-2 text-center md:p-3">
             <span class="font-mono text-sm font-medium">
               {formatDuration(contest.durationSeconds)}
             </span>
@@ -337,7 +337,7 @@
               >
             {/if}
           </td>
-          <td class="hidden truncate p-2 text-left md:table-cell md:p-3">
+          <td class="truncate p-2 text-left md:p-3">
             <a
               href={contest.addedByUrl}
               target="_blank"

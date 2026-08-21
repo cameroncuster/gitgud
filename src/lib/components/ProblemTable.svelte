@@ -82,13 +82,13 @@
 
 <ResponsiveTableContainer variant="problem">
   <table
-    class="w-full min-w-[340px] table-fixed border-collapse overflow-hidden bg-[var(--color-secondary)] font-mono text-sm xl:min-w-[900px]"
+    class="w-full min-w-[600px] table-fixed border-collapse overflow-hidden bg-[var(--color-secondary)] font-mono text-sm xl:min-w-[900px]"
   >
     <thead>
       <tr>
         <th
           scope="col"
-          class="sticky top-0 z-10 w-[11%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-0 text-center font-bold md:w-[8%] xl:w-[5%]"
+          class="sticky top-0 z-10 w-[5%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-0 text-center font-bold"
         >
           <button
             type="button"
@@ -153,7 +153,7 @@
         </th>
         <th
           scope="col"
-          class="sticky top-0 z-10 w-[10%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-0 text-center font-bold md:w-[8%] xl:w-[5%]"
+          class="sticky top-0 z-10 w-[5%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-0 text-center font-bold"
         >
           <button
             type="button"
@@ -201,13 +201,13 @@
         </th>
         <th
           scope="col"
-          class="sticky top-0 z-10 w-[30%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-2 text-left font-bold md:w-[29%] md:p-3 xl:w-[25%]"
+          class="sticky top-0 z-10 w-[25%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-2 text-left font-bold md:p-3"
           >Problem</th
         >
         <th
           scope="col"
           aria-sort={difficultyAriaSort}
-          class="sticky top-0 z-10 w-[17%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-0 text-center font-bold md:w-[14%] xl:w-[11%]"
+          class="sticky top-0 z-10 w-[11%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-0 text-center font-bold"
         >
           <button
             type="button"
@@ -229,15 +229,15 @@
                 <span>▼</span>
               </span>
             {/if}
-            <span class="hidden font-bold lg:inline">Difficulty</span>
+            <span class="font-bold">Difficulty</span>
           </button>
         </th>
         <th
-          class="sticky top-0 z-10 hidden w-[10%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-3 text-left font-bold xl:table-cell"
+          class="sticky top-0 z-10 w-[10%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-2 text-left font-bold md:p-3"
           >Topic</th
         >
         <th
-          class="sticky top-0 z-10 hidden w-[22%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-3 text-left font-bold md:table-cell xl:w-[24%]"
+          class="sticky top-0 z-10 w-[24%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-2 text-left font-bold md:p-3"
         >
           <div class="flex w-full items-center gap-2">
             <RecommendersFilter
@@ -249,7 +249,7 @@
           </div>
         </th>
         <th
-          class="sticky top-0 z-10 w-[32%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-2 text-right font-bold md:w-[19%] md:p-3 xl:w-[20%]"
+          class="sticky top-0 z-10 w-[20%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-2 text-right font-bold md:p-3"
         ></th>
       </tr>
     </thead>
@@ -333,7 +333,7 @@
               </span>
             </span>
           </td>
-          <td class="hidden p-3 xl:table-cell">
+          <td class="p-2 md:p-3">
             {#if problem.type}
               <span
                 class="inline-block rounded border border-[var(--color-border)] bg-[var(--color-tertiary)] px-2 py-1 text-sm text-[var(--color-text)]"
@@ -348,7 +348,7 @@
               </span>
             {/if}
           </td>
-          <td class="hidden truncate p-3 md:table-cell">
+          <td class="truncate p-2 md:p-3">
             <a
               href={problem.addedByUrl}
               target="_blank"
