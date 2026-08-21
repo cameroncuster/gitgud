@@ -42,7 +42,7 @@
     }
   }
 
-  @media (max-width: 899px) {
+  @media (max-width: 767px) {
     .scroll-affordance {
       position: relative;
     }

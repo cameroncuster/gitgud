@@ -82,17 +82,17 @@
 
 <ResponsiveTableContainer variant="contest">
   <table
-    class="w-full min-w-[900px] table-fixed border-collapse overflow-hidden bg-[var(--color-secondary)] font-mono text-sm"
+    class="w-full min-w-[340px] table-fixed border-collapse overflow-hidden bg-[var(--color-secondary)] font-mono text-sm lg:min-w-[900px]"
   >
     <thead>
       <tr>
         <th
           scope="col"
-          class="sticky top-0 z-10 w-[5%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-0 text-center font-bold"
+          class="sticky top-0 z-10 w-[11%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-0 text-center font-bold md:w-[8%] lg:w-[5%]"
         >
           <button
             type="button"
-            class="flex w-full cursor-pointer items-center justify-center gap-1 p-3 font-bold transition-colors duration-200 hover:bg-[color-mix(in_oklab,var(--color-tertiary)_90%,var(--color-accent)_10%,transparent)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-accent)]"
+            class="flex w-full cursor-pointer items-center justify-center gap-1 p-2 font-bold transition-colors duration-200 hover:bg-[color-mix(in_oklab,var(--color-tertiary)_90%,var(--color-accent)_10%,transparent)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-accent)] md:p-3"
             on:click={onParticipatedFilter}
             aria-label={participatedFilterLabel}
             title={participatedFilterLabel}
@@ -151,12 +151,12 @@
         </th>
         <th
           scope="col"
-          class="sticky top-0 z-10 w-[6%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-0 text-center font-bold"
-          style="min-width: 50px;"
+          class="sticky top-0 z-10 w-[11%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-0 text-center font-bold md:w-[9%] lg:w-[6%]"
+          style="min-width: 44px;"
         >
           <button
             type="button"
-            class="flex w-full cursor-pointer items-center justify-center gap-1 p-3 font-bold transition-colors duration-200 hover:bg-[color-mix(in_oklab,var(--color-tertiary)_90%,var(--color-accent)_10%,transparent)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-accent)]"
+            class="flex w-full cursor-pointer items-center justify-center gap-1 p-2 font-bold transition-colors duration-200 hover:bg-[color-mix(in_oklab,var(--color-tertiary)_90%,var(--color-accent)_10%,transparent)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-accent)] md:p-3"
             on:click={onTypeFilter}
             aria-label={typeFilterLabel}
             title={typeFilterLabel}
@@ -200,23 +200,23 @@
         </th>
         <th
           scope="col"
-          class="sticky top-0 z-10 w-[34%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-3 text-left font-bold"
+          class="sticky top-0 z-10 w-[26%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-2 text-left font-bold md:w-[31%] md:p-3 lg:w-[34%]"
         >
           Contest
         </th>
         <th
-          class="sticky top-0 z-10 w-[12%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-3 text-center font-bold"
+          class="sticky top-0 z-10 hidden w-[12%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-3 text-center font-bold lg:table-cell"
         >
           Duration
         </th>
         <th
           scope="col"
           aria-sort={difficultyAriaSort}
-          class="sticky top-0 z-10 w-[15%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-0 text-center font-bold"
+          class="sticky top-0 z-10 w-[20%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-0 text-center font-bold md:w-[17%] lg:w-[15%]"
         >
           <button
             type="button"
-            class="flex w-full cursor-pointer items-center justify-center gap-2 p-3 font-bold transition-colors duration-200 hover:bg-[color-mix(in_oklab,var(--color-tertiary)_90%,var(--color-accent)_10%,transparent)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-accent)]"
+            class="flex w-full cursor-pointer items-center justify-center gap-1 p-2 font-bold transition-colors duration-200 hover:bg-[color-mix(in_oklab,var(--color-tertiary)_90%,var(--color-accent)_10%,transparent)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-accent)] md:gap-2 md:p-3"
             on:click={onDifficultySort}
             aria-label={difficultySortLabel}
             title={difficultySortLabel}
@@ -234,23 +234,23 @@
                 <span>▼</span>
               </span>
             {/if}
-            <span>Difficulty</span>
+            <span class="hidden lg:inline">Difficulty</span>
           </button>
         </th>
         <th
-          class="sticky top-0 z-10 w-[21%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-3 text-left font-bold"
+          class="sticky top-0 z-10 hidden w-[20%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-3 text-left font-bold md:table-cell lg:w-[21%]"
         >
-          <div class="flex items-center gap-2">
+          <div class="flex w-full items-center gap-2">
             <RecommendersFilter
               authors={allAuthors}
               selectedAuthor={authorFilter}
-              width="w-auto min-w-[160px]"
+              width="w-full"
               onAuthorChange={onAuthorFilter}
             />
           </div>
         </th>
         <th
-          class="sticky top-0 z-10 w-[5%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-3 text-right font-bold"
+          class="sticky top-0 z-10 w-[32%] border-b-2 border-[var(--color-border)] bg-[var(--color-tertiary)] p-2 text-right font-bold md:w-[15%] md:p-3 lg:w-[5%]"
         ></th>
       </tr>
     </thead>
@@ -264,7 +264,7 @@
                 : 'hover:bg-[var(--color-tertiary)]/30'
             }`}
         >
-          <td class="p-3 text-center">
+          <td class="p-2 text-center md:p-3">
             {#if contest.id}
               {@const hasParticipated = userParticipation.has(contest.id)}
               <button
@@ -296,7 +296,7 @@
               </button>
             {/if}
           </td>
-          <td class="p-3 text-center" style="min-width: 50px;">
+          <td class="p-2 text-center md:p-3" style="min-width: 44px;">
             <span class="flex items-center justify-center">
               {#if contest.type === 'ICPC'}
                 <img src={icpcLogo} alt="ICPC" class="h-8 w-8 object-contain" />
@@ -305,7 +305,7 @@
               {/if}
             </span>
           </td>
-          <td class="truncate p-3">
+          <td class="truncate p-2 md:p-3">
             <a
               href={contest.url}
               target="_blank"
@@ -316,15 +316,15 @@
               {contest.name}
             </a>
           </td>
-          <td class="p-3 text-center">
+          <td class="hidden p-3 text-center lg:table-cell">
             <span class="font-mono text-sm font-medium">
               {formatDuration(contest.durationSeconds)}
             </span>
           </td>
-          <td class="p-3 text-center">
+          <td class="p-2 text-center md:p-3">
             {#if contest.difficulty !== undefined}
               <span
-                class={`text-2xl font-bold ${getDifficultyColorClass(contest.difficulty)}`}
+                class={`text-base font-bold md:text-2xl ${getDifficultyColorClass(contest.difficulty)}`}
                 role="img"
                 aria-label={getDifficultyLabel(contest.difficulty)}
               >
@@ -337,7 +337,7 @@
               >
             {/if}
           </td>
-          <td class="p-3 text-left">
+          <td class="hidden truncate p-2 text-left md:table-cell md:p-3">
             <a
               href={contest.addedByUrl}
               target="_blank"
@@ -348,8 +348,8 @@
               @{contest.addedBy}
             </a>
           </td>
-          <td class="p-3 text-right">
-            <div class="flex justify-end gap-2">
+          <td class="p-2 text-right md:p-3">
+            <div class="flex justify-end gap-1 md:gap-2">
               {#if contest.id}
                 <TableFeedbackButtons
                   likes={contest.likes}
