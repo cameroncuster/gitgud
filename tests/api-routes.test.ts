@@ -8,6 +8,10 @@ import {
   GET as UserSolvesGET
 } from '../src/routes/api/codeforces/user-solves/+server.ts';
 import { _buildUpstreamUrl, _createKattisGet } from '../src/routes/api/kattis/+server.ts';
+import {
+  _buildUpstreamUrl as _buildDmojUpstreamUrl,
+  _createDmojGet
+} from '../src/routes/api/dmoj/+server.ts';
 import { createSessionBoundSupabase, supabase } from '../src/lib/services/database.ts';
 
 const authorized = async () => ({
@@ -417,6 +421,121 @@ test('the production upstream builder honors an override base and the canonical 
   assert.equal(_buildUpstreamUrl('hello', ''), 'https://open.kattis.com/problems/hello');
   // No override argument falls through to the configured environment base.
   assert.equal(_buildUpstreamUrl('hello'), 'https://open.kattis.com/problems/hello');
+});
+
+test('DMOJ route rejects absent and unsafe targets before fetching', async () => {
+  let fetched = 0;
+  const handler = _createDmojGet(async () => {
+    fetched++;
+    throw new Error('must not fetch');
+  });
+  for (const [url, error] of [
+    ['https://gitgud.test/api', 'No URL provided'],
+    ['https://gitgud.test/api?url=https://evil.test/problem/ciw26p2', 'Invalid DMOJ problem URL'],
+    // A bare code is not a DMOJ URL, so it never reaches the upstream.
+    ['https://gitgud.test/api?url=ciw26p2', 'Invalid DMOJ problem URL']
+  ]) {
+    const response = await handler({ url: new URL(url) } as never);
+    assert.equal(response.status, 400);
+    assert.deepEqual(await body(response), { error });
+  }
+  assert.equal(fetched, 0);
+});
+
+test('DMOJ route rebuilds canonical target and returns JSON or upstream status', async () => {
+  let requested = '';
+  let options: RequestInit | undefined;
+  const success = _createDmojGet(async (input, init) => {
+    requested = String(input);
+    options = init;
+    return Response.json({ data: { object: { name: 'Number Shuffle' } } });
+  });
+  const response = await success({
+    url: new URL('https://gitgud.test/api?url=https://www.dmoj.ca/problem/ciw26p2')
+  } as never);
+  assert.deepEqual(await body(response), {
+    problem: { data: { object: { name: 'Number Shuffle' } } }
+  });
+  assert.equal(requested, 'https://dmoj.ca/api/v2/problem/ciw26p2');
+  assert.equal(options?.redirect, 'error');
+
+  const failed = _createDmojGet(async () => new Response('', { status: 404 }));
+  const failure = await failed({
+    url: new URL('https://gitgud.test/api?url=https://dmoj.ca/problem/ciw26p2')
+  } as never);
+  assert.equal(failure.status, 404);
+  assert.deepEqual(await body(failure), { error: 'Failed to fetch problem' });
+});
+
+test('DMOJ route distinguishes aborts from other fetch failures', async () => {
+  const abort = new Error('aborted');
+  abort.name = 'AbortError';
+  for (const [failure, status, error] of [
+    [abort, 504, 'Timed out fetching problem'],
+    [new Error('offline'), 500, 'Failed to fetch problem'],
+    ['non-Error failure', 500, 'Failed to fetch problem']
+  ] as const) {
+    const handler = _createDmojGet(async () => {
+      throw failure;
+    });
+    const response = await handler({
+      url: new URL('https://gitgud.test/api?url=https://dmoj.ca/problem/ciw26p2')
+    } as never);
+    assert.equal(response.status, status);
+    assert.deepEqual(await body(response), { error });
+  }
+});
+
+test('DMOJ route contains response body failures', async () => {
+  const handler = _createDmojGet(async () => {
+    return {
+      ok: true,
+      json: async () => {
+        throw new Error('body disconnected');
+      }
+    } as unknown as Response;
+  });
+  const response = await handler({
+    url: new URL('https://gitgud.test/api?url=https://dmoj.ca/problem/ciw26p2')
+  } as never);
+  assert.equal(response.status, 500);
+  assert.deepEqual(await body(response), { error: 'Failed to fetch problem' });
+});
+
+test('DMOJ route aborts the upstream fetch once the timeout elapses', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const handler = _createDmojGet(
+    (_input, init) =>
+      new Promise((_resolve, reject) => {
+        (init as RequestInit).signal?.addEventListener('abort', () => {
+          const abort = new Error('aborted');
+          abort.name = 'AbortError';
+          reject(abort);
+        });
+      })
+  );
+  const pending = handler({
+    url: new URL('https://gitgud.test/api?url=https://dmoj.ca/problem/ciw26p2')
+  } as never);
+  await Promise.resolve();
+  t.mock.timers.tick(10_000);
+  const response = await pending;
+  assert.equal(response.status, 504);
+  assert.deepEqual(await body(response), { error: 'Timed out fetching problem' });
+});
+
+test('the production DMOJ upstream builder honors an override base and the canonical origin', () => {
+  assert.equal(
+    _buildDmojUpstreamUrl('ciw26p2', 'https://mirror.test/'),
+    'https://mirror.test/problem/ciw26p2'
+  );
+  assert.equal(
+    _buildDmojUpstreamUrl('ciw26p2', 'https://mirror.test'),
+    'https://mirror.test/problem/ciw26p2'
+  );
+  assert.equal(_buildDmojUpstreamUrl('ciw26p2', ''), 'https://dmoj.ca/api/v2/problem/ciw26p2');
+  // No override argument falls through to the configured environment base.
+  assert.equal(_buildDmojUpstreamUrl('ciw26p2'), 'https://dmoj.ca/api/v2/problem/ciw26p2');
 });
 
 test('the production catalog loader fetches and caches the problemset once', async () => {

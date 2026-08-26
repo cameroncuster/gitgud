@@ -22,7 +22,9 @@ export type ResolveOutcome =
 
 export function providerFromUrl(url: URL): ProviderId | undefined {
   const provider = url.searchParams.get('provider');
-  return provider === 'codeforces' || provider === 'kattis' ? provider : undefined;
+  return provider === 'codeforces' || provider === 'kattis' || provider === 'dmoj'
+    ? provider
+    : undefined;
 }
 
 function deriveState(

@@ -25,7 +25,7 @@ export type SolvedFilter = 'all' | 'solved' | 'unsolved';
 export type ProblemSourceFilter = 'all' | Problem['source'];
 
 const SOLVED_FILTER_STATES = ['all', 'solved', 'unsolved'] as const;
-const SOURCE_FILTER_STATES = ['all', 'codeforces', 'kattis'] as const;
+const SOURCE_FILTER_STATES = ['all', 'codeforces', 'kattis', 'dmoj'] as const;
 
 type ProblemCollectionState = {
   sourceItems: readonly Problem[];

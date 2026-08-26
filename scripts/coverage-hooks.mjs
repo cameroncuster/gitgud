@@ -9,7 +9,8 @@ const publicEnv = Object.freeze({
   PUBLIC_SUPABASE_URL: process.env.PUBLIC_SUPABASE_URL ?? 'http://localhost',
   PUBLIC_SUPABASE_PUBLISHABLE_KEY: process.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? 'placeholder',
   PUBLIC_CODEFORCES_API_BASE: process.env.PUBLIC_CODEFORCES_API_BASE,
-  PUBLIC_KATTIS_BASE: process.env.PUBLIC_KATTIS_BASE
+  PUBLIC_KATTIS_BASE: process.env.PUBLIC_KATTIS_BASE,
+  PUBLIC_DMOJ_API_BASE: process.env.PUBLIC_DMOJ_API_BASE
 });
 const virtualModules = new Map([
   ['$app/environment', 'export const browser = false; export const dev = false;'],

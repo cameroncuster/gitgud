@@ -105,13 +105,16 @@ test('legacy provider routes redirect and user route preserves its parameter', (
 
 test('provider composition exposes concrete adapters in stable display order', () => {
   const adapters = createProviderAdapters();
-  assert.deepEqual(providerOrder, ['codeforces', 'kattis']);
+  assert.deepEqual(providerOrder, ['codeforces', 'kattis', 'dmoj']);
   assert.equal(adapters.codeforces.id, 'codeforces');
   assert.equal(adapters.kattis.id, 'kattis');
+  assert.equal(adapters.dmoj.id, 'dmoj');
   assert.match(adapters.codeforces.placeholder, /codeforces\.com/);
   assert.match(adapters.kattis.placeholder, /kattis/);
+  assert.match(adapters.dmoj.placeholder, /dmoj\.ca/);
   assert.equal(adapters.codeforces.extract('https://codeforces.com/contest/1/problem/A').length, 1);
   assert.equal(adapters.kattis.extract('open.kattis.com/problems/hello').length, 1);
+  assert.equal(adapters.dmoj.extract('https://dmoj.ca/problem/ciw26p2').length, 1);
 });
 
 test('composed singleton services preserve anonymous read and write guards', async () => {

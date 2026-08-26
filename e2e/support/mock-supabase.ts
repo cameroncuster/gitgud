@@ -653,6 +653,16 @@ async function handleFeedbackRpc(
   sendJson(res, 200, [{ ...row }]);
 }
 
+function handleDmojProblem(res: http.ServerResponse, problemCode: string): void {
+  if (provider === 'fail') {
+    sendJson(res, 503, { error: 'mock dmoj upstream failure' });
+    return;
+  }
+  sendJson(res, 200, {
+    data: { object: { code: problemCode, name: 'Mock DMOJ Problem', types: ['Simulation'] } }
+  });
+}
+
 function handleKattisPage(res: http.ServerResponse): void {
   if (provider === 'fail') {
     res.writeHead(500, { 'Content-Type': 'text/plain' });
@@ -784,6 +794,12 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/user.status') {
     await readBody(req);
     handleCodeforcesUserStatus(res);
+    return;
+  }
+  if (url.pathname.startsWith('/api/dmoj/problem/')) {
+    // DMOJ problem API (dmoj.ca/api/v2/problem/<code>) redirected here.
+    await readBody(req);
+    handleDmojProblem(res, url.pathname.slice('/api/dmoj/problem/'.length));
     return;
   }
 

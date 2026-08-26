@@ -67,10 +67,11 @@ const mockPreviewWebServer = {
     // deterministic Supabase storage key the auth-seeding init script targets.
     PUBLIC_SUPABASE_URL: MOCK_SUPABASE_URL,
     PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'mock-publishable-key',
-    // Redirect the server-side provider fetches (problemset / Kattis page) to
-    // the mock so no live provider is ever contacted during E2E.
+    // Redirect the server-side provider fetches (problemset / Kattis page /
+    // DMOJ API) to the mock so no live provider is ever contacted during E2E.
     PUBLIC_CODEFORCES_API_BASE: `${MOCK_SUPABASE_URL}/api`,
-    PUBLIC_KATTIS_BASE: MOCK_SUPABASE_URL
+    PUBLIC_KATTIS_BASE: MOCK_SUPABASE_URL,
+    PUBLIC_DMOJ_API_BASE: `${MOCK_SUPABASE_URL}/api/dmoj`
   }
 };
 

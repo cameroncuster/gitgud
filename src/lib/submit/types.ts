@@ -1,4 +1,4 @@
-export type ProviderId = 'codeforces' | 'kattis';
+export type ProviderId = 'codeforces' | 'kattis' | 'dmoj';
 export type SubmitItemKind = 'problem' | 'contest';
 export type WorkflowStage = 'source' | 'links' | 'review' | 'complete';
 
