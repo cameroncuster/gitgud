@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import contextlib
 import os
 import re
 import time
@@ -406,18 +407,32 @@ def main():
         default=2.0,
         help="Delay in seconds between API calls",
     )
+    parser.add_argument(
+        "--backfill-only",
+        action="store_true",
+        help="Only repair DMOJ rows stored without provider metadata, leaving type untouched (needs no Gemini key)",
+    )
     args = parser.parse_args()
 
     # Connect to the database using psycopg3
-    with (
-        genai.Client(api_key=GEMINI_API_KEY) as gemini_client,
-        psycopg.connect(SUPABASE_CONN) as conn,
-    ):
+    with contextlib.ExitStack() as stack:
+        gemini_client = (
+            None
+            if args.backfill_only
+            else stack.enter_context(genai.Client(api_key=GEMINI_API_KEY))
+        )
+        conn = stack.enter_context(psycopg.connect(SUPABASE_CONN))
+
         # Create a cursor
         with conn.cursor() as cursor:
             try:
                 # Query problems
-                if args.all:
+                if args.backfill_only:
+                    # Only DMOJ rows can be degraded, so leave the rest alone.
+                    cursor.execute(
+                        "SELECT id, name, tags, url FROM problems WHERE url LIKE '%dmoj.ca%'"
+                    )
+                elif args.all:
                     cursor.execute("SELECT id, name, tags, url FROM problems")
                 else:
                     cursor.execute(
@@ -430,7 +445,8 @@ def main():
                     print("No problems found to classify.")
                     return
 
-                print(f"Found {len(problems)} problems to classify.")
+                verb = "check" if args.backfill_only else "classify"
+                print(f"Found {len(problems)} problems to {verb}.")
 
                 # Process problems in batches to avoid rate limiting
                 for i in range(0, len(problems), args.batch_size):
@@ -472,6 +488,9 @@ def main():
                         # Add a delay to avoid rate limiting
                         time.sleep(args.delay)
 
+                        if args.backfill_only:
+                            continue
+
                         # Classify the problem
                         problem_type = classify_problem(
                             name, tags, statement, client=gemini_client
@@ -488,7 +507,7 @@ def main():
                     conn.commit()
                     print(f"Batch {i // args.batch_size + 1} completed and committed.")
 
-                print(f"Successfully classified {len(problems)} problems.")
+                print(f"Successfully processed {len(problems)} problems.")
 
             except Exception as e:
                 # Rollback happens automatically with context manager on exception
