@@ -7,6 +7,11 @@ test('classifies canonical Kattis problem URLs', () => {
   assert.equal(getProblemSource('https://kattis.com/problems/hello'), 'kattis');
 });
 
+test('classifies canonical DMOJ problem URLs', () => {
+  assert.equal(getProblemSource('https://dmoj.ca/problem/ciw26p2'), 'dmoj');
+  assert.equal(getProblemSource('https://www.dmoj.ca/problem/ciw26p2'), 'dmoj');
+});
+
 test('classifies ordinary Codeforces problem URLs', () => {
   assert.equal(getProblemSource('https://codeforces.com/problemset/problem/1/A'), 'codeforces');
 });
@@ -17,7 +22,9 @@ test('does not classify URLs by an untrusted hostname substring', () => {
     'https://evil.example/open.kattis.com/problems/hello',
     'https://open.kattis.com@evil.example/problems/hello',
     'https://evil.example/?next=https://open.kattis.com/problems/hello',
-    'not-a-url-containing-kattis.com'
+    'not-a-url-containing-kattis.com',
+    'https://dmoj.ca.evil.example/problem/ciw26p2',
+    'https://evil.example/?next=https://dmoj.ca/problem/ciw26p2'
   ]) {
     assert.equal(getProblemSource(url), 'codeforces');
   }

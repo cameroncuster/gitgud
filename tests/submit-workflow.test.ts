@@ -45,12 +45,17 @@ function adapter(overrides: Partial<ProviderAdapter> = {}): ProviderAdapter {
   };
 }
 
-function adapters(codeforces = adapter(), kattis = adapter({ id: 'kattis', name: 'Kattis' })) {
-  return { codeforces, kattis } as ProviderAdapters;
+function adapters(
+  codeforces = adapter(),
+  kattis = adapter({ id: 'kattis', name: 'Kattis' }),
+  dmoj = adapter({ id: 'dmoj', name: 'DMOJ' })
+) {
+  return { codeforces, kattis, dmoj } as ProviderAdapters;
 }
 
 test('initializes from a valid route provider and defaults invalid routes', () => {
   assert.equal(providerFromUrl(new URL('https://gitgud.test/submit?provider=kattis')), 'kattis');
+  assert.equal(providerFromUrl(new URL('https://gitgud.test/submit?provider=dmoj')), 'dmoj');
   assert.equal(providerFromUrl(new URL('https://gitgud.test/submit?provider=unknown')), undefined);
   assert.equal(createSubmissionWorkflow(adapters(), 'kattis').getState().provider, 'kattis');
   assert.equal(createSubmissionWorkflow(adapters()).getState().provider, 'codeforces');

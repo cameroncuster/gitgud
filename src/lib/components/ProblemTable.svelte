@@ -10,6 +10,12 @@
   import TableFeedbackButtons from './TableFeedbackButtons.svelte';
   const codeforcesLogo = '/images/codeforces.png';
   const kattisLogo = '/images/kattis.png';
+  const dmojLogo = '/images/dmoj.svg';
+  const SOURCE_LOGOS: Record<Problem['source'], string> = {
+    codeforces: codeforcesLogo,
+    kattis: kattisLogo,
+    dmoj: dmojLogo
+  };
 
   export let problems: Problem[] = [];
   export let bodyId: string | undefined = undefined;
@@ -22,7 +28,7 @@
   export let difficultySortDirection: SortDirection = null;
   export let solvedFilterState: 'all' | 'solved' | 'unsolved' = 'all';
   export let authorFilterValue: string | null = null;
-  export let sourceFilterValue: 'all' | 'codeforces' | 'kattis' = 'all';
+  export let sourceFilterValue: 'all' | Problem['source'] = 'all';
   export let onLike: (problemId: string, isLike: boolean) => Promise<void>;
   export let onToggleSolved: (problemId: string, isSolved: boolean) => Promise<void>;
   export let onDifficultySort: () => void;
@@ -74,6 +80,8 @@
   function getDifficultyTooltip(problem: Problem): string {
     if (problem.source === 'kattis') {
       return `Kattis difficulty mapped from 1-10 scale to 800-3500 rating range`;
+    } else if (problem.source === 'dmoj') {
+      return `DMOJ scores problems in points, which are not comparable to the 800-3500 rating range`;
     } else {
       return `${getRatingTierName(problem.difficulty)}`;
     }
@@ -177,6 +185,15 @@
                   <img src={kattisLogo} alt="" class="h-5 w-5 object-contain" />
                   <div
                     class="absolute -right-1 -bottom-1 h-3 w-3 rounded border border-white bg-[#f2ae00]"
+                  ></div>
+                </div>
+              </span>
+            {:else if sourceFilterValue === 'dmoj'}
+              <span class="text-sm font-bold text-[#2e7d32]" aria-hidden="true">
+                <div class="relative">
+                  <img src={dmojLogo} alt="" class="h-5 w-5 object-contain" />
+                  <div
+                    class="absolute -right-1 -bottom-1 h-3 w-3 rounded border border-white bg-[#2e7d32]"
                   ></div>
                 </div>
               </span>
@@ -298,7 +315,7 @@
           <td class="p-2 text-center md:p-3">
             <span class="flex items-center justify-center">
               <img
-                src={problem.source === 'codeforces' ? codeforcesLogo : kattisLogo}
+                src={SOURCE_LOGOS[problem.source]}
                 alt={problem.source}
                 class="h-6 w-6 object-contain"
               />

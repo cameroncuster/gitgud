@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createCodeforcesSubmitAdapter } from '../src/lib/submit/providers/codeforces.ts';
+import { createDmojSubmitAdapter } from '../src/lib/submit/providers/dmoj.ts';
 import { createKattisSubmitAdapter } from '../src/lib/submit/providers/kattis.ts';
 import type {
   ContestDraft,
@@ -117,7 +118,7 @@ test('Codeforces adapter accepts a bare fetch function as its dependency', async
   assert.equal(resolved.valid ? '' : resolved.reason, 'Authentication required');
 });
 
-test('provider adapters delegate commits by item kind and reject impossible Kattis contests', async () => {
+test('provider adapters delegate commits by item kind and reject impossible problem-only contests', async () => {
   const calls: string[] = [];
   const store = persistence({
     insertProblem: async () => (calls.push('problem'), { success: true }),
@@ -147,7 +148,14 @@ test('provider adapters delegate commits by item kind and reject impossible Katt
     success: false,
     message: 'Failed to add entry'
   });
-  assert.deepEqual(calls, ['problem', 'contest', 'problem']);
+
+  const dmoj = createDmojSubmitAdapter(store);
+  await dmoj.commit(problem);
+  assert.deepEqual(await dmoj.commit(contest), {
+    success: false,
+    message: 'Failed to add entry'
+  });
+  assert.deepEqual(calls, ['problem', 'contest', 'problem', 'problem']);
 });
 
 test('Kattis adapter fetches encoded canonical URL and parses successful HTML', async () => {
@@ -186,5 +194,47 @@ test('Kattis adapter falls back safely on proxy JSON, HTTP, and transport errors
     assert.equal(resolved.valid, true);
     assert.equal(resolved.valid && resolved.payload.name, 'Hello');
     assert.equal(resolved.valid && resolved.payload.difficulty, undefined);
+  }
+});
+
+test('DMOJ adapter fetches encoded canonical URL and parses the API payload', async () => {
+  let requested = '';
+  const adapter = createDmojSubmitAdapter(persistence(), async (input) => {
+    requested = String(input);
+    return Response.json({
+      problem: { data: { object: { name: "CIW '26 P2", types: ['Simulation'] } } }
+    });
+  });
+  const [entry] = adapter.extract('https://dmoj.ca/problem/ciw26p2');
+  const resolved = await adapter.resolve(entry, 'alice');
+  assert.equal(resolved.valid, true);
+  assert.equal(resolved.valid && resolved.payload.name, "CIW '26 P2");
+  assert.deepEqual(resolved.valid && resolved.kind === 'problem' ? resolved.payload.tags : null, [
+    'Simulation'
+  ]);
+  assert.equal(resolved.valid && resolved.payload.difficulty, undefined);
+  assert.equal(requested, '/api/dmoj?url=https%3A%2F%2Fdmoj.ca%2Fproblem%2Fciw26p2');
+});
+
+test('DMOJ adapter falls back to the problem code on proxy, HTTP, and transport errors', async () => {
+  const responses: Array<typeof fetch> = [
+    async () => Response.json({ error: 'blocked' }, { status: 403 }),
+    async () => Response.json({}, { status: 500 }),
+    async () => new Response('not-json'),
+    async () => Response.json({}),
+    async () => {
+      throw new Error('offline');
+    }
+  ];
+  for (const fetchProblem of responses) {
+    const adapter = createDmojSubmitAdapter(persistence(), fetchProblem);
+    const [entry] = adapter.extract('https://dmoj.ca/problem/ciw26p2');
+    const resolved = await adapter.resolve(entry, '');
+    assert.equal(resolved.valid, true);
+    assert.equal(resolved.valid && resolved.payload.name, 'ciw26p2');
+    assert.deepEqual(
+      resolved.valid && resolved.kind === 'problem' ? resolved.payload.tags : null,
+      []
+    );
   }
 });

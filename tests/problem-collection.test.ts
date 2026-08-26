@@ -58,7 +58,7 @@ test('problem collection applies every current filter together', () => {
   const solvedProblemIds = new Set(['a', 'c']);
   const topics = [null, 'graph', 'misc', NEW_PROBLEM_TOPIC] as const;
   const solvedFilters = ['all', 'solved', 'unsolved'] as const;
-  const sourceFilters = ['all', 'codeforces', 'kattis'] as const;
+  const sourceFilters = ['all', 'codeforces', 'kattis', 'dmoj'] as const;
   const authors = [null, 'alice', 'bob'] as const;
 
   for (const selectedTopic of topics) {
@@ -139,6 +139,9 @@ test('problem solved and source filters cycle in the existing order', () => {
   assert.deepEqual(ids(collection), ['a', 'b']);
   collection = collection.cycleSourceFilter();
   assert.deepEqual(ids(collection), ['c', 'd']);
+  collection = collection.cycleSourceFilter();
+  assert.equal(collection.sourceFilter, 'dmoj');
+  assert.deepEqual(ids(collection), []);
   collection = collection.cycleSourceFilter();
   assert.equal(collection.sourceFilter, 'all');
 });

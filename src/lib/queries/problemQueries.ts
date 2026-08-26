@@ -13,7 +13,7 @@ export type Problem = {
   addedByUrl: string;
   likes: number;
   dislikes: number;
-  source: 'codeforces' | 'kattis';
+  source: 'codeforces' | 'kattis' | 'dmoj';
   type?: string;
 };
 
